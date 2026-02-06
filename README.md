@@ -32,8 +32,8 @@ pnpm uac generate --dry-run
 
 ```
 your-project/
-├── universal-ai-config.ts              # Shared config (committed)
-├── universal-ai-config.overrides.ts    # Personal overrides (gitignored)
+├── universal-ai-config.config.ts           # Shared config (committed)
+├── universal-ai-config.overrides.config.ts # Personal overrides (gitignored)
 └── .universal-ai-config/
     ├── instructions/          # Rules/instructions (markdown + EJS)
     │   ├── react-patterns.md
@@ -287,7 +287,7 @@ All templates have access to these variables:
 
 ## Configuration
 
-### Base config (`universal-ai-config.ts`) — committed
+### Base config (`universal-ai-config.config.ts`) — committed
 
 ```typescript
 import { defineConfig } from "universal-ai-config";
@@ -317,7 +317,7 @@ export default defineConfig({
 });
 ```
 
-### Overrides config (`universal-ai-config.overrides.ts`) — (ideally gitignored)
+### Overrides config (`universal-ai-config.overrides.config.ts`) — (ideally gitignored)
 
 ```typescript
 import { defineConfig } from "universal-ai-config";
@@ -363,7 +363,7 @@ Generate config files for specified targets.
 
 ### `uac init`
 
-Scaffold `.universal-ai-config/` directory with example templates. Creates a `universal-ai-config.ts` config file if one doesn't exist. Adds `universal-ai-config.overrides.*` to `.gitignore`.
+Scaffold `.universal-ai-config/` directory with example templates. Creates a `universal-ai-config.config.ts` config file if one doesn't exist. Adds `universal-ai-config.overrides.*` to `.gitignore`.
 
 | Flag     | Short | Description  | Default |
 | -------- | ----- | ------------ | ------- |

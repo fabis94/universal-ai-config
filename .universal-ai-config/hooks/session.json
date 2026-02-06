@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "echo 'Welcome! Here is your programming joke of the day:' && curl -s https://v2.jokeapi.dev/joke/Programming?type=single --max-time 3 | node -e \"process.stdin.on('data',d=>{try{console.log(JSON.parse(d).joke||'Why do programmers prefer dark mode? Because light attracts bugs!')}catch{console.log('Why do programmers prefer dark mode? Because light attracts bugs!')}})\"",
+        "timeout": 5
+      }
+    ]
+  }
+}

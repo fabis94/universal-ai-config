@@ -88,7 +88,7 @@ export default defineCommand({
     ];
 
     // Create config file if it doesn't exist
-    const configPath = join(root, "universal-ai-config.ts");
+    const configPath = join(root, "universal-ai-config.config.ts");
     try {
       await stat(configPath);
     } catch {
