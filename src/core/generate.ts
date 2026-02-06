@@ -3,6 +3,7 @@ import { join, basename, relative } from "node:path";
 import { consola } from "consola";
 import { loadProjectConfig } from "../config/loader.js";
 import { parseTemplate } from "./parser.js";
+import { resolveOverrides } from "./resolve-overrides.js";
 import { targets } from "../targets/index.js";
 import type { TemplateTypeConfig } from "../targets/define-target.js";
 import type {
@@ -137,7 +138,7 @@ function generateFileContent(frontmatter: Record<string, unknown>, body: string)
 async function discoverAndMergeHooks(
   root: string,
   config: ResolvedConfig,
-): Promise<Record<string, UniversalHookHandler[]> | null> {
+): Promise<Record<string, Record<string, unknown>[]> | null> {
   const hooksDir = join(root, config.templatesDir, "hooks");
   try {
     const stats = await stat(hooksDir);
@@ -150,12 +151,14 @@ async function discoverAndMergeHooks(
   const jsonFiles = entries.filter((e) => e.endsWith(".json"));
   if (jsonFiles.length === 0) return null;
 
-  const merged: Record<string, UniversalHookHandler[]> = {};
+  const merged: Record<string, Record<string, unknown>[]> = {};
 
   for (const file of jsonFiles) {
     const filePath = join(hooksDir, file);
     const content = await readFile(filePath, "utf-8");
-    const parsed = JSON.parse(content) as { hooks?: Record<string, UniversalHookHandler[]> };
+    const parsed = JSON.parse(content) as {
+      hooks?: Record<string, Record<string, unknown>[]>;
+    };
     if (!parsed.hooks) continue;
 
     for (const [event, handlers] of Object.entries(parsed.hooks)) {
@@ -167,6 +170,22 @@ async function discoverAndMergeHooks(
   }
 
   return Object.keys(merged).length > 0 ? merged : null;
+}
+
+function resolveHookHandlers(
+  hooks: Record<string, Record<string, unknown>[]>,
+  target: string,
+): Record<string, UniversalHookHandler[]> {
+  const result: Record<string, UniversalHookHandler[]> = {};
+  for (const [event, handlers] of Object.entries(hooks)) {
+    const resolved: UniversalHookHandler[] = [];
+    for (const handler of handlers) {
+      const r = resolveOverrides(handler, target);
+      if (r.command) resolved.push(r as unknown as UniversalHookHandler);
+    }
+    if (resolved.length > 0) result[event] = resolved;
+  }
+  return result;
 }
 
 async function generateHooksFiles(root: string, config: ResolvedConfig): Promise<GeneratedFile[]> {
@@ -184,7 +203,8 @@ async function generateHooksFiles(root: string, config: ResolvedConfig): Promise
     if (!targetDef.hooks) continue;
 
     const hooksConfig = targetDef.hooks;
-    const transformed = hooksConfig.transform(mergedHooks);
+    const resolvedHooks = resolveHookHandlers(mergedHooks, targetName);
+    const transformed = hooksConfig.transform(resolvedHooks);
     const outputDir = config.outputDirs[targetName as Target] ?? targetDef.outputDir;
     const fullOutputPath = join(outputDir, hooksConfig.outputPath);
 
@@ -246,8 +266,12 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
         config,
       });
 
-      const mappedFrontmatter = mapFrontmatter(parsed.frontmatter, typeConfig);
-      const outputPath = typeConfig.getOutputPath(template.name, parsed.frontmatter);
+      const resolvedFm = resolveOverrides(
+        parsed.frontmatter as Record<string, unknown>,
+        targetName,
+      ) as UniversalFrontmatter;
+      const mappedFrontmatter = mapFrontmatter(resolvedFm, typeConfig);
+      const outputPath = typeConfig.getOutputPath(template.name, resolvedFm);
       const outputDir = config.outputDirs[targetName as Target] ?? targetDef.outputDir;
       const fullOutputPath = join(outputDir, outputPath);
 

@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": {
+          "claude": ".hooks/claude-check.sh",
+          "copilot": ".hooks/copilot-check.sh",
+          "cursor": ".hooks/cursor-check.sh"
+        },
+        "matcher": {
+          "claude": "Bash",
+          "cursor": "Bash"
+        },
+        "timeout": {
+          "claude": 30,
+          "cursor": 60
+        }
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": {
+          "default": ".hooks/lint.sh",
+          "claude": ".hooks/claude-lint.sh",
+          "cursor": ".hooks/cursor-lint.sh"
+        },
+        "timeout": 45
+      }
+    ],
+    "sessionStart": [
+      {
+        "command": ".hooks/init.sh",
+        "timeout": 10
+      }
+    ]
+  }
+}

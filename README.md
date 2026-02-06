@@ -207,6 +207,73 @@ Use camelCase event names. The CLI maps them to each target's format and silentl
 
 Cursor-specific events (`beforeShellExecution`, `afterFileEdit`, etc.) can be used directly — they pass through to Cursor and are dropped for other targets.
 
+## Per-Target Overrides
+
+Any frontmatter field or hook handler field can accept per-target values instead of a single value. If a field's value is an object where **every key is a target name** (`claude`, `copilot`, `cursor`) or `default`, it's resolved to the matching target's value during generation. If the target isn't listed, the `default` value is used. If neither is present, the field is omitted.
+
+### Frontmatter
+
+```yaml
+---
+description:
+  claude: Use Claude Code conventions
+  copilot: Use Copilot conventions
+  cursor: Use Cursor conventions
+tools:
+  default: ["read", "grep", "glob"]
+  claude: ["Read", "Grep", "Glob"]
+model:
+  default: sonnet
+  claude: opus
+  copilot: gpt-4o
+permissionMode:
+  claude: acceptEdits
+---
+```
+
+When generating for Claude: `tools: ["Read", "Grep", "Glob"]`, `model: opus`, `permissionMode: acceptEdits`. For Copilot: `tools: ["read", "grep", "glob"]` (default), `model: gpt-4o`, `permissionMode` omitted. For Cursor: `tools: ["read", "grep", "glob"]` (default), `model: sonnet` (default), `permissionMode` omitted.
+
+You can mix per-target and plain values freely — plain values apply to all targets:
+
+```yaml
+---
+name: my-skill
+description:
+  claude: Claude-specific description
+  copilot: Copilot-specific description
+license: MIT
+---
+```
+
+### Hooks
+
+Hook handler fields (`command`, `matcher`, `timeout`, `description`) support the same syntax:
+
+```json
+{
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": {
+          "claude": ".hooks/claude-check.sh",
+          "copilot": ".hooks/copilot-check.sh",
+          "cursor": ".hooks/cursor-check.sh"
+        },
+        "matcher": {
+          "claude": "Bash",
+          "cursor": "Bash"
+        },
+        "timeout": 30
+      }
+    ]
+  }
+}
+```
+
+If `command` resolves to `undefined` for a target (i.e. that target isn't listed), the entire handler is skipped for that target.
+
+> **Note:** Objects with non-target keys (e.g. `metadata: { category: "devops" }`) are **not** treated as overrides — they pass through unchanged.
+
 ## EJS Template Variables
 
 All templates have access to these variables:

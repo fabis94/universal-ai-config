@@ -1,6 +1,9 @@
 export type Target = "claude" | "copilot" | "cursor";
 export type TemplateType = "instructions" | "skills" | "agents" | "hooks";
 
+/** A value that can be specified globally or per-target (with optional default fallback) */
+export type PerTargetValue<T> = T | (Partial<Record<Target, T>> & { default?: T });
+
 export interface UserConfig {
   templatesDir?: string;
   targets?: Target[];

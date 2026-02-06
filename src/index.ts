@@ -10,6 +10,7 @@ export type {
   UserConfig,
   UniversalFrontmatter,
   UniversalHookHandler,
+  PerTargetValue,
 } from "./types.js";
 export type {
   TargetDefinition,
