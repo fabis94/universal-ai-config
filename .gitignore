@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+universal-ai-config.overrides.*
+
+# Claude local/personal files
+.claude/*.local.*

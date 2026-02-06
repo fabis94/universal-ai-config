@@ -1,0 +1,66 @@
+{
+  "name": "universal-ai-config",
+  "version": "0.1.0",
+  "description": "Generate tool-specific AI config files from shared templates",
+  "type": "module",
+  "bin": {
+    "uac": "./dist/cli.mjs",
+    "universal-ai-config": "./dist/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:unused": "knip",
+    "check": "pnpm lint && pnpm format:check && pnpm check:unused && pnpm test"
+  },
+  "keywords": [
+    "ai",
+    "config",
+    "claude",
+    "copilot",
+    "cursor",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.27.0",
+  "dependencies": {
+    "c12": "4.0.0-beta.2",
+    "citty": "^0.2.0",
+    "consola": "^3.4.2",
+    "ejs": "^4.0.1",
+    "gray-matter": "^4.0.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/ejs": "^3.1.5",
+    "@types/node": "^25.2.1",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "knip": "^5.83.1",
+    "prettier": "^3.8.1",
+    "tsdown": "^0.20.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.54.0",
+    "vitest": "^4.0.18"
+  }
+}
