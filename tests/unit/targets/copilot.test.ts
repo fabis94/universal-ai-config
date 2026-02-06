@@ -34,6 +34,23 @@ describe("copilot target", () => {
     });
   });
 
+  describe("skills", () => {
+    const config = copilot.skills!;
+
+    it("maps name, description, compatibility, license, and metadata", () => {
+      expect(config.frontmatterMap.name).toBe("name");
+      expect(config.frontmatterMap.description).toBe("description");
+      expect(config.frontmatterMap.compatibility).toBe("compatibility");
+      expect(config.frontmatterMap.license).toBe("license");
+      expect(config.frontmatterMap.metadata).toBe("metadata");
+    });
+
+    it("generates correct output path", () => {
+      const fm: UniversalFrontmatter = {};
+      expect(config.getOutputPath("test-gen", fm)).toBe("skills/test-gen/SKILL.md");
+    });
+  });
+
   describe("agents", () => {
     const config = copilot.agents!;
 

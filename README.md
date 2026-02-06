@@ -1,0 +1,386 @@
+# universal-ai-config
+
+Generate tool-specific AI config files from shared templates. Write your AI instructions, skills, and agents once — generate config for Claude Code, GitHub Copilot, and Cursor automatically.
+
+## Why
+
+AI coding tools each have their own config formats stored in `.claude/`, `.github/`, `.cursor/`. Teams want shared AI config but each developer may use a different tool. This CLI generates target-specific config files from shared templates in `.universal-ai-config/`, so the tool-specific folders can be gitignored and each dev generates only what they need.
+
+## Install
+
+```bash
+pnpm add -D universal-ai-config
+```
+
+## Quick Start
+
+```bash
+# Scaffold template directory with examples
+pnpm uac init
+
+# Generate config for all targets
+pnpm uac generate
+
+# Generate for specific targets
+pnpm uac generate -t claude,cursor
+
+# Preview without writing files
+pnpm uac generate --dry-run
+```
+
+## Template Structure
+
+```
+your-project/
+├── universal-ai-config.ts              # Shared config (committed)
+├── universal-ai-config.overrides.ts    # Personal overrides (gitignored)
+└── .universal-ai-config/
+    ├── instructions/          # Rules/instructions (markdown + EJS)
+    │   ├── react-patterns.md
+    │   └── security.md
+    ├── skills/                # One folder per skill
+    │   └── test-generation/
+    │       └── SKILL.md
+    └── agents/                # Agent/subagent definitions
+        └── code-reviewer.md
+```
+
+## Writing Templates
+
+Templates are markdown files with YAML frontmatter. The body supports [EJS](https://ejs.co/) for conditional content per target.
+
+### Instructions
+
+```markdown
+---
+description: TypeScript specific rules
+globs: ["**/*.ts", "**/*.tsx"]
+---
+
+Use strict TypeScript. Prefer interfaces over type aliases for object shapes.
+```
+
+```markdown
+---
+description: Always applied coding standards
+alwaysApply: true
+---
+
+Follow the project's coding standards at all times.
+
+<% if (target === 'claude') { -%>
+Use the Read tool to check existing patterns before creating new code.
+<% } else { -%>
+Check existing patterns before creating new code.
+<% } -%>
+```
+
+#### Frontmatter Fields
+
+| Field          | Type                 | Description                                                      |
+| -------------- | -------------------- | ---------------------------------------------------------------- |
+| `description`  | `string`             | What this instruction does                                       |
+| `globs`        | `string \| string[]` | File patterns this applies to                                    |
+| `alwaysApply`  | `boolean`            | Apply to all files regardless of context                         |
+| `excludeAgent` | `string`             | Copilot-only: exclude from specific agent (e.g. `"code-review"`) |
+
+### Skills
+
+Skills live in subdirectories with a `SKILL.md` file:
+
+```markdown
+---
+name: test-generation
+description: Generate tests for code
+disableAutoInvocation: true
+userInvocable: /test
+---
+
+Generate comprehensive tests using vitest for the given code.
+```
+
+#### Frontmatter Fields
+
+| Field                   | Type                | Description                            |
+| ----------------------- | ------------------- | -------------------------------------- |
+| `name`                  | `string`            | Skill identifier                       |
+| `description`           | `string`            | What this skill does                   |
+| `disableAutoInvocation` | `boolean`           | Prevent automatic triggering           |
+| `userInvocable`         | `boolean \| string` | Slash command trigger (Claude only)    |
+| `allowedTools`          | `string[]`          | Tools this skill can use (Claude only) |
+| `model`                 | `string`            | Model to use (Claude only)             |
+| `subagentType`          | `string`            | Agent type (Claude only)               |
+| `forkContext`           | `boolean`           | Fork context (Claude only)             |
+| `argumentHint`          | `string`            | Hint for arguments (Claude only)       |
+| `license`               | `string`            | License info (Copilot/Cursor)          |
+| `compatibility`         | `string`            | Compatibility info (Copilot/Cursor)    |
+| `metadata`              | `object`            | Extra metadata (Copilot/Cursor)        |
+| `hooks`                 | `object`            | Hook definitions (Claude only)         |
+
+### Agents
+
+```markdown
+---
+name: code-reviewer
+description: Reviews code for quality
+model: sonnet
+tools: ["read", "grep", "glob"]
+---
+
+You are a code reviewer. Check for bugs and best practice violations.
+```
+
+#### Frontmatter Fields
+
+| Field             | Type       | Description                       |
+| ----------------- | ---------- | --------------------------------- |
+| `name`            | `string`   | Agent identifier                  |
+| `description`     | `string`   | What this agent does              |
+| `model`           | `string`   | Model to use                      |
+| `tools`           | `string[]` | Available tools                   |
+| `disallowedTools` | `string[]` | Blocked tools (Claude only)       |
+| `permissionMode`  | `string`   | Permission mode (Claude only)     |
+| `skills`          | `string[]` | Available skills (Claude only)    |
+| `hooks`           | `object`   | Hook definitions (Claude only)    |
+| `memory`          | `string`   | Memory scope (Claude only)        |
+| `target`          | `string`   | Target description (Copilot only) |
+| `mcpServers`      | `object`   | MCP server config (Copilot only)  |
+| `handoffs`        | `string[]` | Handoff targets (Copilot only)    |
+
+> **Note:** Cursor does not support agents. The CLI will warn and skip agent generation for the `cursor` target.
+
+## EJS Template Variables
+
+All templates have access to these variables:
+
+| Variable              | Type                                     | Description                             |
+| --------------------- | ---------------------------------------- | --------------------------------------- |
+| `target`              | `'claude' \| 'copilot' \| 'cursor'`      | Current output target                   |
+| `type`                | `'instructions' \| 'skills' \| 'agents'` | Template type being rendered            |
+| `config`              | `ResolvedConfig`                         | Full resolved config object             |
+| `...config.variables` | `Record<string, unknown>`                | Custom user variables spread into scope |
+
+## Configuration
+
+### Base config (`universal-ai-config.ts`) — committed
+
+```typescript
+import { defineConfig } from "universal-ai-config";
+
+export default defineConfig({
+  // Where templates live (default: '.universal-ai-config')
+  templatesDir: ".universal-ai-config",
+
+  // Which targets to generate (default: all three)
+  targets: ["claude", "copilot", "cursor"],
+
+  // Which types to generate (default: all)
+  types: ["instructions", "skills", "agents"],
+
+  // Custom EJS variables available in templates
+  variables: {
+    projectName: "my-app",
+    useStrictMode: true,
+  },
+
+  // Override default output directories
+  outputDirs: {
+    claude: ".claude",
+    copilot: ".github",
+    cursor: ".cursor",
+  },
+});
+```
+
+### Overrides config (`universal-ai-config.overrides.ts`) — (ideally gitignored)
+
+```typescript
+import { defineConfig } from "universal-ai-config";
+
+export default defineConfig({
+  // I only use Claude and Cursor
+  targets: ["claude", "cursor"],
+
+  // Extra variables for my local setup
+  variables: {
+    myPreferredStyle: "functional",
+  },
+});
+```
+
+### Merge Behavior
+
+- **Arrays** (`targets`, `types`): overrides **replace** entirely
+- **Objects** (`variables`, `outputDirs`): **deep-merged**
+- **Scalars** (`templatesDir`): overrides **replace**
+
+### Resolution Order (later wins)
+
+1. Built-in defaults
+2. `universal-ai-config.{ts,js,mjs,cjs}` (base)
+3. `universal-ai-config.overrides.{ts,js,mjs,cjs}` (personal)
+4. CLI flags (`--target`, `--type`, etc.)
+
+## CLI Reference
+
+### `uac generate`
+
+Generate config files for specified targets.
+
+| Flag        | Short | Description                 | Default         |
+| ----------- | ----- | --------------------------- | --------------- |
+| `--target`  | `-t`  | Comma-separated targets     | All from config |
+| `--type`    |       | Comma-separated types       | All from config |
+| `--config`  | `-c`  | Config file path            | Auto-detected   |
+| `--root`    | `-r`  | Project root                | cwd             |
+| `--dry-run` | `-d`  | Preview without writing     | `false`         |
+| `--clean`   |       | Remove existing files first | `false`         |
+
+### `uac init`
+
+Scaffold `.universal-ai-config/` directory with example templates. Creates a `universal-ai-config.ts` config file if one doesn't exist. Adds `universal-ai-config.overrides.*` to `.gitignore`.
+
+| Flag     | Short | Description  | Default |
+| -------- | ----- | ------------ | ------- |
+| `--root` | `-r`  | Project root | cwd     |
+
+### `uac clean`
+
+Remove all generated config directories.
+
+| Flag       | Short | Description                      | Default |
+| ---------- | ----- | -------------------------------- | ------- |
+| `--target` | `-t`  | Comma-separated targets to clean | All     |
+| `--root`   | `-r`  | Project root                     | cwd     |
+
+## Output Paths
+
+### Claude (`.claude/`)
+
+| Type         | Output Path                      |
+| ------------ | -------------------------------- |
+| Instructions | `.claude/rules/<name>.md`        |
+| Skills       | `.claude/skills/<name>/SKILL.md` |
+| Agents       | `.claude/agents/<name>.md`       |
+
+### Copilot (`.github/`)
+
+| Type                         | Output Path                                   |
+| ---------------------------- | --------------------------------------------- |
+| Instructions                 | `.github/instructions/<name>.instructions.md` |
+| Instructions (`alwaysApply`) | `.github/copilot-instructions.md`             |
+| Skills                       | `.github/skills/<name>/SKILL.md`              |
+| Agents                       | `.github/agents/<name>.agent.md`              |
+
+### Cursor (`.cursor/`)
+
+| Type         | Output Path                      |
+| ------------ | -------------------------------- |
+| Instructions | `.cursor/rules/<name>.mdc`       |
+| Skills       | `.cursor/skills/<name>/SKILL.md` |
+| Agents       | Not supported                    |
+
+## Frontmatter Mapping Reference
+
+<details>
+<summary>Instructions mapping</summary>
+
+| Universal      | Claude        | Copilot                             | Cursor              |
+| -------------- | ------------- | ----------------------------------- | ------------------- |
+| `description`  | `description` | `description`                       | `description`       |
+| `globs`        | `paths`       | `applyTo` (comma-joined)            | `globs`             |
+| `alwaysApply`  | omits `paths` | routes to `copilot-instructions.md` | `alwaysApply: true` |
+| `excludeAgent` | —             | `excludeAgent`                      | —                   |
+
+</details>
+
+<details>
+<summary>Skills mapping</summary>
+
+| Universal               | Claude                     | Copilot         | Cursor                     |
+| ----------------------- | -------------------------- | --------------- | -------------------------- |
+| `name`                  | `name`                     | `name`          | `name`                     |
+| `description`           | `description`              | `description`   | `description`              |
+| `disableAutoInvocation` | `disable-model-invocation` | —               | `disable-model-invocation` |
+| `userInvocable`         | `user-invocable`           | —               | —                          |
+| `allowedTools`          | `allowed-tools`            | —               | —                          |
+| `model`                 | `model`                    | —               | —                          |
+| `subagentType`          | `agent`                    | —               | —                          |
+| `forkContext`           | `context: fork`            | —               | —                          |
+| `argumentHint`          | `argument-hint`            | —               | —                          |
+| `license`               | —                          | `license`       | `license`                  |
+| `compatibility`         | —                          | `compatibility` | `compatibility`            |
+| `metadata`              | —                          | `metadata`      | `metadata`                 |
+| `hooks`                 | `hooks`                    | —               | —                          |
+
+</details>
+
+<details>
+<summary>Agents mapping</summary>
+
+| Universal         | Claude            | Copilot       |
+| ----------------- | ----------------- | ------------- |
+| `name`            | `name`            | `name`        |
+| `description`     | `description`     | `description` |
+| `model`           | `model`           | `model`       |
+| `tools`           | `tools`           | `tools`       |
+| `disallowedTools` | `disallowedTools` | —             |
+| `permissionMode`  | `permissionMode`  | —             |
+| `skills`          | `skills`          | —             |
+| `hooks`           | `hooks`           | —             |
+| `memory`          | `memory`          | —             |
+| `target`          | —                 | `target`      |
+| `mcpServers`      | —                 | `mcp-servers` |
+| `handoffs`        | —                 | `handoffs`    |
+
+</details>
+
+## Programmatic API
+
+```typescript
+import { generate, defineConfig } from "universal-ai-config";
+
+const files = await generate({
+  root: process.cwd(),
+  targets: ["claude"],
+  dryRun: true,
+});
+
+for (const file of files) {
+  console.log(file.path); // ".claude/rules/react-patterns.md"
+  console.log(file.content); // Rendered file content
+  console.log(file.target); // "claude"
+  console.log(file.type); // "instructions"
+}
+```
+
+## Adding a New Target
+
+Create a single file in `src/targets/` implementing `TargetDefinition`:
+
+```typescript
+import { defineTarget } from "../define-target.js";
+
+export default defineTarget({
+  name: "zed",
+  outputDir: ".zed",
+  supportedTypes: ["instructions"],
+  instructions: {
+    frontmatterMap: {
+      globs: "path",
+    },
+    getOutputPath: (name) => `prompts/${name}.md`,
+  },
+});
+```
+
+Then add one line to [src/targets/index.ts](src/targets/index.ts):
+
+```typescript
+import zed from "./zed/index.js";
+export const targets = { claude, copilot, cursor, zed };
+```
+
+## License
+
+MIT

@@ -32,7 +32,9 @@ export default defineTarget({
     frontmatterMap: {
       name: "name",
       description: "description",
+      compatibility: "compatibility",
       license: "license",
+      metadata: "metadata",
     },
     getOutputPath: (name) => `skills/${name}/SKILL.md`,
   },
