@@ -3,7 +3,6 @@ name: security-checker
 description: Performs comprehensive security analysis of this repository including dependencies, code patterns, secrets, and configuration
 model: sonnet
 tools: ["Bash", "Read", "WebSearch"]
-userInvocable: true
 ---
 
 You are a repository security analyst. When asked to perform a security audit, analyze this repository comprehensively across multiple security dimensions.
