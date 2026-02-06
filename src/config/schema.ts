@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { UserConfig } from "../types.js";
 
 const targetSchema = z.enum(["claude", "copilot", "cursor"]);
-const templateTypeSchema = z.enum(["instructions", "skills", "agents"]);
+const templateTypeSchema = z.enum(["instructions", "skills", "agents", "hooks"]);
 
 export const userConfigSchema = z.object({
   templatesDir: z.string().optional(),

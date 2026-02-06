@@ -148,4 +148,72 @@ describe("generate", () => {
       }),
     ).rejects.toThrow('Unknown target "nonexistent"');
   });
+
+  describe("hooks", () => {
+    it("generates claude hooks merged into settings.json format", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["hooks"],
+      });
+
+      const hooks = files.find((f) => f.type === "hooks" && f.target === "claude");
+      expect(hooks).toBeDefined();
+      expect(hooks!.path).toBe(".claude/settings.json");
+      expect(hooks!.mergeKey).toBe("hooks");
+
+      const parsed = JSON.parse(hooks!.content);
+      expect(parsed.hooks).toHaveProperty("PostToolUse");
+
+      // Should use Claude's nested matcher group structure
+      const postToolUse = parsed.hooks.PostToolUse;
+      expect(postToolUse[0].matcher).toBe("Write|Edit");
+      expect(postToolUse[0].hooks[0]).toEqual({
+        type: "command",
+        command: ".hooks/lint.sh",
+        timeout: 30,
+      });
+    });
+
+    it("generates cursor hooks with version field", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["cursor"],
+        types: ["hooks"],
+      });
+
+      const hooks = files.find((f) => f.type === "hooks" && f.target === "cursor");
+      expect(hooks).toBeDefined();
+      expect(hooks!.path).toBe(".cursor/hooks.json");
+
+      const parsed = JSON.parse(hooks!.content);
+      expect(parsed.version).toBe(1);
+      expect(parsed.hooks.postToolUse[0]).toEqual({
+        type: "command",
+        command: ".hooks/lint.sh",
+        matcher: "Write|Edit",
+        timeout: 30,
+      });
+    });
+
+    it("generates copilot hooks with bash field", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["copilot"],
+        types: ["hooks"],
+      });
+
+      const hooks = files.find((f) => f.type === "hooks" && f.target === "copilot");
+      expect(hooks).toBeDefined();
+      expect(hooks!.path).toBe(".github/hooks/hooks.json");
+
+      const parsed = JSON.parse(hooks!.content);
+      expect(parsed.version).toBe("1");
+      expect(parsed.hooks.postToolUse[0]).toEqual({
+        type: "command",
+        bash: ".hooks/lint.sh",
+        timeoutSec: 30,
+      });
+    });
+  });
 });

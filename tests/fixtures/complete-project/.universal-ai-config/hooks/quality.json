@@ -1,0 +1,22 @@
+{
+  "hooks": {
+    "postToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "command": ".hooks/lint.sh",
+        "timeout": 60
+      }
+    ],
+    "stop": [
+      {
+        "command": ".hooks/check-tests.sh",
+        "timeout": 120
+      }
+    ],
+    "userPromptSubmit": [
+      {
+        "command": ".hooks/validate-prompt.sh"
+      }
+    ]
+  }
+}

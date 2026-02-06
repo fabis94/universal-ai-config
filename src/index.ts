@@ -9,5 +9,10 @@ export type {
   TemplateType,
   UserConfig,
   UniversalFrontmatter,
+  UniversalHookHandler,
 } from "./types.js";
-export type { TargetDefinition, TemplateTypeConfig } from "./targets/define-target.js";
+export type {
+  TargetDefinition,
+  TemplateTypeConfig,
+  HooksTypeConfig,
+} from "./targets/define-target.js";

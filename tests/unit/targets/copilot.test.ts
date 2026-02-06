@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import copilot from "../../../src/targets/copilot/index.js";
-import type { UniversalFrontmatter } from "../../../src/types.js";
+import type { UniversalFrontmatter, UniversalHookHandler } from "../../../src/types.js";
 
 describe("copilot target", () => {
   it("has correct name and output dir", () => {
@@ -61,6 +61,61 @@ describe("copilot target", () => {
     it("generates correct output path with .agent.md extension", () => {
       const fm: UniversalFrontmatter = {};
       expect(config.getOutputPath("reviewer", fm)).toBe("agents/reviewer.agent.md");
+    });
+  });
+
+  describe("hooks", () => {
+    const config = copilot.hooks!;
+
+    it("has correct output path and no merge key", () => {
+      expect(config.outputPath).toBe("hooks/hooks.json");
+      expect(config.mergeKey).toBeUndefined();
+    });
+
+    it("maps command to bash field", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        preToolUse: [{ command: "test.sh", timeout: 30 }],
+      };
+      const result = config.transform(hooks) as {
+        version: string;
+        hooks: Record<string, unknown[]>;
+      };
+      expect(result.version).toBe("1");
+      expect(result.hooks.preToolUse[0]).toEqual({
+        type: "command",
+        bash: "test.sh",
+        timeoutSec: 30,
+      });
+    });
+
+    it("maps userPromptSubmit to userPromptSubmitted", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        userPromptSubmit: [{ command: "validate.sh" }],
+      };
+      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      expect(result.hooks).toHaveProperty("userPromptSubmitted");
+      expect(result.hooks).not.toHaveProperty("userPromptSubmit");
+    });
+
+    it("drops unsupported events", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        preToolUse: [{ command: "test.sh" }],
+        stop: [{ command: "stop.sh" }],
+        subagentStart: [{ command: "agent.sh" }],
+      };
+      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      expect(result.hooks).toHaveProperty("preToolUse");
+      expect(result.hooks).not.toHaveProperty("stop");
+      expect(result.hooks).not.toHaveProperty("subagentStart");
+    });
+
+    it("drops matcher field", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        preToolUse: [{ matcher: "Bash", command: "test.sh" }],
+      };
+      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const handler = result.hooks.preToolUse[0] as Record<string, unknown>;
+      expect(handler).not.toHaveProperty("matcher");
     });
   });
 });

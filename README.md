@@ -1,6 +1,6 @@
 # universal-ai-config
 
-Generate tool-specific AI config files from shared templates. Write your AI instructions, skills, and agents once — generate config for Claude Code, GitHub Copilot, and Cursor automatically.
+Generate tool-specific AI config files from shared templates. Write your AI instructions, skills, agents, and hooks once — generate config for Claude Code, GitHub Copilot, and Cursor automatically.
 
 ## Why
 
@@ -41,8 +41,11 @@ your-project/
     ├── skills/                # One folder per skill
     │   └── test-generation/
     │       └── SKILL.md
-    └── agents/                # Agent/subagent definitions
-        └── code-reviewer.md
+    ├── agents/                # Agent/subagent definitions
+    │   └── code-reviewer.md
+    └── hooks/                 # Hook configs (JSON, no templating)
+        ├── security.json
+        └── quality.json
 ```
 
 ## Writing Templates
@@ -149,16 +152,71 @@ You are a code reviewer. Check for bugs and best practice violations.
 
 > **Note:** Cursor does not support agents. The CLI will warn and skip agent generation for the `cursor` target.
 
+### Hooks
+
+Hooks are JSON files that define automated scripts running at lifecycle events (pre-tool-use, session start, etc.). Unlike other template types, hooks use pure JSON with no EJS templating. Multiple `.json` files in the `hooks/` directory are deep-merged by event name.
+
+```json
+{
+  "hooks": {
+    "preToolUse": [
+      {
+        "matcher": "Bash",
+        "command": ".hooks/block-rm.sh",
+        "timeout": 30
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": ".hooks/lint.sh",
+        "timeout": 60
+      }
+    ]
+  }
+}
+```
+
+#### Handler Fields
+
+| Field         | Type     | Required | Description                             |
+| ------------- | -------- | -------- | --------------------------------------- |
+| `command`     | `string` | yes      | Shell command or script path            |
+| `matcher`     | `string` | no       | Regex pattern to filter when hook fires |
+| `timeout`     | `number` | no       | Timeout in seconds                      |
+| `description` | `string` | no       | Human-readable description              |
+
+#### Universal Event Names
+
+Use camelCase event names. The CLI maps them to each target's format and silently drops unsupported events.
+
+| Universal            | Claude               | Cursor               | Copilot               |
+| -------------------- | -------------------- | -------------------- | --------------------- |
+| `sessionStart`       | `SessionStart`       | `sessionStart`       | `sessionStart`        |
+| `sessionEnd`         | `SessionEnd`         | `sessionEnd`         | `sessionEnd`          |
+| `userPromptSubmit`   | `UserPromptSubmit`   | `beforeSubmitPrompt` | `userPromptSubmitted` |
+| `preToolUse`         | `PreToolUse`         | `preToolUse`         | `preToolUse`          |
+| `postToolUse`        | `PostToolUse`        | `postToolUse`        | `postToolUse`         |
+| `postToolUseFailure` | `PostToolUseFailure` | `postToolUseFailure` | —                     |
+| `stop`               | `Stop`               | `stop`               | —                     |
+| `subagentStart`      | `SubagentStart`      | `subagentStart`      | —                     |
+| `subagentStop`       | `SubagentStop`       | `subagentStop`       | —                     |
+| `preCompact`         | `PreCompact`         | `preCompact`         | —                     |
+| `permissionRequest`  | `PermissionRequest`  | —                    | —                     |
+| `notification`       | `Notification`       | —                    | —                     |
+| `errorOccurred`      | —                    | —                    | `errorOccurred`       |
+
+Cursor-specific events (`beforeShellExecution`, `afterFileEdit`, etc.) can be used directly — they pass through to Cursor and are dropped for other targets.
+
 ## EJS Template Variables
 
 All templates have access to these variables:
 
-| Variable              | Type                                     | Description                             |
-| --------------------- | ---------------------------------------- | --------------------------------------- |
-| `target`              | `'claude' \| 'copilot' \| 'cursor'`      | Current output target                   |
-| `type`                | `'instructions' \| 'skills' \| 'agents'` | Template type being rendered            |
-| `config`              | `ResolvedConfig`                         | Full resolved config object             |
-| `...config.variables` | `Record<string, unknown>`                | Custom user variables spread into scope |
+| Variable              | Type                                     | Description                                        |
+| --------------------- | ---------------------------------------- | -------------------------------------------------- |
+| `target`              | `'claude' \| 'copilot' \| 'cursor'`      | Current output target                              |
+| `type`                | `'instructions' \| 'skills' \| 'agents'` | Template type being rendered (hooks don't use EJS) |
+| `config`              | `ResolvedConfig`                         | Full resolved config object                        |
+| `...config.variables` | `Record<string, unknown>`                | Custom user variables spread into scope            |
 
 ## Configuration
 
@@ -175,7 +233,7 @@ export default defineConfig({
   targets: ["claude", "copilot", "cursor"],
 
   // Which types to generate (default: all)
-  types: ["instructions", "skills", "agents"],
+  types: ["instructions", "skills", "agents", "hooks"],
 
   // Custom EJS variables available in templates
   variables: {
@@ -257,11 +315,12 @@ Remove all generated config directories.
 
 ### Claude (`.claude/`)
 
-| Type         | Output Path                      |
-| ------------ | -------------------------------- |
-| Instructions | `.claude/rules/<name>.md`        |
-| Skills       | `.claude/skills/<name>/SKILL.md` |
-| Agents       | `.claude/agents/<name>.md`       |
+| Type         | Output Path                                       |
+| ------------ | ------------------------------------------------- |
+| Instructions | `.claude/rules/<name>.md`                         |
+| Skills       | `.claude/skills/<name>/SKILL.md`                  |
+| Agents       | `.claude/agents/<name>.md`                        |
+| Hooks        | `.claude/settings.json` (merged into `hooks` key) |
 
 ### Copilot (`.github/`)
 
@@ -271,6 +330,7 @@ Remove all generated config directories.
 | Instructions (`alwaysApply`) | `.github/copilot-instructions.md`             |
 | Skills                       | `.github/skills/<name>/SKILL.md`              |
 | Agents                       | `.github/agents/<name>.agent.md`              |
+| Hooks                        | `.github/hooks/hooks.json`                    |
 
 ### Cursor (`.cursor/`)
 
@@ -279,6 +339,7 @@ Remove all generated config directories.
 | Instructions | `.cursor/rules/<name>.mdc`       |
 | Skills       | `.cursor/skills/<name>/SKILL.md` |
 | Agents       | Not supported                    |
+| Hooks        | `.cursor/hooks.json`             |
 
 ## Frontmatter Mapping Reference
 
@@ -332,6 +393,22 @@ Remove all generated config directories.
 | `target`          | —                 | `target`      |
 | `mcpServers`      | —                 | `mcp-servers` |
 | `handoffs`        | —                 | `handoffs`    |
+
+</details>
+
+<details>
+<summary>Hooks mapping</summary>
+
+| Aspect            | Claude                              | Copilot                    | Cursor                    |
+| ----------------- | ----------------------------------- | -------------------------- | ------------------------- |
+| Output file       | `.claude/settings.json`             | `.github/hooks/hooks.json` | `.cursor/hooks.json`      |
+| Merge behavior    | Merges into `hooks` key             | Standalone file            | Standalone file           |
+| Event names       | PascalCase                          | camelCase (some renamed)   | camelCase (some renamed)  |
+| `command` field   | `command`                           | `bash`                     | `command`                 |
+| `timeout` field   | `timeout`                           | `timeoutSec`               | `timeout`                 |
+| `matcher` support | Yes (groups handlers)               | Dropped                    | Yes (flat)                |
+| Handler structure | Nested: `{ matcher, hooks: [...] }` | Flat: `{ type, bash }`     | Flat: `{ type, command }` |
+| Version wrapper   | None                                | `"1"` (string)             | `1` (number)              |
 
 </details>
 

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "preToolUse": [
+      {
+        "matcher": "Bash",
+        "command": ".hooks/block-rm.sh",
+        "timeout": 30
+      }
+    ],
+    "sessionStart": [
+      {
+        "command": ".hooks/load-env.sh"
+      }
+    ]
+  }
+}

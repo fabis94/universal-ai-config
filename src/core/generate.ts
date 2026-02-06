@@ -12,6 +12,7 @@ import type {
   Target,
   TemplateType,
   UniversalFrontmatter,
+  UniversalHookHandler,
 } from "../types.js";
 
 interface DiscoveredTemplate {
@@ -72,6 +73,9 @@ async function discoverTemplates(
   const templates: DiscoveredTemplate[] = [];
 
   for (const type of config.types) {
+    // Hooks are handled separately — they use JSON, not markdown templates
+    if (type === "hooks") continue;
+
     const typeDir = join(templatesDir, type);
     try {
       const stats = await stat(typeDir);
@@ -130,6 +134,73 @@ function generateFileContent(frontmatter: Record<string, unknown>, body: string)
   return `---\n${fmString}\n---\n${body}`;
 }
 
+async function discoverAndMergeHooks(
+  root: string,
+  config: ResolvedConfig,
+): Promise<Record<string, UniversalHookHandler[]> | null> {
+  const hooksDir = join(root, config.templatesDir, "hooks");
+  try {
+    const stats = await stat(hooksDir);
+    if (!stats.isDirectory()) return null;
+  } catch {
+    return null;
+  }
+
+  const entries = await readdir(hooksDir);
+  const jsonFiles = entries.filter((e) => e.endsWith(".json"));
+  if (jsonFiles.length === 0) return null;
+
+  const merged: Record<string, UniversalHookHandler[]> = {};
+
+  for (const file of jsonFiles) {
+    const filePath = join(hooksDir, file);
+    const content = await readFile(filePath, "utf-8");
+    const parsed = JSON.parse(content) as { hooks?: Record<string, UniversalHookHandler[]> };
+    if (!parsed.hooks) continue;
+
+    for (const [event, handlers] of Object.entries(parsed.hooks)) {
+      if (!merged[event]) {
+        merged[event] = [];
+      }
+      merged[event].push(...handlers);
+    }
+  }
+
+  return Object.keys(merged).length > 0 ? merged : null;
+}
+
+async function generateHooksFiles(root: string, config: ResolvedConfig): Promise<GeneratedFile[]> {
+  const mergedHooks = await discoverAndMergeHooks(root, config);
+  if (!mergedHooks) return [];
+
+  const generatedFiles: GeneratedFile[] = [];
+  const hooksRelativePath = join(config.templatesDir, "hooks");
+
+  for (const targetName of config.targets) {
+    const targetDef = targets[targetName];
+    if (!targetDef) continue;
+
+    if (!targetDef.supportedTypes.includes("hooks")) continue;
+    if (!targetDef.hooks) continue;
+
+    const hooksConfig = targetDef.hooks;
+    const transformed = hooksConfig.transform(mergedHooks);
+    const outputDir = config.outputDirs[targetName as Target] ?? targetDef.outputDir;
+    const fullOutputPath = join(outputDir, hooksConfig.outputPath);
+
+    generatedFiles.push({
+      path: fullOutputPath,
+      content: JSON.stringify(transformed, null, 2) + "\n",
+      target: targetName as Target,
+      type: "hooks",
+      sourcePath: hooksRelativePath,
+      mergeKey: hooksConfig.mergeKey,
+    });
+  }
+
+  return generatedFiles;
+}
+
 export async function generate(options: GenerateOptions = {}): Promise<GeneratedFile[]> {
   const root = options.root ?? process.cwd();
 
@@ -166,7 +237,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
         continue;
       }
 
-      const typeConfig = targetDef[template.type];
+      const typeConfig = targetDef[template.type] as TemplateTypeConfig | undefined;
       if (!typeConfig) continue;
 
       const parsed = parseTemplate(content, {
@@ -190,6 +261,12 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
         sourcePath: template.relativePath,
       });
     }
+  }
+
+  // Generate hooks files (separate pipeline — JSON, not markdown)
+  if (config.types.includes("hooks")) {
+    const hooksFiles = await generateHooksFiles(root, config);
+    generatedFiles.push(...hooksFiles);
   }
 
   return generatedFiles;

@@ -1,5 +1,5 @@
 export type Target = "claude" | "copilot" | "cursor";
-export type TemplateType = "instructions" | "skills" | "agents";
+export type TemplateType = "instructions" | "skills" | "agents" | "hooks";
 
 export interface UserConfig {
   templatesDir?: string;
@@ -23,6 +23,15 @@ export interface GeneratedFile {
   target: Target;
   type: TemplateType;
   sourcePath: string;
+  /** If set, merge content into this key of the existing file instead of overwriting */
+  mergeKey?: string;
+}
+
+export interface UniversalHookHandler {
+  command: string;
+  matcher?: string;
+  timeout?: number;
+  description?: string;
 }
 
 export interface GenerateOptions {

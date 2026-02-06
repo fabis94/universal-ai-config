@@ -1,4 +1,4 @@
-import { mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { consola } from "consola";
 import { targets } from "../targets/index.js";
@@ -6,16 +6,58 @@ import type { GeneratedFile, Target } from "../types.js";
 
 const CLEAN_PATHS: Record<string, string[]> = {
   claude: ["rules", "skills", "agents"],
-  copilot: ["copilot-instructions.md", "instructions", "agents", "skills"],
-  cursor: ["rules", "skills"],
+  copilot: ["copilot-instructions.md", "instructions", "agents", "skills", "hooks"],
+  cursor: ["rules", "skills", "hooks.json"],
 };
+
+async function mergeJsonKey(fullPath: string, content: string, mergeKey: string): Promise<string> {
+  const newData = JSON.parse(content) as Record<string, unknown>;
+  const mergeValue = newData[mergeKey];
+
+  let existing: Record<string, unknown> = {};
+  try {
+    const existingContent = await readFile(fullPath, "utf-8");
+    existing = JSON.parse(existingContent) as Record<string, unknown>;
+  } catch {
+    // File doesn't exist yet, start fresh
+  }
+
+  existing[mergeKey] = mergeValue;
+  return JSON.stringify(existing, null, 2) + "\n";
+}
 
 export async function writeGeneratedFiles(files: GeneratedFile[], root: string): Promise<void> {
   for (const file of files) {
     const fullPath = join(root, file.path);
     await mkdir(dirname(fullPath), { recursive: true });
-    await writeFile(fullPath, file.content, "utf-8");
+
+    if (file.mergeKey) {
+      const merged = await mergeJsonKey(fullPath, file.content, file.mergeKey);
+      await writeFile(fullPath, merged, "utf-8");
+    } else {
+      await writeFile(fullPath, file.content, "utf-8");
+    }
+
     consola.success(`Generated ${file.path}`);
+  }
+}
+
+async function cleanClaudeHooks(root: string, outputDir: string): Promise<void> {
+  const settingsPath = join(root, outputDir, "settings.json");
+  try {
+    const content = await readFile(settingsPath, "utf-8");
+    const settings = JSON.parse(content) as Record<string, unknown>;
+    if ("hooks" in settings) {
+      delete settings.hooks;
+      if (Object.keys(settings).length === 0) {
+        await rm(settingsPath, { force: true });
+      } else {
+        await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
+      }
+      consola.info(`Cleaned hooks from ${join(outputDir, "settings.json")}`);
+    }
+  } catch {
+    // File doesn't exist, nothing to clean
   }
 }
 
@@ -38,6 +80,11 @@ export async function cleanTargetFiles(root: string, targetNames?: Target[]): Pr
       } catch {
         // Path doesn't exist, that's fine
       }
+    }
+
+    // Claude hooks are merged into settings.json — need special handling
+    if (targetName === "claude") {
+      await cleanClaudeHooks(root, outputDir);
     }
   }
 }

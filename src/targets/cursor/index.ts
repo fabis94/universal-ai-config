@@ -1,9 +1,58 @@
 import { defineTarget } from "../define-target.js";
+import type { UniversalHookHandler } from "../../types.js";
+
+// Cursor uses camelCase but with some different event names
+const EVENT_NAME_MAP: Record<string, string> = {
+  sessionStart: "sessionStart",
+  sessionEnd: "sessionEnd",
+  userPromptSubmit: "beforeSubmitPrompt",
+  preToolUse: "preToolUse",
+  postToolUse: "postToolUse",
+  postToolUseFailure: "postToolUseFailure",
+  stop: "stop",
+  subagentStart: "subagentStart",
+  subagentStop: "subagentStop",
+  preCompact: "preCompact",
+  // Cursor-specific events pass through as-is
+  beforeShellExecution: "beforeShellExecution",
+  afterShellExecution: "afterShellExecution",
+  beforeMCPExecution: "beforeMCPExecution",
+  afterMCPExecution: "afterMCPExecution",
+  beforeReadFile: "beforeReadFile",
+  afterFileEdit: "afterFileEdit",
+  afterAgentResponse: "afterAgentResponse",
+  afterAgentThought: "afterAgentThought",
+  beforeTabFileRead: "beforeTabFileRead",
+  afterTabFileEdit: "afterTabFileEdit",
+};
+
+function transformCursorHooks(
+  hooks: Record<string, UniversalHookHandler[]>,
+): Record<string, unknown> {
+  const result: Record<string, unknown[]> = {};
+
+  for (const [event, handlers] of Object.entries(hooks)) {
+    const cursorEvent = EVENT_NAME_MAP[event];
+    if (!cursorEvent) continue;
+
+    result[cursorEvent] = handlers.map((h) => {
+      const entry: Record<string, unknown> = {
+        type: "command",
+        command: h.command,
+      };
+      if (h.matcher) entry.matcher = h.matcher;
+      if (h.timeout !== undefined) entry.timeout = h.timeout;
+      return entry;
+    });
+  }
+
+  return { version: 1, hooks: result };
+}
 
 export default defineTarget({
   name: "cursor",
   outputDir: ".cursor",
-  supportedTypes: ["instructions", "skills"],
+  supportedTypes: ["instructions", "skills", "hooks"],
 
   instructions: {
     frontmatterMap: {
@@ -27,4 +76,9 @@ export default defineTarget({
   },
 
   // agents: not supported — cursor has no agent files
+
+  hooks: {
+    transform: transformCursorHooks,
+    outputPath: "hooks.json",
+  },
 });

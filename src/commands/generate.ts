@@ -17,7 +17,7 @@ export default defineCommand({
     },
     type: {
       type: "string",
-      description: "Comma-separated types: instructions,skills,agents",
+      description: "Comma-separated types: instructions,skills,agents,hooks",
     },
     config: {
       type: "string",

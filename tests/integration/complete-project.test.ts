@@ -244,4 +244,115 @@ describe("complete-project (all frontmatter fields)", () => {
       expect(cursorAgents).toHaveLength(0);
     });
   });
+
+  describe("hooks", () => {
+    it("merges multiple JSON files and generates for all targets", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude", "copilot", "cursor"],
+        types: ["hooks"],
+      });
+
+      expect(files.filter((f) => f.type === "hooks")).toHaveLength(3);
+    });
+
+    it("claude: PascalCase events, nested matcher groups, merged into settings.json", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["hooks"],
+      });
+
+      const hooks = files.find((f) => f.type === "hooks");
+      expect(hooks).toBeDefined();
+      expect(hooks!.path).toBe(".claude/settings.json");
+      expect(hooks!.mergeKey).toBe("hooks");
+
+      const parsed = JSON.parse(hooks!.content);
+      const h = parsed.hooks;
+
+      // From security.json
+      expect(h).toHaveProperty("PreToolUse");
+      expect(h).toHaveProperty("SessionStart");
+      // From quality.json
+      expect(h).toHaveProperty("PostToolUse");
+      expect(h).toHaveProperty("Stop");
+      expect(h).toHaveProperty("UserPromptSubmit");
+
+      // Verify nested structure
+      const preToolUse = h.PreToolUse[0];
+      expect(preToolUse.matcher).toBe("Bash");
+      expect(preToolUse.hooks[0].type).toBe("command");
+      expect(preToolUse.hooks[0].command).toBe(".hooks/block-rm.sh");
+      expect(preToolUse.hooks[0].timeout).toBe(30);
+
+      // SessionStart has no matcher
+      const sessionStart = h.SessionStart[0];
+      expect(sessionStart.matcher).toBeUndefined();
+      expect(sessionStart.hooks[0].command).toBe(".hooks/load-env.sh");
+    });
+
+    it("copilot: maps events, uses bash field, drops unsupported events", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["copilot"],
+        types: ["hooks"],
+      });
+
+      const hooks = files.find((f) => f.type === "hooks");
+      expect(hooks).toBeDefined();
+      expect(hooks!.path).toBe(".github/hooks/hooks.json");
+
+      const parsed = JSON.parse(hooks!.content);
+      expect(parsed.version).toBe("1");
+
+      const h = parsed.hooks;
+      // Copilot supports preToolUse, postToolUse, sessionStart
+      expect(h).toHaveProperty("preToolUse");
+      expect(h).toHaveProperty("postToolUse");
+      expect(h).toHaveProperty("sessionStart");
+      // Copilot maps userPromptSubmit → userPromptSubmitted
+      expect(h).toHaveProperty("userPromptSubmitted");
+      expect(h).not.toHaveProperty("userPromptSubmit");
+      // Copilot does NOT support stop
+      expect(h).not.toHaveProperty("stop");
+
+      // Verify bash field
+      expect(h.preToolUse[0].bash).toBe(".hooks/block-rm.sh");
+      expect(h.preToolUse[0].timeoutSec).toBe(30);
+      expect(h.preToolUse[0]).not.toHaveProperty("matcher");
+    });
+
+    it("cursor: camelCase events, flat handlers, version 1", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["cursor"],
+        types: ["hooks"],
+      });
+
+      const hooks = files.find((f) => f.type === "hooks");
+      expect(hooks).toBeDefined();
+      expect(hooks!.path).toBe(".cursor/hooks.json");
+
+      const parsed = JSON.parse(hooks!.content);
+      expect(parsed.version).toBe(1);
+
+      const h = parsed.hooks;
+      expect(h).toHaveProperty("preToolUse");
+      expect(h).toHaveProperty("postToolUse");
+      expect(h).toHaveProperty("sessionStart");
+      expect(h).toHaveProperty("stop");
+      // Cursor maps userPromptSubmit → beforeSubmitPrompt
+      expect(h).toHaveProperty("beforeSubmitPrompt");
+      expect(h).not.toHaveProperty("userPromptSubmit");
+
+      // Verify flat handler structure with matcher
+      expect(h.preToolUse[0]).toEqual({
+        type: "command",
+        command: ".hooks/block-rm.sh",
+        matcher: "Bash",
+        timeout: 30,
+      });
+    });
+  });
 });

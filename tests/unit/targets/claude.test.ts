@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import claude from "../../../src/targets/claude/index.js";
-import type { UniversalFrontmatter } from "../../../src/types.js";
+import type { UniversalFrontmatter, UniversalHookHandler } from "../../../src/types.js";
 
 describe("claude target", () => {
   it("has correct name and output dir", () => {
@@ -8,8 +8,8 @@ describe("claude target", () => {
     expect(claude.outputDir).toBe(".claude");
   });
 
-  it("supports all three types", () => {
-    expect(claude.supportedTypes).toEqual(["instructions", "skills", "agents"]);
+  it("supports all four types", () => {
+    expect(claude.supportedTypes).toEqual(["instructions", "skills", "agents", "hooks"]);
   });
 
   describe("instructions", () => {
@@ -71,6 +71,62 @@ describe("claude target", () => {
     it("generates correct output path", () => {
       const fm: UniversalFrontmatter = {};
       expect(config.getOutputPath("reviewer", fm)).toBe("agents/reviewer.md");
+    });
+  });
+
+  describe("hooks", () => {
+    const config = claude.hooks!;
+
+    it("has correct output path and merge key", () => {
+      expect(config.outputPath).toBe("settings.json");
+      expect(config.mergeKey).toBe("hooks");
+    });
+
+    it("converts event names to PascalCase", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        preToolUse: [{ command: "test.sh" }],
+        sessionStart: [{ command: "init.sh" }],
+      };
+      const result = config.transform(hooks) as { hooks: Record<string, unknown> };
+      expect(result.hooks).toHaveProperty("PreToolUse");
+      expect(result.hooks).toHaveProperty("SessionStart");
+      expect(result.hooks).not.toHaveProperty("preToolUse");
+    });
+
+    it("groups handlers by matcher into nested structure", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        preToolUse: [
+          { matcher: "Bash", command: "check-bash.sh", timeout: 30 },
+          { matcher: "Bash", command: "log-bash.sh" },
+          { command: "global-check.sh" },
+        ],
+      };
+      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const groups = result.hooks.PreToolUse as Array<{ matcher?: string; hooks: unknown[] }>;
+      expect(groups).toHaveLength(2);
+
+      const bashGroup = groups.find((g) => g.matcher === "Bash");
+      expect(bashGroup).toBeDefined();
+      expect(bashGroup!.hooks).toHaveLength(2);
+      expect(bashGroup!.hooks[0]).toEqual({
+        type: "command",
+        command: "check-bash.sh",
+        timeout: 30,
+      });
+
+      const globalGroup = groups.find((g) => !g.matcher);
+      expect(globalGroup).toBeDefined();
+      expect(globalGroup!.hooks).toHaveLength(1);
+    });
+
+    it("drops unsupported events", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        preToolUse: [{ command: "test.sh" }],
+        errorOccurred: [{ command: "error.sh" }],
+      };
+      const result = config.transform(hooks) as { hooks: Record<string, unknown> };
+      expect(result.hooks).toHaveProperty("PreToolUse");
+      expect(result.hooks).not.toHaveProperty("errorOccurred");
     });
   });
 });

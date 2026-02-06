@@ -28,6 +28,21 @@ You are a code reviewer. Analyze the code for:
 - Best practice violations
 `;
 
+const EXAMPLE_HOOKS = JSON.stringify(
+  {
+    hooks: {
+      postToolUse: [
+        {
+          matcher: "Write|Edit",
+          command: "echo 'File was modified'",
+        },
+      ],
+    },
+  },
+  null,
+  2,
+);
+
 const EXAMPLE_CONFIG = `import { defineConfig } from "universal-ai-config";
 
 export default defineConfig({
@@ -58,6 +73,7 @@ export default defineCommand({
       join(baseDir, "instructions"),
       join(baseDir, "skills", "test-generation"),
       join(baseDir, "agents"),
+      join(baseDir, "hooks"),
     ];
 
     for (const dir of dirs) {
@@ -68,6 +84,7 @@ export default defineCommand({
       [join(baseDir, "instructions", "example.md"), EXAMPLE_INSTRUCTION],
       [join(baseDir, "skills", "test-generation", "SKILL.md"), EXAMPLE_SKILL],
       [join(baseDir, "agents", "code-reviewer.md"), EXAMPLE_AGENT],
+      [join(baseDir, "hooks", "example.json"), EXAMPLE_HOOKS],
     ];
 
     // Create config file if it doesn't exist

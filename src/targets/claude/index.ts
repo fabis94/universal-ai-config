@@ -1,9 +1,69 @@
 import { defineTarget } from "../define-target.js";
+import type { UniversalHookHandler } from "../../types.js";
+
+// Claude uses PascalCase event names
+const EVENT_NAME_MAP: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  userPromptSubmit: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  stop: "Stop",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
+  permissionRequest: "PermissionRequest",
+  notification: "Notification",
+};
+
+function transformClaudeHooks(
+  hooks: Record<string, UniversalHookHandler[]>,
+): Record<string, unknown> {
+  const result: Record<string, unknown[]> = {};
+
+  for (const [event, handlers] of Object.entries(hooks)) {
+    const claudeEvent = EVENT_NAME_MAP[event];
+    if (!claudeEvent) continue;
+
+    // Group handlers by matcher
+    const groups = new Map<string, UniversalHookHandler[]>();
+    for (const handler of handlers) {
+      const key = handler.matcher ?? "";
+      const existing = groups.get(key);
+      if (existing) {
+        existing.push(handler);
+      } else {
+        groups.set(key, [handler]);
+      }
+    }
+
+    const matcherGroups = [];
+    for (const [matcher, groupHandlers] of groups) {
+      const hookEntries = groupHandlers.map((h) => {
+        const entry: Record<string, unknown> = {
+          type: "command",
+          command: h.command,
+        };
+        if (h.timeout !== undefined) entry.timeout = h.timeout;
+        return entry;
+      });
+
+      const group: Record<string, unknown> = { hooks: hookEntries };
+      if (matcher) group.matcher = matcher;
+      matcherGroups.push(group);
+    }
+
+    result[claudeEvent] = matcherGroups;
+  }
+
+  return { hooks: result };
+}
 
 export default defineTarget({
   name: "claude",
   outputDir: ".claude",
-  supportedTypes: ["instructions", "skills", "agents"],
+  supportedTypes: ["instructions", "skills", "agents", "hooks"],
 
   instructions: {
     frontmatterMap: {
@@ -52,5 +112,11 @@ export default defineTarget({
       memory: "memory",
     },
     getOutputPath: (name) => `agents/${name}.md`,
+  },
+
+  hooks: {
+    transform: transformClaudeHooks,
+    outputPath: "settings.json",
+    mergeKey: "hooks",
   },
 });
