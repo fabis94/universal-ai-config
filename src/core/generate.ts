@@ -4,6 +4,7 @@ import { consola } from "consola";
 import { loadProjectConfig } from "../config/loader.js";
 import { parseTemplate } from "./parser.js";
 import { resolveOverrides } from "./resolve-overrides.js";
+import { safePath } from "./safe-path.js";
 import { targets } from "../targets/index.js";
 import type { TemplateTypeConfig } from "../targets/define-target.js";
 import type {
@@ -70,7 +71,7 @@ async function discoverTemplates(
   root: string,
   config: ResolvedConfig,
 ): Promise<DiscoveredTemplate[]> {
-  const templatesDir = join(root, config.templatesDir);
+  const templatesDir = safePath(root, config.templatesDir);
   const templates: DiscoveredTemplate[] = [];
 
   for (const type of config.types) {
@@ -139,7 +140,7 @@ async function discoverAndMergeHooks(
   root: string,
   config: ResolvedConfig,
 ): Promise<Record<string, Record<string, unknown>[]> | null> {
-  const hooksDir = join(root, config.templatesDir, "hooks");
+  const hooksDir = safePath(root, join(config.templatesDir, "hooks"));
   try {
     const stats = await stat(hooksDir);
     if (!stats.isDirectory()) return null;

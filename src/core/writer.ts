@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { consola } from "consola";
 import { targets } from "../targets/index.js";
+import { safePath } from "./safe-path.js";
 import type { GeneratedFile, Target } from "../types.js";
 
 const CLEAN_PATHS: Record<string, string[]> = {
@@ -28,7 +29,7 @@ async function mergeJsonKey(fullPath: string, content: string, mergeKey: string)
 
 export async function writeGeneratedFiles(files: GeneratedFile[], root: string): Promise<void> {
   for (const file of files) {
-    const fullPath = join(root, file.path);
+    const fullPath = safePath(root, file.path);
     await mkdir(dirname(fullPath), { recursive: true });
 
     if (file.mergeKey) {

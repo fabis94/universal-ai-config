@@ -22,12 +22,16 @@ export function parseFrontmatter(content: string): ParsedTemplate {
 }
 
 export function renderEjs(template: string, context: RenderContext): string {
-  return ejs.render(template, {
-    target: context.target,
-    type: context.type,
-    config: context.config,
-    ...context.config.variables,
-  });
+  return ejs.render(
+    template,
+    {
+      target: context.target,
+      type: context.type,
+      config: context.config,
+      ...context.config.variables,
+    },
+    { async: false },
+  );
 }
 
 export function parseTemplate(content: string, context: RenderContext): ParsedTemplate {
