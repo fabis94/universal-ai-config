@@ -73,7 +73,7 @@ describe("seed meta-instructions", () => {
     expect(importSkill).toContain("cursor");
   });
 
-  it("skips existing files without overwriting", async () => {
+  it("overwrites existing files", async () => {
     const templatesDir = join(tempDir, ".universal-ai-config");
     const guidePath = join(templatesDir, "instructions/uac-template-guide.md");
 
@@ -83,16 +83,12 @@ describe("seed meta-instructions", () => {
 
     await runCommand(seedCommand, { rawArgs: ["meta-instructions", "--root", tempDir] });
 
-    // Original file should be preserved
+    // File should be overwritten with seed content
     const content = await readFile(guidePath, "utf-8");
-    expect(content).toBe("my custom content");
-
-    // Other files should still be created
-    const dispatcher = await readFile(
-      join(templatesDir, "skills/update-ai-config/SKILL.md"),
-      "utf-8",
+    expect(content).not.toBe("my custom content");
+    expect(content).toContain(
+      "description: Guide for creating and managing universal-ai-config templates",
     );
-    expect(dispatcher).toContain("name: update-ai-config");
   });
 
   it("respects custom templatesDir from config", async () => {

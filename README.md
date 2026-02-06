@@ -435,7 +435,7 @@ The `meta-instructions` seed creates 7 files in the templates directory:
 | `skills/update-hook/SKILL.md`               | Full lifecycle management for hook templates                   |
 | `skills/import-existing-ai-config/SKILL.md` | Import existing target-specific configs as universal templates |
 
-Existing files are never overwritten — the command skips any file that already exists.
+Existing files are overwritten to ensure templates stay up to date.
 
 ## Output Paths
 

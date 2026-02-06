@@ -1,0 +1,75 @@
+---
+name: update-skill
+description: Create, update, or manage universal-ai-config skill templates. Handles finding existing skills, deciding whether to create or modify, and writing the template.
+---
+
+# Manage Skill Templates
+
+Skills are reusable actions or workflows invocable as slash commands or auto-triggered by the AI.
+
+## Finding Existing Skills
+
+List directories in `.universal-ai-config/skills/` to discover existing skills. Each skill is a directory containing a `SKILL.md` file. Read the `SKILL.md` frontmatter to understand what each skill does.
+
+## Deciding What to Do
+
+- **Create new**: when the task/workflow is distinct from existing skills
+- **Update existing**: when a skill covers similar ground but needs changes — modify its `SKILL.md` or supporting files
+- **Delete**: remove the entire skill directory when a skill is obsolete
+
+## Creating a New Skill
+
+1. Create a directory: `.universal-ai-config/skills/{skill-name}/`
+2. Create `SKILL.md` inside it with frontmatter and instructions
+3. Optionally add supporting files (templates, scripts, examples) in the same directory
+
+### Frontmatter Fields
+
+| Field                   | Description                                                               |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `name`                  | Skill identifier — becomes the slash command (e.g. `deploy` → `/deploy`)  |
+| `description`           | When to use this skill (helps AI decide when to auto-trigger)             |
+| `disableAutoInvocation` | Set `true` to prevent AI from auto-triggering (manual slash command only) |
+| `userInvocable`         | Set `false` to hide from slash command menu (AI-only)                     |
+| `allowedTools`          | Restrict which tools are available when skill is active                   |
+| `model`                 | Override the AI model used                                                |
+| `subagentType`          | Run in a specific subagent type (e.g. `Explore`)                          |
+| `forkContext`           | Set `true` to run in an isolated subagent context                         |
+| `argumentHint`          | Hint shown during autocomplete (e.g. `[filename]`)                        |
+
+### Supporting Files
+
+Skills can include additional files in their directory:
+
+```
+my-skill/
+├── SKILL.md          # Main instructions (required)
+├── template.md       # Template for the AI to fill in
+├── examples/
+│   └── sample.md     # Example output
+└── scripts/
+    └── helper.sh     # Script the AI can execute
+```
+
+Reference supporting files from `SKILL.md` so the AI knows they exist.
+
+### Example
+
+```markdown
+---
+name: create-component
+description: Scaffold a new React component with tests and styles
+argumentHint: "[component-name]"
+---
+
+Create a new React component named $ARGUMENTS:
+
+1. Create the component file in src/components/
+2. Add unit tests
+3. Add a Storybook story
+4. Export from the components index
+```
+
+## After Changes
+
+Run `uac generate` to regenerate target-specific config files and verify the output.

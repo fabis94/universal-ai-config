@@ -1,5 +1,5 @@
 import { defineCommand } from "citty";
-import { mkdir, writeFile, stat } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { consola } from "consola";
 import { loadProjectConfig } from "../config/loader.js";
@@ -17,15 +17,6 @@ async function loadSeedTemplates(
       const { getTemplates } = await import("../seed-types/meta-instructions/index.js");
       return getTemplates(templatesDir);
     }
-  }
-}
-
-async function fileExists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch {
-    return false;
   }
 }
 
@@ -59,25 +50,16 @@ export default defineCommand({
     }
 
     const templates = await loadSeedTemplates(seedType as SeedType, templatesDir);
-    let created = 0;
-    let skipped = 0;
 
     for (const template of templates) {
       const fullPath = join(root, templatesDir, template.relativePath);
       const parentDir = join(fullPath, "..");
 
-      if (await fileExists(fullPath)) {
-        consola.warn(`Skipped (already exists): ${template.relativePath}`);
-        skipped++;
-        continue;
-      }
-
       await mkdir(parentDir, { recursive: true });
       await writeFile(fullPath, template.content, "utf-8");
       consola.success(`Created ${join(templatesDir, template.relativePath)}`);
-      created++;
     }
 
-    consola.info(`Seed complete: ${created} created, ${skipped} skipped`);
+    consola.info(`Seed complete: ${templates.length} files written`);
   },
 });
