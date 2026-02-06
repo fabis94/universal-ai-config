@@ -2,6 +2,30 @@
 
 Generate tool-specific AI config files from shared templates. Write your AI instructions, skills, agents, and hooks once — generate config for Claude Code, GitHub Copilot, and Cursor automatically.
 
+## Table of Contents
+
+- [Why](#why)
+- [Install](#install)
+- [Quick Start](#quick-start)
+- [Template Structure](#template-structure)
+- [Writing Templates](#writing-templates)
+  - [Instructions](#instructions)
+  - [Skills](#skills)
+  - [Agents](#agents)
+  - [Hooks](#hooks)
+- [Per-Target Overrides](#per-target-overrides)
+- [EJS Template Variables](#ejs-template-variables)
+- [Configuration](#configuration)
+- [CLI Reference](#cli-reference)
+  - [`uac generate`](#uac-generate)
+  - [`uac init`](#uac-init)
+  - [`uac clean`](#uac-clean)
+  - [`uac seed`](#uac-seed)
+- [Output Paths](#output-paths)
+- [Frontmatter Mapping Reference](#frontmatter-mapping-reference)
+- [Programmatic API](#programmatic-api)
+- [Adding a New Target](#adding-a-new-target)
+
 ## Why
 
 AI coding tools each have their own config formats stored in `.claude/`, `.github/`, `.cursor/`. Teams want shared AI config but each developer may use a different tool. This CLI generates target-specific config files from shared templates in `.universal-ai-config/`, so the tool-specific folders can be gitignored and each dev generates only what they need.
@@ -26,6 +50,9 @@ pnpm uac generate -t claude,cursor
 
 # Preview without writing files
 pnpm uac generate --dry-run
+
+# Seed AI-assisted template management skills
+pnpm uac seed meta-instructions
 ```
 
 ## Template Structure
@@ -377,6 +404,38 @@ Remove all generated config directories.
 | ---------- | ----- | -------------------------------- | ------- |
 | `--target` | `-t`  | Comma-separated targets to clean | All     |
 | `--root`   | `-r`  | Project root                     | cwd     |
+
+### `uac seed`
+
+Seed the templates directory with pre-built template sets. Currently available seed types:
+
+- **`meta-instructions`** — Creates instruction and skill templates that teach AI tools how to create, update, and manage universal-ai-config templates. This bootstraps the AI's ability to extend its own configuration.
+
+```bash
+# Seed with default templates directory
+pnpm uac seed meta-instructions
+
+# Seed with custom project root
+pnpm uac seed meta-instructions --root ./my-project
+```
+
+| Flag     | Short | Description  | Default |
+| -------- | ----- | ------------ | ------- |
+| `--root` | `-r`  | Project root | cwd     |
+
+The `meta-instructions` seed creates 7 files in the templates directory:
+
+| File                                        | Purpose                                                        |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| `instructions/uac-template-guide.md`        | Decision guide for choosing the right template type            |
+| `skills/update-ai-config/SKILL.md`          | Dispatcher — analyzes intent and delegates to the right skill  |
+| `skills/update-instruction/SKILL.md`        | Full lifecycle management for instruction templates            |
+| `skills/update-skill/SKILL.md`              | Full lifecycle management for skill templates                  |
+| `skills/update-agent/SKILL.md`              | Full lifecycle management for agent templates                  |
+| `skills/update-hook/SKILL.md`               | Full lifecycle management for hook templates                   |
+| `skills/import-existing-ai-config/SKILL.md` | Import existing target-specific configs as universal templates |
+
+Existing files are never overwritten — the command skips any file that already exists.
 
 ## Output Paths
 

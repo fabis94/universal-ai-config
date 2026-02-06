@@ -16,7 +16,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src/seed-types"
   ],
   "scripts": {
     "build": "tsdown",
