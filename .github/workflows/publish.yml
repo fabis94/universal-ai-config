@@ -26,12 +26,13 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
+      - name: Upgrade npm for OIDC support
+        run: npm install -g npm@latest
+
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm check
 
       - run: pnpm build
 
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ""
+      - run: NODE_AUTH_TOKEN="" npm publish --provenance --access public

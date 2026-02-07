@@ -41,6 +41,10 @@
     "cursor",
     "cli"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fabis94/universal-ai-config.git"
+  },
   "author": "",
   "license": "MIT",
   "packageManager": "pnpm@10.27.0",
