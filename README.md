@@ -22,6 +22,7 @@ Generate tool-specific AI config files from shared templates. Write your AI inst
   - [`uac clean`](#uac-clean)
   - [`uac seed`](#uac-seed)
 - [Output Paths](#output-paths)
+- [Complete Template Reference](#complete-template-reference)
 - [Frontmatter Mapping Reference](#frontmatter-mapping-reference)
 - [Programmatic API](#programmatic-api)
 - [Adding a New Target](#adding-a-new-target)
@@ -509,6 +510,10 @@ Existing files are overwritten to ensure templates stay up to date.
 | Skills       | `.cursor/skills/<name>/SKILL.md` |
 | Agents       | Not supported                    |
 | Hooks        | `.cursor/hooks.json`             |
+
+## Complete Template Reference
+
+For the most up-to-date reference on all frontmatter fields, available tools per platform (Claude, Copilot, Cursor), MCP tool syntax, hook matcher patterns, and per-target overrides, see the [UAC Template Guide](src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md). This guide is also seeded into your project via `uac seed meta-instructions` and made available to your AI tools as a rule/instruction.
 
 ## Frontmatter Mapping Reference
 

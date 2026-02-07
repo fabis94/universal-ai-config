@@ -125,38 +125,38 @@ model:
 
 ### Skills
 
-| Field                   | Description                                          |
-| ----------------------- | ---------------------------------------------------- |
-| `name`                  | Skill identifier (becomes the slash command name)    |
-| `description`           | When to use this skill                               |
-| `disableAutoInvocation` | If true, only invocable manually via slash command   |
-| `userInvocable`         | If false, only the AI can trigger it (Claude only)   |
-| `allowedTools`          | Restrict which tools the skill can use (Claude only) |
-| `model`                 | Override the AI model used (Claude only)             |
-| `subagentType`          | Run in a specific subagent type (Claude only)        |
-| `forkContext`           | If true, run in an isolated context (Claude only)    |
-| `argumentHint`          | Hint for expected arguments (Claude only)            |
-| `license`               | License info (Copilot/Cursor only)                   |
-| `compatibility`         | Compatibility info (Copilot/Cursor only)             |
-| `metadata`              | Extra metadata object (Copilot/Cursor only)          |
-| `hooks`                 | Inline hook definitions for this skill (Claude only) |
+| Field                   | Description                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------- |
+| `name`                  | Skill identifier (becomes the slash command name)                                              |
+| `description`           | When to use this skill                                                                         |
+| `disableAutoInvocation` | If true, only invocable manually via slash command                                             |
+| `userInvocable`         | If false, only the AI can trigger it (Claude only)                                             |
+| `allowedTools`          | Restrict which tools the skill can use (Claude only) — see [Available Tools](#available-tools) |
+| `model`                 | Override the AI model used (Claude only)                                                       |
+| `subagentType`          | Run in a specific subagent type (Claude only)                                                  |
+| `forkContext`           | If true, run in an isolated context (Claude only)                                              |
+| `argumentHint`          | Hint for expected arguments (Claude only)                                                      |
+| `license`               | License info (Copilot/Cursor only)                                                             |
+| `compatibility`         | Compatibility info (Copilot/Cursor only)                                                       |
+| `metadata`              | Extra metadata object (Copilot/Cursor only)                                                    |
+| `hooks`                 | Inline hook definitions for this skill (Claude only)                                           |
 
 ### Agents
 
-| Field             | Description                                          |
-| ----------------- | ---------------------------------------------------- |
-| `name`            | Agent identifier                                     |
-| `description`     | When to delegate to this agent                       |
-| `model`           | AI model to use                                      |
-| `tools`           | Tools this agent can use                             |
-| `disallowedTools` | Tools to deny (Claude only)                          |
-| `permissionMode`  | Permission level (Claude only)                       |
-| `skills`          | Skills to preload (Claude only)                      |
-| `hooks`           | Inline hook definitions for this agent (Claude only) |
-| `memory`          | Persistent memory scope (Claude only)                |
-| `target`          | Target description (Copilot only)                    |
-| `mcpServers`      | MCP server config (Copilot only)                     |
-| `handoffs`        | Handoff targets (Copilot only)                       |
+| Field             | Description                                                           |
+| ----------------- | --------------------------------------------------------------------- |
+| `name`            | Agent identifier                                                      |
+| `description`     | When to delegate to this agent                                        |
+| `model`           | AI model to use                                                       |
+| `tools`           | Tools this agent can use — see [Available Tools](#available-tools)    |
+| `disallowedTools` | Tools to deny (Claude only) — see [Available Tools](#available-tools) |
+| `permissionMode`  | Permission level (Claude only)                                        |
+| `skills`          | Skills to preload (Claude only)                                       |
+| `hooks`           | Inline hook definitions for this agent (Claude only)                  |
+| `memory`          | Persistent memory scope (Claude only)                                 |
+| `target`          | Target description (Copilot only)                                     |
+| `mcpServers`      | MCP server config (Copilot only)                                      |
+| `handoffs`        | Handoff targets (Copilot only)                                        |
 
 ### Hooks
 
@@ -216,3 +216,109 @@ Hook handler fields (`command`, `matcher`, `timeout`, `description`) support per
 ```
 
 If `command` resolves to `undefined` for a target, the entire handler is skipped for that target.
+
+## Available Tools
+
+The `tools`, `allowedTools`, and `disallowedTools` frontmatter fields accept arrays of tool name strings. Both built-in tools and MCP server tools can be referenced. Tool names and MCP syntax differ per platform, so use per-target overrides when targeting multiple platforms.
+
+### Claude Code
+
+Claude uses PascalCase tool names.
+
+**Built-in tools:**
+
+| Tool              | Description                           |
+| ----------------- | ------------------------------------- |
+| `Bash`            | Execute shell commands                |
+| `Read`            | Read file contents                    |
+| `Edit`            | Exact string replacements in files    |
+| `Write`           | Create or overwrite files             |
+| `Glob`            | Find files by glob pattern            |
+| `Grep`            | Search file contents with regex       |
+| `WebFetch`        | Fetch and process web content         |
+| `WebSearch`       | Search the web                        |
+| `Task`            | Launch specialized sub-agents         |
+| `TaskOutput`      | Retrieve output from background tasks |
+| `TaskStop`        | Stop a running background task        |
+| `TodoWrite`       | Structured task management            |
+| `NotebookEdit`    | Edit Jupyter notebook cells           |
+| `AskUserQuestion` | Ask the user clarifying questions     |
+| `EnterPlanMode`   | Switch to plan mode                   |
+| `ExitPlanMode`    | Exit plan mode                        |
+| `Skill`           | Execute a slash command skill         |
+
+**MCP tools** use double-underscore syntax: `mcp__servername__toolname`. Use wildcards to allow all tools from a server: `mcp__servername__*`.
+
+**Hook matcher patterns** are regex strings that filter when hooks fire. What the matcher filters depends on the event:
+
+| Event                                                                  | Matches on          | Example values                                     |
+| ---------------------------------------------------------------------- | ------------------- | -------------------------------------------------- |
+| `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest` | tool name           | `Bash`, `Edit\|Write`, `mcp__.*`                   |
+| `SessionStart`                                                         | how session started | `startup`, `resume`, `clear`, `compact`            |
+| `SessionEnd`                                                           | why session ended   | `clear`, `logout`, `prompt_input_exit`, `other`    |
+| `Notification`                                                         | notification type   | `permission_prompt`, `idle_prompt`, `auth_success` |
+| `SubagentStart`, `SubagentStop`                                        | agent type          | `Bash`, `Explore`, `Plan`, or custom agent names   |
+| `PreCompact`                                                           | trigger type        | `manual`, `auto`                                   |
+
+`UserPromptSubmit` and `Stop` don't support matchers — they always fire on every occurrence.
+
+### GitHub Copilot
+
+Copilot uses lowercase **tool aliases** that each group multiple underlying tools:
+
+| Alias     | Description           | Includes                             |
+| --------- | --------------------- | ------------------------------------ |
+| `execute` | Run shell commands    | shell, Bash, powershell              |
+| `read`    | Read files            | Read, NotebookRead                   |
+| `edit`    | Edit files            | Edit, MultiEdit, Write, NotebookEdit |
+| `search`  | Search for files/text | Grep, Glob                           |
+| `agent`   | Invoke subagents      | custom-agent, Task                   |
+| `web`     | Web search and fetch  | WebSearch, WebFetch                  |
+| `todo`    | Task management       | TodoWrite                            |
+
+`"*"` enables all tools (the default when `tools` is omitted). Unrecognized names are silently ignored.
+
+**MCP tools** use slash syntax: `servername/toolname`. Use wildcards to allow all tools from a server: `servername/*`.
+
+### Cursor
+
+Cursor does not support `tools`, `allowedTools`, or `disallowedTools` in its configuration files. Tool restrictions are not configurable for the Cursor target.
+
+For reference, Cursor's internal tool names (usable in hook `matcher` patterns): `read_file`, `edit_file`, `run_terminal_command`, `file_search`, `codebase_search`, `grep_search`, `list_dir`, `delete_file`.
+
+MCP tools are available in Cursor but configured separately via MCP server settings, not through rule/agent frontmatter.
+
+### Per-Target Tool Overrides
+
+Since tool names differ between platforms, use per-target overrides:
+
+```yaml
+# Agent with read-only tools
+tools:
+  claude: ["Read", "Grep", "Glob"]
+  copilot: ["read", "search"]
+```
+
+```yaml
+# Agent with full editing capabilities + MCP tools
+tools:
+  claude: ["Read", "Edit", "Write", "Grep", "Glob", "Bash", "mcp__github__search_code"]
+  copilot: ["read", "edit", "search", "execute", "github/search_code"]
+```
+
+```yaml
+# Skill restricted to specific tools
+allowedTools:
+  claude: ["Read", "Grep", "Glob", "WebSearch"]
+  copilot: ["read", "search", "web"]
+```
+
+### Common Tool Combinations
+
+| Use Case     | Claude                                              | Copilot                                 |
+| ------------ | --------------------------------------------------- | --------------------------------------- |
+| Read-only    | `["Read", "Grep", "Glob"]`                          | `["read", "search"]`                    |
+| Full editor  | `["Read", "Edit", "Write", "Grep", "Glob", "Bash"]` | `["read", "edit", "search", "execute"]` |
+| + web access | Add `"WebSearch"`, `"WebFetch"`                     | Add `"web"`                             |
+| + sub-agents | Add `"Task"`                                        | Add `"agent"`                           |
+| All tools    | List explicitly — no wildcard                       | `["*"]` or omit `tools`                 |
