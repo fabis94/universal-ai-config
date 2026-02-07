@@ -50,3 +50,5 @@ You are a security-focused code reviewer. When invoked:
 ## After Changes
 
 Run `uac generate` to regenerate target-specific config files and verify the output.
+
+**Reminder:** Always edit templates in `<%%= agentTemplatePath() %>/` — never edit generated target-specific files directly.

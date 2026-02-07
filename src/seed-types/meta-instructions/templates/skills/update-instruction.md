@@ -81,3 +81,5 @@ Follow these TypeScript conventions:
 ## After Changes
 
 Run `uac generate` to regenerate target-specific config files and verify the output.
+
+**Reminder:** Always edit templates in `<%%= instructionTemplatePath() %>/` — never edit generated target-specific files directly.

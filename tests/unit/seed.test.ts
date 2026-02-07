@@ -16,17 +16,24 @@ describe("seed meta-instructions", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it("creates all 7 template files", async () => {
+  it("creates all 8 template files", async () => {
     await runCommand(seedCommand, { rawArgs: ["meta-instructions", "--root", tempDir] });
 
     const templatesDir = join(tempDir, ".universal-ai-config");
 
-    // Instruction
+    // Instruction - template guide
     const guide = await readFile(join(templatesDir, "instructions/uac-template-guide.md"), "utf-8");
     expect(guide).toContain(
       "description: Guide for creating and managing universal-ai-config templates",
     );
     expect(guide).toContain('globs: [".universal-ai-config/**"]');
+
+    // Instruction - uac usage
+    const usage = await readFile(join(templatesDir, "instructions/uac-usage.md"), "utf-8");
+    expect(usage).toContain("alwaysApply: true");
+    expect(usage).toContain("uac generate");
+    expect(usage).toContain("uac init");
+    expect(usage).toContain("<%= config.templatesDir %>");
 
     // Dispatcher skill
     const dispatcher = await readFile(
