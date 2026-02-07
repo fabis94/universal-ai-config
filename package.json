@@ -4,8 +4,8 @@
   "description": "Generate tool-specific AI config files from shared templates",
   "type": "module",
   "bin": {
-    "uac": "./dist/cli.mjs",
-    "universal-ai-config": "./dist/cli.mjs"
+    "uac": "dist/cli.mjs",
+    "universal-ai-config": "dist/cli.mjs"
   },
   "types": "./dist/index.d.mts",
   "exports": {
