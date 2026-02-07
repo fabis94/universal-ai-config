@@ -30,29 +30,33 @@ Generate tool-specific AI config files from shared templates. Write your AI inst
 
 AI coding tools each have their own config formats stored in `.claude/`, `.github/`, `.cursor/`. Teams want shared AI config but each developer may use a different tool. This CLI generates target-specific config files from shared templates in `.universal-ai-config/`, so the tool-specific folders can be gitignored and each dev generates only what they need.
 
-## Install
+## Install & Run
 
 ```bash
-pnpm add -D universal-ai-config
+npm install -D universal-ai-config
+
+npm run uac <command>
 ```
+
+> **Non-JS projects:** Use `npx uac` to run commands without installing, e.g. `npx uac generate -t claude`.
 
 ## Quick Start
 
 ```bash
 # Scaffold template directory with examples
-pnpm uac init
+uac init
 
 # Generate config for all targets
-pnpm uac generate
+uac generate
 
 # Generate for specific targets
-pnpm uac generate -t claude,cursor
+uac generate -t claude,cursor
 
 # Preview without writing files
-pnpm uac generate --dry-run
+uac generate --dry-run
 
 # Seed AI-assisted template management skills
-pnpm uac seed meta-instructions
+uac seed meta-instructions
 ```
 
 ## Template Structure
@@ -452,10 +456,10 @@ Seed the templates directory with pre-built template sets. Currently available s
 
 ```bash
 # Seed with default templates directory
-pnpm uac seed meta-instructions
+uac seed meta-instructions
 
 # Seed with custom project root
-pnpm uac seed meta-instructions --root ./my-project
+uac seed meta-instructions --root ./my-project
 ```
 
 | Flag     | Short | Description  | Default |
