@@ -62,12 +62,34 @@ Body content with instructions for the AI.
 
 ### EJS Templating
 
-Template bodies support EJS for conditional content:
+Template bodies support EJS for conditional content.
+
+**Variables:**
 
 - `<%%= target %>` — current target ("claude", "copilot", "cursor")
 - `<%%= type %>` — template type ("instructions", "skills", "agents", "hooks")
 - `<%%= config.templatesDir %>` — templates directory path
 - Custom variables from config are also available
+
+**Path helpers** — use these when referencing other templates so the path resolves correctly for each target:
+
+- `<%%= instructionPath('name') %>` — output path for an instruction template
+- `<%%= skillPath('name') %>` — output path for a skill template
+- `<%%= agentPath('name') %>` — output path for an agent template
+
+For example, `<%%= skillPath('deploy') %>` renders to:
+
+- Claude: `.claude/skills/deploy/SKILL.md`
+- Copilot: `.github/skills/deploy/SKILL.md`
+- Cursor: `.cursor/skills/deploy/SKILL.md`
+
+And `<%%= instructionPath('coding-style') %>` renders to:
+
+- Claude: `.claude/rules/coding-style.md`
+- Copilot: `.github/instructions/coding-style.instructions.md`
+- Cursor: `.cursor/rules/coding-style.mdc`
+
+**Always use path helpers when referencing other templates** — never hardcode target-specific paths.
 
 ### Per-Target Overrides
 

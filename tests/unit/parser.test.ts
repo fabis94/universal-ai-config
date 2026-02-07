@@ -66,6 +66,84 @@ describe("renderEjs", () => {
     });
     expect(result).toContain("Type: skills");
   });
+
+  it("provides instructionPath helper for claude", () => {
+    const template = `Read <%= instructionPath('coding-style') %>`;
+    const result = renderEjs(template, {
+      target: "claude",
+      type: "skills",
+      config: DEFAULT_CONFIG,
+    });
+    expect(result).toBe("Read .claude/rules/coding-style.md");
+  });
+
+  it("provides instructionPath helper for copilot", () => {
+    const template = `Read <%= instructionPath('coding-style') %>`;
+    const result = renderEjs(template, {
+      target: "copilot",
+      type: "skills",
+      config: DEFAULT_CONFIG,
+    });
+    expect(result).toBe("Read .github/instructions/coding-style.instructions.md");
+  });
+
+  it("provides instructionPath helper for cursor", () => {
+    const template = `Read <%= instructionPath('coding-style') %>`;
+    const result = renderEjs(template, {
+      target: "cursor",
+      type: "skills",
+      config: DEFAULT_CONFIG,
+    });
+    expect(result).toBe("Read .cursor/rules/coding-style.mdc");
+  });
+
+  it("provides skillPath helper", () => {
+    const template = `Use <%= skillPath('deploy') %>`;
+    const claude = renderEjs(template, {
+      target: "claude",
+      type: "instructions",
+      config: DEFAULT_CONFIG,
+    });
+    expect(claude).toBe("Use .claude/skills/deploy/SKILL.md");
+
+    const copilot = renderEjs(template, {
+      target: "copilot",
+      type: "instructions",
+      config: DEFAULT_CONFIG,
+    });
+    expect(copilot).toBe("Use .github/skills/deploy/SKILL.md");
+  });
+
+  it("provides agentPath helper", () => {
+    const template = `See <%= agentPath('reviewer') %>`;
+    const claude = renderEjs(template, {
+      target: "claude",
+      type: "instructions",
+      config: DEFAULT_CONFIG,
+    });
+    expect(claude).toBe("See .claude/agents/reviewer.md");
+
+    const copilot = renderEjs(template, {
+      target: "copilot",
+      type: "instructions",
+      config: DEFAULT_CONFIG,
+    });
+    expect(copilot).toBe("See .github/agents/reviewer.agent.md");
+  });
+
+  it("path helpers use canonical outputDir regardless of config overrides", () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      outputDirs: { ...DEFAULT_CONFIG.outputDirs, claude: "../custom-claude" },
+    };
+    const template = `<%= skillPath('deploy') %>`;
+    const result = renderEjs(template, {
+      target: "claude",
+      type: "instructions",
+      config,
+    });
+    expect(result).toBe(".claude/skills/deploy/SKILL.md");
+  });
 });
 
 describe("parseTemplate", () => {

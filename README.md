@@ -312,6 +312,24 @@ All templates have access to these variables:
 | `config`              | `ResolvedConfig`                         | Full resolved config object                        |
 | `...config.variables` | `Record<string, unknown>`                | Custom user variables spread into scope            |
 
+### Path Helpers
+
+Templates also have access to path helper functions that resolve output paths for the current target. Use these when referencing other templates:
+
+| Function                | Returns                                        |
+| ----------------------- | ---------------------------------------------- |
+| `instructionPath(name)` | Target-specific output path for an instruction |
+| `skillPath(name)`       | Target-specific output path for a skill        |
+| `agentPath(name)`       | Target-specific output path for an agent       |
+
+For example, `<%= instructionPath('coding-style') %>` renders to:
+
+| Target  | Output                                              |
+| ------- | --------------------------------------------------- |
+| Claude  | `.claude/rules/coding-style.md`                     |
+| Copilot | `.github/instructions/coding-style.instructions.md` |
+| Cursor  | `.cursor/rules/coding-style.mdc`                    |
+
 ## Configuration
 
 ### Base config (`universal-ai-config.config.ts`) — committed
