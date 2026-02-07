@@ -11,9 +11,10 @@ This project uses **universal-ai-config** (`uac`) to manage AI tool configuratio
 
 ## Invoking uac
 
-First, figure out what the project's local package manager is. Other instructions may specify this, or you can infer it some other way. Then, use the project's local package manager to run `uac`.
+First, you must figure out what the project's local package manager is. Other instructions may specify this, or you can infer it some other way. Then, use the project's local package manager to run `uac`.
 
 Examples for different package managers:
+
 - **pnpm**: `pnpm run uac <command>`
 - **npm**: `npm run uac <command>`
 - **yarn**: `yarn run uac <command>`

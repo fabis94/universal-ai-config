@@ -30,7 +30,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:unused": "knip",
+    "lint:tsc": "tsc --noEmit",
     "check": "pnpm lint && pnpm format:check && pnpm check:unused && pnpm test",
+    "prepare": "husky",
     "prepare:claude": "pnpm install && pnpm dev generate --target claude"
   },
   "keywords": [
@@ -62,7 +64,9 @@
     "@types/node": "^25.2.1",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
     "knip": "^5.83.1",
+    "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
     "tsdown": "^0.20.3",
     "tsx": "^4.21.0",
