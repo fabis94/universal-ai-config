@@ -32,12 +32,7 @@ List files in `<%= templatesDir %>/instructions/` to discover existing instructi
 
 ### Frontmatter Fields
 
-| Field          | Description                                                                                      |
-| -------------- | ------------------------------------------------------------------------------------------------ |
-| `description`  | What the instruction covers (required for discoverability)                                       |
-| `globs`        | File patterns to scope this instruction (string or string array, e.g. `["**/*.ts", "**/*.tsx"]`) |
-| `alwaysApply`  | Set to `true` to apply to all conversations regardless of active files                           |
-| `excludeAgent` | Copilot-specific: exclude from specific agents (e.g. `code-review`)                              |
+See the **Instructions** section in `<%%= instructionPath('uac-template-guide') %>` for the complete field reference. Key fields: `description`, `globs`, `alwaysApply`, `excludeAgent`.
 
 ### When to use `alwaysApply` vs `globs`
 

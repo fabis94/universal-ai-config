@@ -116,30 +116,38 @@ model:
 
 ### Skills
 
-| Field                   | Description                                        |
-| ----------------------- | -------------------------------------------------- |
-| `name`                  | Skill identifier (becomes the slash command name)  |
-| `description`           | When to use this skill                             |
-| `disableAutoInvocation` | If true, only invocable manually via slash command |
-| `userInvocable`         | If false, only the AI can trigger it               |
-| `allowedTools`          | Restrict which tools the skill can use             |
-| `model`                 | Override the AI model used                         |
-| `subagentType`          | Run in a specific subagent type                    |
-| `forkContext`           | If true, run in an isolated context                |
-| `argumentHint`          | Hint for expected arguments                        |
+| Field                   | Description                                          |
+| ----------------------- | ---------------------------------------------------- |
+| `name`                  | Skill identifier (becomes the slash command name)    |
+| `description`           | When to use this skill                               |
+| `disableAutoInvocation` | If true, only invocable manually via slash command   |
+| `userInvocable`         | If false, only the AI can trigger it (Claude only)   |
+| `allowedTools`          | Restrict which tools the skill can use (Claude only) |
+| `model`                 | Override the AI model used (Claude only)             |
+| `subagentType`          | Run in a specific subagent type (Claude only)        |
+| `forkContext`           | If true, run in an isolated context (Claude only)    |
+| `argumentHint`          | Hint for expected arguments (Claude only)            |
+| `license`               | License info (Copilot/Cursor only)                   |
+| `compatibility`         | Compatibility info (Copilot/Cursor only)             |
+| `metadata`              | Extra metadata object (Copilot/Cursor only)          |
+| `hooks`                 | Inline hook definitions for this skill (Claude only) |
 
 ### Agents
 
-| Field             | Description                                    |
-| ----------------- | ---------------------------------------------- |
-| `name`            | Agent identifier                               |
-| `description`     | When to delegate to this agent                 |
-| `tools`           | Tools this agent can use                       |
-| `disallowedTools` | Tools to deny                                  |
-| `permissionMode`  | Permission level                               |
-| `skills`          | Skills to preload                              |
-| `memory`          | Persistent memory scope (user, project, local) |
-| `model`           | AI model to use                                |
+| Field             | Description                                          |
+| ----------------- | ---------------------------------------------------- |
+| `name`            | Agent identifier                                     |
+| `description`     | When to delegate to this agent                       |
+| `model`           | AI model to use                                      |
+| `tools`           | Tools this agent can use                             |
+| `disallowedTools` | Tools to deny (Claude only)                          |
+| `permissionMode`  | Permission level (Claude only)                       |
+| `skills`          | Skills to preload (Claude only)                      |
+| `hooks`           | Inline hook definitions for this agent (Claude only) |
+| `memory`          | Persistent memory scope (Claude only)                |
+| `target`          | Target description (Copilot only)                    |
+| `mcpServers`      | MCP server config (Copilot only)                     |
+| `handoffs`        | Handoff targets (Copilot only)                       |
 
 ### Hooks
 
@@ -148,9 +156,54 @@ Hooks use JSON format with this structure:
 ```json
 {
   "hooks": {
-    "eventName": [{ "command": "script.sh", "matcher": "ToolName", "timeout": 5000 }]
+    "eventName": [{ "command": "script.sh", "matcher": "ToolName", "timeout": 30 }]
   }
 }
 ```
 
-Events: `sessionStart`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `stop`
+#### Handler Fields
+
+| Field         | Required | Description                             |
+| ------------- | -------- | --------------------------------------- |
+| `command`     | Yes      | Shell command or script path            |
+| `matcher`     | No       | Regex pattern to filter when hook fires |
+| `timeout`     | No       | Timeout in seconds                      |
+| `description` | No       | Human-readable description              |
+
+#### Universal Event Names
+
+Use camelCase event names. The CLI maps them to each target's format and silently drops unsupported events.
+
+| Universal            | Claude               | Cursor               | Copilot               |
+| -------------------- | -------------------- | -------------------- | --------------------- |
+| `sessionStart`       | `SessionStart`       | `sessionStart`       | `sessionStart`        |
+| `sessionEnd`         | `SessionEnd`         | `sessionEnd`         | `sessionEnd`          |
+| `userPromptSubmit`   | `UserPromptSubmit`   | `beforeSubmitPrompt` | `userPromptSubmitted` |
+| `preToolUse`         | `PreToolUse`         | `preToolUse`         | `preToolUse`          |
+| `postToolUse`        | `PostToolUse`        | `postToolUse`        | `postToolUse`         |
+| `postToolUseFailure` | `PostToolUseFailure` | `postToolUseFailure` | —                     |
+| `stop`               | `Stop`               | `stop`               | —                     |
+| `subagentStart`      | `SubagentStart`      | `subagentStart`      | —                     |
+| `subagentStop`       | `SubagentStop`       | `subagentStop`       | —                     |
+| `preCompact`         | `PreCompact`         | `preCompact`         | —                     |
+| `permissionRequest`  | `PermissionRequest`  | —                    | —                     |
+| `notification`       | `Notification`       | —                    | —                     |
+| `errorOccurred`      | —                    | —                    | `errorOccurred`       |
+
+Cursor-specific events (`beforeShellExecution`, `afterFileEdit`, etc.) can be used directly — they pass through to Cursor and are dropped for other targets.
+
+#### Per-Target Overrides in Hooks
+
+Hook handler fields (`command`, `matcher`, `timeout`, `description`) support per-target values:
+
+```json
+{
+  "command": {
+    "claude": ".hooks/claude-check.sh",
+    "copilot": ".hooks/copilot-check.sh",
+    "default": ".hooks/check.sh"
+  }
+}
+```
+
+If `command` resolves to `undefined` for a target, the entire handler is skipped for that target.

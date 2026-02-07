@@ -9,7 +9,7 @@ When the user wants to add or change AI configuration for this project, follow t
 
 ## 1. Understand the Request
 
-Read the template guide at `<%= templatesDir %>/instructions/uac-template-guide.md` to understand the available template types and when to use each.
+Read the template guide at `<%%= instructionPath('uac-template-guide') %>` to understand the available template types and when to use each.
 
 ## 2. Determine the Template Type
 

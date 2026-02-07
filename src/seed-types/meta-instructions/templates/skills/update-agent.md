@@ -27,19 +27,7 @@ List files in `<%= templatesDir %>/agents/` to discover existing agent templates
 
 ### Frontmatter Fields
 
-| Field             | Description                                                                        |
-| ----------------- | ---------------------------------------------------------------------------------- |
-| `name`            | Agent identifier (lowercase with hyphens)                                          |
-| `description`     | When to delegate to this agent (helps AI decide when to use it)                    |
-| `tools`           | Tools this agent can use (omit to inherit all)                                     |
-| `disallowedTools` | Tools to explicitly deny                                                           |
-| `permissionMode`  | Permission level: `default`, `acceptEdits`, `dontAsk`, `bypassPermissions`, `plan` |
-| `skills`          | Skills to preload into the agent's context                                         |
-| `memory`          | Persistent memory scope: `user`, `project`, or `local`                             |
-| `model`           | AI model to use (e.g. `sonnet`, `opus`, `haiku`)                                   |
-| `target`          | Copilot-specific: scope to `vscode` or `github-copilot`                            |
-| `mcpServers`      | MCP server configurations                                                          |
-| `handoffs`        | Copilot-specific: other agents to hand off to                                      |
+See the **Agents** section in `<%%= instructionPath('uac-template-guide') %>` for the complete field reference and per-target override syntax. Key fields: `name`, `description`, `model`, `tools`, `permissionMode`, `hooks`.
 
 ### Example
 

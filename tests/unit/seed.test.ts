@@ -102,9 +102,9 @@ describe("seed meta-instructions", () => {
     const guide = await readFile(join(customDir, "instructions/uac-template-guide.md"), "utf-8");
     expect(guide).toContain('globs: ["custom-ai-config/**"]');
 
-    // Verify the dispatcher references the custom dir
+    // Verify the dispatcher references the template guide via EJS helper (resolved at generate time)
     const dispatcher = await readFile(join(customDir, "skills/update-ai-config/SKILL.md"), "utf-8");
-    expect(dispatcher).toContain("custom-ai-config/instructions/uac-template-guide.md");
+    expect(dispatcher).toContain("<%= instructionPath('uac-template-guide') %>");
   });
 
   it("template content references templatesDir consistently", async () => {
