@@ -96,16 +96,16 @@ Cursor-specific events (e.g. `beforeShellExecution`, `afterFileEdit`) should be 
 
 For each converted file:
 
-1. Use the same base name as the source file (e.g. `.claude/rules/coding-style.md` → `<%= templatesDir %>/instructions/coding-style.md`)
+1. Use the same base name as the source file (e.g. `.claude/rules/coding-style.md` → `<%%= instructionTemplatePath('coding-style') %>`)
 2. Write the universal frontmatter and body content
 3. If a template with the same name already exists, **overwrite it** (the import represents the latest version)
 
 **File placement:**
 
-- Instructions → `<%= templatesDir %>/instructions/{name}.md`
-- Skills → `<%= templatesDir %>/skills/{name}/SKILL.md`
-- Agents → `<%= templatesDir %>/agents/{name}.md`
-- Hooks → `<%= templatesDir %>/hooks/{source-name}.json`
+- Instructions → `<%%= instructionTemplatePath('{name}') %>`
+- Skills → `<%%= skillTemplatePath('{name}') %>`
+- Agents → `<%%= agentTemplatePath('{name}') %>`
+- Hooks → `<%%= hookTemplatePath('{source-name}') %>`
 
 ### 4. Handle Special Cases
 

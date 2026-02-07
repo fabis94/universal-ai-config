@@ -6,25 +6,25 @@ globs: ["<%= templatesDir %>/**"]
 # Universal AI Config Template Guide
 
 This project uses **universal-ai-config** to manage AI tool configurations from a single set of templates.
-Templates live in `<%= templatesDir %>/` and are rendered into target-specific config files (Claude, Copilot, Cursor) via `uac generate`.
+Templates live in `<%%= config.templatesDir %>/` and are rendered into target-specific config files (Claude, Copilot, Cursor) via `uac generate`.
 
 ## Template Types
 
 Choose the right type based on what you need:
 
-### Instructions (`<%= templatesDir %>/instructions/*.md`)
+### Instructions (`<%%= instructionTemplatePath() %>/*.md`)
 
 Persistent context and rules that apply to AI conversations. Scoped by glob patterns or always-on.
 
 **Use for:** coding conventions, project guidelines, style rules, architectural decisions, domain knowledge.
 
-### Skills (`<%= templatesDir %>/skills/*/SKILL.md`)
+### Skills (`<%%= skillTemplatePath() %>/*/SKILL.md`)
 
 Reusable actions or workflows invocable as slash commands (e.g. `/skill-name`) or auto-triggered by the AI.
 
 **Use for:** repeatable tasks like code generation patterns, deployments, reviews, migrations, project-specific workflows.
 
-### Agents (`<%= templatesDir %>/agents/*.md`)
+### Agents (`<%%= agentTemplatePath() %>/*.md`)
 
 Specialized AI personas with scoped tools and permissions that run in isolated contexts.
 
@@ -32,7 +32,7 @@ Specialized AI personas with scoped tools and permissions that run in isolated c
 
 **Note:** Agents are supported by Claude and Copilot only (not Cursor).
 
-### Hooks (`<%= templatesDir %>/hooks/*.json`)
+### Hooks (`<%%= hookTemplatePath() %>/*.json`)
 
 Lifecycle automation that triggers on specific events (e.g. before tool use, after file edit, session start).
 
@@ -71,11 +71,20 @@ Template bodies support EJS for conditional content.
 - `<%%= config.templatesDir %>` — templates directory path
 - Custom variables from config are also available
 
-**Path helpers** — use these when referencing other templates so the path resolves correctly for each target:
+**Output path helpers** — resolve to the target-specific output path. Omit the name to get the directory:
 
-- `<%%= instructionPath('name') %>` — output path for an instruction template
-- `<%%= skillPath('name') %>` — output path for a skill template
-- `<%%= agentPath('name') %>` — output path for an agent template
+- `<%%= instructionPath('name') %>` — output path for an instruction
+- `<%%= skillPath('name') %>` — output path for a skill
+- `<%%= agentPath('name') %>` — output path for an agent
+- `<%%= instructionPath() %>` — output directory for instructions (e.g. `.claude/rules`)
+
+**Template path helpers** — resolve to the source template path. Omit the name to get the directory:
+
+- `<%%= instructionTemplatePath('name') %>` — template path for an instruction
+- `<%%= skillTemplatePath('name') %>` — template path for a skill
+- `<%%= agentTemplatePath('name') %>` — template path for an agent
+- `<%%= hookTemplatePath('name') %>` — template path for a hook
+- `<%%= instructionTemplatePath() %>` — template directory for instructions
 
 For example, `<%%= skillPath('deploy') %>` renders to:
 

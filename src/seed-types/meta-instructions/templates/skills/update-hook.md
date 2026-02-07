@@ -9,7 +9,7 @@ Hooks are lifecycle automation that triggers on specific events during AI sessio
 
 ## Finding Existing Hooks
 
-List files in `<%= templatesDir %>/hooks/` to discover existing hook templates (`.json` files). Read them to understand what events are already handled.
+List files in `<%%= hookTemplatePath() %>/` to discover existing hook templates (`.json` files). Read them to understand what events are already handled.
 
 **Note:** Hooks from multiple files are merged by event name during generation. You can organize hooks by concern (e.g. `linting.json`, `security.json`).
 
@@ -22,7 +22,7 @@ List files in `<%= templatesDir %>/hooks/` to discover existing hook templates (
 
 ## Creating a New Hook
 
-1. Create a `.json` file in `<%= templatesDir %>/hooks/` with a descriptive name (e.g. `linting.json`)
+1. Create a `.json` file in `<%%= hookTemplatePath() %>/` with a descriptive name (e.g. `linting.json`)
 2. Use the standard hook JSON structure
 
 ### JSON Structure

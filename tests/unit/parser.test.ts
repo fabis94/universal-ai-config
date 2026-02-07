@@ -144,6 +144,67 @@ describe("renderEjs", () => {
     });
     expect(result).toBe(".claude/skills/deploy/SKILL.md");
   });
+
+  it("output path helpers return directory when called without name", () => {
+    const ctx = {
+      target: "claude" as const,
+      type: "instructions" as const,
+      config: DEFAULT_CONFIG,
+    };
+    expect(renderEjs("<%= instructionPath() %>", ctx)).toBe(".claude/rules");
+    expect(renderEjs("<%= skillPath() %>", ctx)).toBe(".claude/skills");
+    expect(renderEjs("<%= agentPath() %>", ctx)).toBe(".claude/agents");
+
+    const copilotCtx = { ...ctx, target: "copilot" as const };
+    expect(renderEjs("<%= instructionPath() %>", copilotCtx)).toBe(".github/instructions");
+    expect(renderEjs("<%= skillPath() %>", copilotCtx)).toBe(".github/skills");
+
+    const cursorCtx = { ...ctx, target: "cursor" as const };
+    expect(renderEjs("<%= instructionPath() %>", cursorCtx)).toBe(".cursor/rules");
+  });
+
+  it("provides template path helpers with name", () => {
+    const ctx = {
+      target: "claude" as const,
+      type: "instructions" as const,
+      config: DEFAULT_CONFIG,
+    };
+    expect(renderEjs("<%= instructionTemplatePath('coding-style') %>", ctx)).toBe(
+      ".universal-ai-config/instructions/coding-style.md",
+    );
+    expect(renderEjs("<%= skillTemplatePath('deploy') %>", ctx)).toBe(
+      ".universal-ai-config/skills/deploy/SKILL.md",
+    );
+    expect(renderEjs("<%= agentTemplatePath('reviewer') %>", ctx)).toBe(
+      ".universal-ai-config/agents/reviewer.md",
+    );
+    expect(renderEjs("<%= hookTemplatePath('linting') %>", ctx)).toBe(
+      ".universal-ai-config/hooks/linting.json",
+    );
+  });
+
+  it("template path helpers return directory when called without name", () => {
+    const ctx = {
+      target: "claude" as const,
+      type: "instructions" as const,
+      config: DEFAULT_CONFIG,
+    };
+    expect(renderEjs("<%= instructionTemplatePath() %>", ctx)).toBe(
+      ".universal-ai-config/instructions",
+    );
+    expect(renderEjs("<%= skillTemplatePath() %>", ctx)).toBe(".universal-ai-config/skills");
+    expect(renderEjs("<%= agentTemplatePath() %>", ctx)).toBe(".universal-ai-config/agents");
+    expect(renderEjs("<%= hookTemplatePath() %>", ctx)).toBe(".universal-ai-config/hooks");
+  });
+
+  it("template path helpers respect custom templatesDir", () => {
+    const config = { ...DEFAULT_CONFIG, templatesDir: "custom-ai" };
+    const ctx = { target: "claude" as const, type: "instructions" as const, config };
+    expect(renderEjs("<%= instructionTemplatePath('foo') %>", ctx)).toBe(
+      "custom-ai/instructions/foo.md",
+    );
+    expect(renderEjs("<%= hookTemplatePath() %>", ctx)).toBe("custom-ai/hooks");
+  });
 });
 
 describe("parseTemplate", () => {

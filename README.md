@@ -314,13 +314,24 @@ All templates have access to these variables:
 
 ### Path Helpers
 
-Templates also have access to path helper functions that resolve output paths for the current target. Use these when referencing other templates:
+Templates have access to path helper functions. All `name` parameters are optional — omit to get the directory path.
 
-| Function                | Returns                                        |
-| ----------------------- | ---------------------------------------------- |
-| `instructionPath(name)` | Target-specific output path for an instruction |
-| `skillPath(name)`       | Target-specific output path for a skill        |
-| `agentPath(name)`       | Target-specific output path for an agent       |
+**Output path helpers** — resolve to the target-specific output path:
+
+| Function                 | Returns                                                       |
+| ------------------------ | ------------------------------------------------------------- |
+| `instructionPath(name?)` | Target-specific output path (or directory) for an instruction |
+| `skillPath(name?)`       | Target-specific output path (or directory) for a skill        |
+| `agentPath(name?)`       | Target-specific output path (or directory) for an agent       |
+
+**Template path helpers** — resolve to the source template path in the templates directory:
+
+| Function                         | Returns                                                |
+| -------------------------------- | ------------------------------------------------------ |
+| `instructionTemplatePath(name?)` | Template source path (or directory) for an instruction |
+| `skillTemplatePath(name?)`       | Template source path (or directory) for a skill        |
+| `agentTemplatePath(name?)`       | Template source path (or directory) for an agent       |
+| `hookTemplatePath(name?)`        | Template source path (or directory) for a hook         |
 
 For example, `<%= instructionPath('coding-style') %>` renders to:
 
@@ -329,6 +340,16 @@ For example, `<%= instructionPath('coding-style') %>` renders to:
 | Claude  | `.claude/rules/coding-style.md`                     |
 | Copilot | `.github/instructions/coding-style.instructions.md` |
 | Cursor  | `.cursor/rules/coding-style.mdc`                    |
+
+And `<%= instructionPath() %>` (no argument) renders to:
+
+| Target  | Output                 |
+| ------- | ---------------------- |
+| Claude  | `.claude/rules`        |
+| Copilot | `.github/instructions` |
+| Cursor  | `.cursor/rules`        |
+
+Template path helpers are target-independent: `<%= instructionTemplatePath('coding-style') %>` always renders to `.universal-ai-config/instructions/coding-style.md` (or the configured `templatesDir`).
 
 ## Configuration
 

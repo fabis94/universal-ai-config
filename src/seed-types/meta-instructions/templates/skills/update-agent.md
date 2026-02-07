@@ -11,7 +11,7 @@ Agents are specialized AI personas with scoped tools and permissions that run in
 
 ## Finding Existing Agents
 
-List files in `<%= templatesDir %>/agents/` to discover existing agent templates. Read their frontmatter to understand each agent's purpose and capabilities.
+List files in `<%%= agentTemplatePath() %>/` to discover existing agent templates. Read their frontmatter to understand each agent's purpose and capabilities.
 
 ## Deciding What to Do
 
@@ -21,7 +21,7 @@ List files in `<%= templatesDir %>/agents/` to discover existing agent templates
 
 ## Creating a New Agent
 
-1. Create a `.md` file in `<%= templatesDir %>/agents/` with a descriptive name (e.g. `code-reviewer.md`)
+1. Create a `.md` file in `<%%= agentTemplatePath() %>/` with a descriptive name (e.g. `code-reviewer.md`)
 2. Add YAML frontmatter with at minimum `name` and `description`
 3. Write the agent's system prompt as the body
 

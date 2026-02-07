@@ -9,7 +9,7 @@ Skills are reusable actions or workflows invocable as slash commands or auto-tri
 
 ## Finding Existing Skills
 
-List directories in `<%= templatesDir %>/skills/` to discover existing skills. Each skill is a directory containing a `SKILL.md` file. Read the `SKILL.md` frontmatter to understand what each skill does.
+List directories in `<%%= skillTemplatePath() %>/` to discover existing skills. Each skill is a directory containing a `SKILL.md` file. Read the `SKILL.md` frontmatter to understand what each skill does.
 
 ## Deciding What to Do
 
@@ -19,7 +19,7 @@ List directories in `<%= templatesDir %>/skills/` to discover existing skills. E
 
 ## Creating a New Skill
 
-1. Create a directory: `<%= templatesDir %>/skills/{skill-name}/`
+1. Create a directory: `<%%= skillTemplatePath() %>/{skill-name}/`
 2. Create `SKILL.md` inside it with frontmatter and instructions
 3. Optionally add supporting files (templates, scripts, examples) in the same directory
 

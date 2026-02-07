@@ -107,26 +107,26 @@ describe("seed meta-instructions", () => {
     expect(dispatcher).toContain("<%= instructionPath('uac-template-guide') %>");
   });
 
-  it("template content references templatesDir consistently", async () => {
+  it("template content uses template path helpers", async () => {
     await runCommand(seedCommand, { rawArgs: ["meta-instructions", "--root", tempDir] });
 
     const templatesDir = join(tempDir, ".universal-ai-config");
 
-    // All skills should reference the templates directory
+    // All skills should reference templates via EJS path helpers (resolved at generate time)
     const updateInstruction = await readFile(
       join(templatesDir, "skills/update-instruction/SKILL.md"),
       "utf-8",
     );
-    expect(updateInstruction).toContain(".universal-ai-config/instructions/");
+    expect(updateInstruction).toContain("<%= instructionTemplatePath() %>");
 
     const updateSkill = await readFile(join(templatesDir, "skills/update-skill/SKILL.md"), "utf-8");
-    expect(updateSkill).toContain(".universal-ai-config/skills/");
+    expect(updateSkill).toContain("<%= skillTemplatePath() %>");
 
     const updateAgent = await readFile(join(templatesDir, "skills/update-agent/SKILL.md"), "utf-8");
-    expect(updateAgent).toContain(".universal-ai-config/agents/");
+    expect(updateAgent).toContain("<%= agentTemplatePath() %>");
 
     const updateHook = await readFile(join(templatesDir, "skills/update-hook/SKILL.md"), "utf-8");
-    expect(updateHook).toContain(".universal-ai-config/hooks/");
+    expect(updateHook).toContain("<%= hookTemplatePath() %>");
   });
 
   it("renders EJS example tags escaped (not evaluated)", async () => {
