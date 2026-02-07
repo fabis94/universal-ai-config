@@ -21,22 +21,22 @@ Scan the target's config directory for existing configuration files:
 **Claude** (`.claude/`):
 
 - Instructions: `.claude/rules/*.md` — each file has `description` and optional `paths` frontmatter
-- Skills: `.claude/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `allowed-tools`, `model`, `context`, `agent`, `disable-model-invocation`, `user-invocable`, `argument-hint`)
-- Agents: `.claude/agents/*.md` — agent files with frontmatter (`name`, `description`, `tools`, `disallowedTools`, `permissionMode`, `skills`, `memory`, `model`)
-- Hooks: `.claude/settings.json` → `hooks` key — JSON with PascalCase event names (`PostToolUse`, `PreToolUse`, `SessionStart`, `Stop`)
+- Skills: `.claude/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `allowed-tools`, `model`, `context`, `agent`, `disable-model-invocation`, `user-invocable`, `argument-hint`, `hooks`)
+- Agents: `.claude/agents/*.md` — agent files with frontmatter (`name`, `description`, `tools`, `disallowedTools`, `permissionMode`, `skills`, `hooks`, `memory`, `model`)
+- Hooks: `.claude/settings.json` → `hooks` key — JSON with PascalCase event names (`SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Stop`, `SubagentStart`, `SubagentStop`, `PreCompact`, `PermissionRequest`, `Notification`)
 
 **Copilot** (`.github/`):
 
 - Instructions: `.github/copilot-instructions.md` (always-apply) and `.github/instructions/*.instructions.md` (with `applyTo` frontmatter)
 - Skills: `.github/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `license`, `compatibility`, `metadata`)
-- Agents: `.github/agents/*.agent.md` — agent files with frontmatter (`description`, `tools`, `model`, `target`, `mcp-servers`, `handoffs`)
-- Hooks: `.github/hooks/hooks.json` — JSON with version field and camelCase event names (`sessionStart`, `userPromptSubmitted`, `preToolUse`, `postToolUse`)
+- Agents: `.github/agents/*.agent.md` — agent files with frontmatter (`name`, `description`, `tools`, `model`, `target`, `mcp-servers`, `handoffs`)
+- Hooks: `.github/hooks/hooks.json` — JSON with version field and camelCase event names (`sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, `errorOccurred`)
 
 **Cursor** (`.cursor/`):
 
 - Instructions: `.cursor/rules/*.mdc` or `.cursor/rules/*.md` — with `description`, `globs`, `alwaysApply` frontmatter
 - Skills: `.cursor/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `license`, `compatibility`, `metadata`, `disable-model-invocation`)
-- Hooks: `.cursor/hooks.json` — JSON with version field and camelCase event names
+- Hooks: `.cursor/hooks.json` — JSON with version field and camelCase event names (`sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `preToolUse`, `postToolUse`, `postToolUseFailure`, `stop`, `subagentStart`, `subagentStop`, `preCompact`, plus Cursor-specific events like `beforeShellExecution`, `afterFileEdit`)
 - Note: Cursor does not have agents
 
 ### 2. Convert to Universal Format
@@ -55,18 +55,34 @@ For each file found, convert it to a universal-ai-config template:
 | `context: fork`            | —                         | —                          | `forkContext: true`     |
 | `agent`                    | —                         | —                          | `subagentType`          |
 | `argument-hint`            | —                         | —                          | `argumentHint`          |
+| `hooks`                    | —                         | —                          | `hooks`                 |
 | —                          | `excludeAgent`            | —                          | `excludeAgent`          |
+| —                          | `license`                 | `license`                  | `license`               |
+| —                          | `compatibility`           | `compatibility`            | `compatibility`         |
+| —                          | `metadata`                | `metadata`                 | `metadata`              |
+| —                          | `target`                  | —                          | `target`                |
 | —                          | `mcp-servers`             | —                          | `mcpServers`            |
+| —                          | `handoffs`                | —                          | `handoffs`              |
 
 **Hook event mapping** (target-specific → universal):
 
-| Claude         | Copilot               | Cursor         | Universal          |
-| -------------- | --------------------- | -------------- | ------------------ |
-| `SessionStart` | `sessionStart`        | `sessionStart` | `sessionStart`     |
-| `PostToolUse`  | `postToolUse`         | `postToolUse`  | `postToolUse`      |
-| `PreToolUse`   | `preToolUse`          | `preToolUse`   | `preToolUse`       |
-| `Stop`         | —                     | —              | `stop`             |
-| —              | `userPromptSubmitted` | —              | `userPromptSubmit` |
+| Claude               | Copilot               | Cursor               | Universal            |
+| -------------------- | --------------------- | -------------------- | -------------------- |
+| `SessionStart`       | `sessionStart`        | `sessionStart`       | `sessionStart`       |
+| `SessionEnd`         | `sessionEnd`          | `sessionEnd`         | `sessionEnd`         |
+| `UserPromptSubmit`   | `userPromptSubmitted` | `beforeSubmitPrompt` | `userPromptSubmit`   |
+| `PreToolUse`         | `preToolUse`          | `preToolUse`         | `preToolUse`         |
+| `PostToolUse`        | `postToolUse`         | `postToolUse`        | `postToolUse`        |
+| `PostToolUseFailure` | —                     | `postToolUseFailure` | `postToolUseFailure` |
+| `Stop`               | —                     | `stop`               | `stop`               |
+| `SubagentStart`      | —                     | `subagentStart`      | `subagentStart`      |
+| `SubagentStop`       | —                     | `subagentStop`       | `subagentStop`       |
+| `PreCompact`         | —                     | `preCompact`         | `preCompact`         |
+| `PermissionRequest`  | —                     | —                    | `permissionRequest`  |
+| `Notification`       | —                     | —                    | `notification`       |
+| —                    | `errorOccurred`       | —                    | `errorOccurred`      |
+
+Cursor-specific events (e.g. `beforeShellExecution`, `afterFileEdit`) should be preserved as-is — they pass through to Cursor and are dropped for other targets.
 
 **Hook handler field mapping:**
 
@@ -80,23 +96,23 @@ For each file found, convert it to a universal-ai-config template:
 
 For each converted file:
 
-1. Use the same base name as the source file (e.g. `.claude/rules/coding-style.md` → `.universal-ai-config/instructions/coding-style.md`)
+1. Use the same base name as the source file (e.g. `.claude/rules/coding-style.md` → `<%= instructionTemplatePath('coding-style') %>`)
 2. Write the universal frontmatter and body content
 3. If a template with the same name already exists, **overwrite it** (the import represents the latest version)
 
 **File placement:**
 
-- Instructions → `.universal-ai-config/instructions/{name}.md`
-- Skills → `.universal-ai-config/skills/{name}/SKILL.md`
-- Agents → `.universal-ai-config/agents/{name}.md`
-- Hooks → `.universal-ai-config/hooks/{source-name}.json`
+- Instructions → `<%= instructionTemplatePath('{name}') %>`
+- Skills → `<%= skillTemplatePath('{name}') %>`
+- Agents → `<%= agentTemplatePath('{name}') %>`
+- Hooks → `<%= hookTemplatePath('{source-name}') %>`
 
 ### 4. Handle Special Cases
 
 - **Claude hooks**: Extract the `hooks` key from `.claude/settings.json`. Flatten the nested matcher group structure into individual handlers with `matcher` fields.
 - **Copilot always-apply**: Convert `.github/copilot-instructions.md` to an instruction with `alwaysApply: true`.
 - **Copilot hook `bash` field**: Convert to universal `command` field.
-- **Copilot hook `timeoutSec` field**: Convert to universal `timeout` field (keep same units — check if seconds vs milliseconds).
+- **Copilot hook `timeoutSec` field**: Convert to universal `timeout` field (both use seconds).
 - **Cursor `.mdc` files**: Read as regular markdown (the `.mdc` extension is just a convention).
 - **Fields that only exist for one target**: Preserve them as-is. They'll be passed through to matching targets and ignored by others.
 

@@ -9,7 +9,7 @@ Skills are reusable actions or workflows invocable as slash commands or auto-tri
 
 ## Finding Existing Skills
 
-List directories in `.universal-ai-config/skills/` to discover existing skills. Each skill is a directory containing a `SKILL.md` file. Read the `SKILL.md` frontmatter to understand what each skill does.
+List directories in `<%= skillTemplatePath() %>/` to discover existing skills. Each skill is a directory containing a `SKILL.md` file. Read the `SKILL.md` frontmatter to understand what each skill does.
 
 ## Deciding What to Do
 
@@ -19,23 +19,13 @@ List directories in `.universal-ai-config/skills/` to discover existing skills. 
 
 ## Creating a New Skill
 
-1. Create a directory: `.universal-ai-config/skills/{skill-name}/`
+1. Create a directory: `<%= skillTemplatePath() %>/{skill-name}/`
 2. Create `SKILL.md` inside it with frontmatter and instructions
 3. Optionally add supporting files (templates, scripts, examples) in the same directory
 
 ### Frontmatter Fields
 
-| Field                   | Description                                                               |
-| ----------------------- | ------------------------------------------------------------------------- |
-| `name`                  | Skill identifier — becomes the slash command (e.g. `deploy` → `/deploy`)  |
-| `description`           | When to use this skill (helps AI decide when to auto-trigger)             |
-| `disableAutoInvocation` | Set `true` to prevent AI from auto-triggering (manual slash command only) |
-| `userInvocable`         | Set `false` to hide from slash command menu (AI-only)                     |
-| `allowedTools`          | Restrict which tools are available when skill is active                   |
-| `model`                 | Override the AI model used                                                |
-| `subagentType`          | Run in a specific subagent type (e.g. `Explore`)                          |
-| `forkContext`           | Set `true` to run in an isolated subagent context                         |
-| `argumentHint`          | Hint shown during autocomplete (e.g. `[filename]`)                        |
+See the **Skills** section in `<%= instructionPath('uac-template-guide') %>` for the complete field reference and per-target override syntax. Key fields: `name`, `description`, `disableAutoInvocation`, `userInvocable`, `allowedTools`, `model`, `hooks`.
 
 ### Supporting Files
 

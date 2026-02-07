@@ -11,7 +11,7 @@ Agents are specialized AI personas with scoped tools and permissions that run in
 
 ## Finding Existing Agents
 
-List files in `.universal-ai-config/agents/` to discover existing agent templates. Read their frontmatter to understand each agent's purpose and capabilities.
+List files in `<%= agentTemplatePath() %>/` to discover existing agent templates. Read their frontmatter to understand each agent's purpose and capabilities.
 
 ## Deciding What to Do
 
@@ -21,25 +21,13 @@ List files in `.universal-ai-config/agents/` to discover existing agent template
 
 ## Creating a New Agent
 
-1. Create a `.md` file in `.universal-ai-config/agents/` with a descriptive name (e.g. `code-reviewer.md`)
+1. Create a `.md` file in `<%= agentTemplatePath() %>/` with a descriptive name (e.g. `code-reviewer.md`)
 2. Add YAML frontmatter with at minimum `name` and `description`
 3. Write the agent's system prompt as the body
 
 ### Frontmatter Fields
 
-| Field             | Description                                                                        |
-| ----------------- | ---------------------------------------------------------------------------------- |
-| `name`            | Agent identifier (lowercase with hyphens)                                          |
-| `description`     | When to delegate to this agent (helps AI decide when to use it)                    |
-| `tools`           | Tools this agent can use (omit to inherit all)                                     |
-| `disallowedTools` | Tools to explicitly deny                                                           |
-| `permissionMode`  | Permission level: `default`, `acceptEdits`, `dontAsk`, `bypassPermissions`, `plan` |
-| `skills`          | Skills to preload into the agent's context                                         |
-| `memory`          | Persistent memory scope: `user`, `project`, or `local`                             |
-| `model`           | AI model to use (e.g. `sonnet`, `opus`, `haiku`)                                   |
-| `target`          | Copilot-specific: scope to `vscode` or `github-copilot`                            |
-| `mcpServers`      | MCP server configurations                                                          |
-| `handoffs`        | Copilot-specific: other agents to hand off to                                      |
+See the **Agents** section in `<%= instructionPath('uac-template-guide') %>` for the complete field reference and per-target override syntax. Key fields: `name`, `description`, `model`, `tools`, `permissionMode`, `hooks`.
 
 ### Example
 

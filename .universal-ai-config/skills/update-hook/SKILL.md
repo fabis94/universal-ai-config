@@ -9,7 +9,7 @@ Hooks are lifecycle automation that triggers on specific events during AI sessio
 
 ## Finding Existing Hooks
 
-List files in `.universal-ai-config/hooks/` to discover existing hook templates (`.json` files). Read them to understand what events are already handled.
+List files in `<%= hookTemplatePath() %>/` to discover existing hook templates (`.json` files). Read them to understand what events are already handled.
 
 **Note:** Hooks from multiple files are merged by event name during generation. You can organize hooks by concern (e.g. `linting.json`, `security.json`).
 
@@ -22,7 +22,7 @@ List files in `.universal-ai-config/hooks/` to discover existing hook templates 
 
 ## Creating a New Hook
 
-1. Create a `.json` file in `.universal-ai-config/hooks/` with a descriptive name (e.g. `linting.json`)
+1. Create a `.json` file in `<%= hookTemplatePath() %>/` with a descriptive name (e.g. `linting.json`)
 2. Use the standard hook JSON structure
 
 ### JSON Structure
@@ -34,7 +34,7 @@ List files in `.universal-ai-config/hooks/` to discover existing hook templates 
       {
         "command": "path/to/script.sh",
         "matcher": "ToolName",
-        "timeout": 5000,
+        "timeout": 30,
         "description": "What this hook does"
       }
     ]
@@ -42,45 +42,11 @@ List files in `.universal-ai-config/hooks/` to discover existing hook templates 
 }
 ```
 
-### Available Events
+### Events, Handler Fields, and Per-Target Overrides
 
-| Event              | When it fires                      | Matcher                          |
-| ------------------ | ---------------------------------- | -------------------------------- |
-| `sessionStart`     | Session begins or resumes          | How started: `startup`, `resume` |
-| `userPromptSubmit` | User submits a prompt              | N/A                              |
-| `preToolUse`       | Before a tool executes (can block) | Tool name                        |
-| `postToolUse`      | After a tool succeeds              | Tool name                        |
-| `stop`             | AI finishes responding             | N/A                              |
+See the **Hooks** section in `<%= instructionPath('uac-template-guide') %>` for the complete reference: all 13 universal event names, handler fields (`command`, `matcher`, `timeout`, `description`), event name mappings per target, and per-target override syntax.
 
-### Handler Fields
-
-| Field         | Required | Description                                               |
-| ------------- | -------- | --------------------------------------------------------- |
-| `command`     | Yes      | Shell command to execute                                  |
-| `matcher`     | No       | Regex to filter when handler fires (e.g. `"Write\|Edit"`) |
-| `timeout`     | No       | Timeout in milliseconds                                   |
-| `description` | No       | Human-readable description                                |
-
-### Per-Target Overrides
-
-Hook fields support per-target overrides at the handler level:
-
-```json
-{
-  "hooks": {
-    "postToolUse": [
-      {
-        "command": {
-          "claude": "./scripts/lint-claude.sh",
-          "copilot": "./scripts/lint-copilot.sh",
-          "default": "./scripts/lint.sh"
-        },
-        "matcher": "Write|Edit"
-      }
-    ]
-  }
-}
-```
+Use camelCase event names (e.g. `sessionStart`, `preToolUse`, `postToolUse`). The CLI maps them to each target's format and silently drops unsupported events.
 
 ### Example
 
@@ -91,7 +57,7 @@ Hook fields support per-target overrides at the handler level:
       {
         "matcher": "Write|Edit",
         "command": "./scripts/format-file.sh",
-        "timeout": 10000,
+        "timeout": 60,
         "description": "Auto-format files after edits"
       }
     ],
