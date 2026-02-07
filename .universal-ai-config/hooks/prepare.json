@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "sessionStart": [
+      {
+        "matcher": "startup",
+        "command": "pnpm prepare:claude",
+        "timeout": 30,
+        "description": "Regenerate Claude config from universal templates"
+      }
+    ]
+  }
+}

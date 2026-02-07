@@ -30,7 +30,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:unused": "knip",
-    "check": "pnpm lint && pnpm format:check && pnpm check:unused && pnpm test"
+    "check": "pnpm lint && pnpm format:check && pnpm check:unused && pnpm test",
+    "prepare:claude": "pnpm dev generate --target claude"
   },
   "keywords": [
     "ai",
