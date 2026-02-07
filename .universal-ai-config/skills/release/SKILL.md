@@ -71,7 +71,7 @@ If there is no previous tag, use all commits.
 
 Group commits by conventional commit type prefix:
 
-- **Breaking Changes** — commits with `!` suffix or `BREAKING CHANGE` in body
+- **Breaking Changes** — commits with "!" suffix or "BREAKING CHANGE" in body
 - **Features** — `feat:` commits
 - **Bug Fixes** — `fix:` commits
 - **Other** — everything else (chore, docs, refactor, style, test, ci, perf, build)
