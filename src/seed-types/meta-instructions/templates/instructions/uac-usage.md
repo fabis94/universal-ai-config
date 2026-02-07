@@ -15,10 +15,10 @@ First, you must figure out what the project's local package manager is. Other in
 
 Examples for different package managers:
 
-- **pnpm**: `pnpm run uac <command>`
-- **npm**: `npm run uac <command>`
-- **yarn**: `yarn run uac <command>`
-- **bun**: `bun run uac <command>`
+- **pnpm**: `pnpm uac <command>`
+- **npm**: `npm uac <command>`
+- **yarn**: `yarn uac <command>`
+- **bun**: `bun uac <command>`
 
 If `uac` is not a local dependency (e.g. non-JS projects): `npx universal-ai-config <command>`
 
@@ -35,11 +35,11 @@ Generate target-specific config files from templates.
 
 ### `uac init`
 
-Scaffold a new `.universal-ai-config/` directory with example templates and config file.
+Scaffold a new `.universal-ai-config/` directory with meta-instruction templates and config file.
 
 ### `uac seed <type>`
 
-Seed pre-built template sets into the templates directory. Available types: `meta-instructions`.
+Seed pre-built template sets into the templates directory. Available types: `meta-instructions`, `examples`.
 
 ### `uac clean`
 

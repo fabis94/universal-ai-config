@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "postToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "command": "echo 'File was modified'"
+      }
+    ]
+  }
+}

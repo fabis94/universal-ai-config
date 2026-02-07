@@ -44,7 +44,7 @@ npm run uac <command>
 ## Quick Start
 
 ```bash
-# Scaffold template directory with examples
+# Scaffold template directory with meta-instructions and config
 uac init
 
 # Generate config for all targets
@@ -56,8 +56,8 @@ uac generate -t claude,cursor
 # Preview without writing files
 uac generate --dry-run
 
-# Seed AI-assisted template management skills
-uac seed meta-instructions
+# Seed example templates (instruction, skill, agent, hook)
+uac seed examples
 ```
 
 ## Template Structure
@@ -434,7 +434,7 @@ Generate config files for specified targets.
 
 ### `uac init`
 
-Scaffold `.universal-ai-config/` directory with example templates. Creates a `universal-ai-config.config.ts` config file if one doesn't exist. Adds `universal-ai-config.overrides.*` to `.gitignore`.
+Scaffold `.universal-ai-config/` directory with meta-instruction templates and a `universal-ai-config.config.ts` config file. Seeds instruction and skill templates that teach AI tools how to manage universal-ai-config templates. Adds `universal-ai-config.overrides.*` to `.gitignore`.
 
 | Flag     | Short | Description  | Default |
 | -------- | ----- | ------------ | ------- |
@@ -451,13 +451,17 @@ Remove all generated config directories.
 
 ### `uac seed`
 
-Seed the templates directory with pre-built template sets. Currently available seed types:
+Seed the templates directory with pre-built template sets. Available seed types:
 
-- **`meta-instructions`** — Creates instruction and skill templates that teach AI tools how to create, update, and manage universal-ai-config templates. This bootstraps the AI's ability to extend its own configuration.
+- **`meta-instructions`** — Instruction and skill templates that teach AI tools how to create, update, and manage universal-ai-config templates. This bootstraps the AI's ability to extend its own configuration. Also seeded automatically by `uac init`.
+- **`examples`** — Example templates (instruction, skill, agent, hook) demonstrating template structure and frontmatter fields. Good for learning the format.
 
 ```bash
-# Seed with default templates directory
+# Seed meta-instructions (also done by uac init)
 uac seed meta-instructions
+
+# Seed example templates
+uac seed examples
 
 # Seed with custom project root
 uac seed meta-instructions --root ./my-project
@@ -467,11 +471,12 @@ uac seed meta-instructions --root ./my-project
 | -------- | ----- | ------------ | ------- |
 | `--root` | `-r`  | Project root | cwd     |
 
-The `meta-instructions` seed creates 7 files in the templates directory:
+The `meta-instructions` seed creates 8 files in the templates directory:
 
 | File                                        | Purpose                                                        |
 | ------------------------------------------- | -------------------------------------------------------------- |
-| `instructions/uac-template-guide.md`        | Decision guide for choosing the right template type            |
+| `instructions/uac-usage.md`                 | How to use uac CLI commands (always applied)                   |
+| `instructions/uac-template-guide.md`        | Full template authoring guide                                  |
 | `skills/update-ai-config/SKILL.md`          | Dispatcher — analyzes intent and delegates to the right skill  |
 | `skills/update-instruction/SKILL.md`        | Full lifecycle management for instruction templates            |
 | `skills/update-skill/SKILL.md`              | Full lifecycle management for skill templates                  |

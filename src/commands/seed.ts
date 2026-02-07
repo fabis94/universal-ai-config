@@ -3,9 +3,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { consola } from "consola";
 import { loadProjectConfig } from "../config/loader.js";
-import type { SeedTemplate } from "../seed-types/meta-instructions/index.js";
+import type { SeedTemplate } from "../seed-types/shared.js";
 
-const SEED_TYPES = ["meta-instructions"] as const;
+const SEED_TYPES = ["meta-instructions", "examples"] as const;
 type SeedType = (typeof SEED_TYPES)[number];
 
 async function loadSeedTemplates(
@@ -17,7 +17,40 @@ async function loadSeedTemplates(
       const { getTemplates } = await import("../seed-types/meta-instructions/index.js");
       return getTemplates(templatesDir);
     }
+    case "examples": {
+      const { getTemplates } = await import("../seed-types/examples/index.js");
+      return getTemplates(templatesDir);
+    }
   }
+}
+
+interface RunSeedOptions {
+  templatesDir?: string;
+}
+
+export async function runSeed(
+  seedType: string,
+  root: string,
+  options?: RunSeedOptions,
+): Promise<void> {
+  if (!SEED_TYPES.includes(seedType as SeedType)) {
+    throw new Error(`Unknown seed type: "${seedType}". Available: ${SEED_TYPES.join(", ")}`);
+  }
+
+  const templatesDir = options?.templatesDir ?? (await loadProjectConfig({ root })).templatesDir;
+
+  const templates = await loadSeedTemplates(seedType as SeedType, templatesDir);
+
+  for (const template of templates) {
+    const fullPath = join(root, templatesDir, template.relativePath);
+    const parentDir = join(fullPath, "..");
+
+    await mkdir(parentDir, { recursive: true });
+    await writeFile(fullPath, template.content, "utf-8");
+    consola.success(`Created ${join(templatesDir, template.relativePath)}`);
+  }
+
+  consola.info(`Seed complete: ${templates.length} files written`);
 }
 
 export default defineCommand({
@@ -39,9 +72,6 @@ export default defineCommand({
   },
   async run({ args }) {
     const root = args.root ?? process.cwd();
-    const config = await loadProjectConfig({ root });
-    const templatesDir = config.templatesDir;
-
     const seedType = args.type as string;
 
     if (!SEED_TYPES.includes(seedType as SeedType)) {
@@ -49,17 +79,6 @@ export default defineCommand({
       process.exit(1);
     }
 
-    const templates = await loadSeedTemplates(seedType as SeedType, templatesDir);
-
-    for (const template of templates) {
-      const fullPath = join(root, templatesDir, template.relativePath);
-      const parentDir = join(fullPath, "..");
-
-      await mkdir(parentDir, { recursive: true });
-      await writeFile(fullPath, template.content, "utf-8");
-      consola.success(`Created ${join(templatesDir, template.relativePath)}`);
-    }
-
-    consola.info(`Seed complete: ${templates.length} files written`);
+    await runSeed(seedType, root);
   },
 });
