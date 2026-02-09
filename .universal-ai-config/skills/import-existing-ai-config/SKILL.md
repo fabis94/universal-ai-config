@@ -97,7 +97,7 @@ Cursor-specific events (e.g. `beforeShellExecution`, `afterFileEdit`) should be 
 For each converted file:
 
 1. Use the same base name as the source file (e.g. `.claude/rules/coding-style.md` → `<%= instructionTemplatePath('coding-style') %>`)
-2. Write the universal frontmatter and body content
+2. Write the universal frontmatter and body content. Copy and paste the body content, instead of trying to use EJS `include()` or something equivalent, because the source files will be deleted afterwards.
 3. If a template with the same name already exists, **overwrite it** (the import represents the latest version)
 
 **File placement:**

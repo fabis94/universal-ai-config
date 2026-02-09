@@ -74,3 +74,5 @@ Use camelCase event names (e.g. `sessionStart`, `preToolUse`, `postToolUse`). Th
 ## After Changes
 
 Run `uac generate` to regenerate target-specific config files and verify the output.
+
+**Reminder:** Always edit templates in `<%= hookTemplatePath() %>/` — never edit generated target-specific files directly.

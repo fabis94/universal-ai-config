@@ -63,3 +63,5 @@ Create a new React component named $ARGUMENTS:
 ## After Changes
 
 Run `uac generate` to regenerate target-specific config files and verify the output.
+
+**Reminder:** Always edit templates in `<%= skillTemplatePath() %>/` — never edit generated target-specific files directly.
