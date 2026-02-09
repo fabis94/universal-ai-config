@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "echo shared-hook",
+        "description": "Shared session start hook"
+      }
+    ]
+  }
+}

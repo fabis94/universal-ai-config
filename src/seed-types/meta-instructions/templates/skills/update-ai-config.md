@@ -35,4 +35,4 @@ Invoke the appropriate skill with the user's requirements. If the intent is ambi
 
 ## Important
 
-The delegated skills (`/update-instruction`, `/update-skill`, `/update-agent`, `/update-hook`, `/update-mcp`) must ONLY create or modify files inside `<%%= config.templatesDir %>/`. Never edit generated output files in `.claude/`, `.cursor/`, `.github/`, or similar target-specific directories — those are regenerated from templates and any direct changes will be lost.
+The delegated skills (`/update-instruction`, `/update-skill`, `/update-agent`, `/update-hook`, `/update-mcp`) primarily create or modify files inside `<%%= config.templatesDir %>/`. They may also modify files in directories listed under `additionalTemplateDirs` in the config — but only with explicit user confirmation, since those are shared templates that may affect other projects. Never edit generated output files in `.claude/`, `.cursor/`, `.github/`, or similar target-specific directories — those are regenerated from templates and any direct changes will be lost.

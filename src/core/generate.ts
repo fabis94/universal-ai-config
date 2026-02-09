@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from "node:fs/promises";
-import { join, basename, relative, sep } from "node:path";
+import { join, basename, relative, sep, resolve, isAbsolute } from "node:path";
+import { homedir } from "node:os";
 import { consola } from "consola";
 import { loadProjectConfig } from "../config/loader.js";
 import { createExcludeMatcher } from "./exclude.js";
@@ -29,7 +30,16 @@ interface DiscoveredTemplate {
   name: string;
   type: TemplateType;
   filePath: string;
+  /** Path relative to project root (used as sourcePath in GeneratedFile) */
   relativePath: string;
+  /** Path relative to the containing templates dir, e.g. "instructions/foo.md" (used for exclude matching) */
+  templateRelativePath: string;
+}
+
+/** Resolve an additional template dir path: expands ~ and resolves relative paths against root */
+function resolveAdditionalDir(root: string, dir: string): string {
+  const expanded = dir.startsWith("~") ? join(homedir(), dir.slice(1)) : dir;
+  return isAbsolute(expanded) ? expanded : resolve(root, expanded);
 }
 
 function formatFrontmatter(data: Record<string, unknown>): string {
@@ -79,58 +89,79 @@ async function discoverTemplates(
   root: string,
   config: ResolvedConfig,
 ): Promise<DiscoveredTemplate[]> {
-  const templatesDir = safePath(root, config.templatesDir);
   const templates: DiscoveredTemplate[] = [];
+  const seen = new Set<string>();
 
-  for (const type of config.types) {
-    // Hooks and MCP are handled separately — they use JSON, not markdown templates
-    if (type === "hooks" || type === "mcp") continue;
+  async function scanDir(templatesDir: string) {
+    for (const type of config.types) {
+      // Hooks and MCP are handled separately — they use JSON, not markdown templates
+      if (type === "hooks" || type === "mcp") continue;
 
-    const typeDir = join(templatesDir, type);
-    try {
-      const stats = await stat(typeDir);
-      if (!stats.isDirectory()) continue;
-    } catch {
-      continue; // Directory doesn't exist
-    }
+      const typeDir = join(templatesDir, type);
+      try {
+        const stats = await stat(typeDir);
+        if (!stats.isDirectory()) continue;
+      } catch {
+        continue; // Directory doesn't exist
+      }
 
-    if (type === "skills") {
-      // Skills are folders, each containing SKILL.md
-      const entries = await readdir(typeDir);
-      for (const entry of entries) {
-        const skillDir = join(typeDir, entry);
-        const skillStats = await stat(skillDir);
-        if (!skillStats.isDirectory()) continue;
-        const skillFile = join(skillDir, "SKILL.md");
-        try {
-          await stat(skillFile);
+      if (type === "skills") {
+        // Skills are folders, each containing SKILL.md
+        const entries = await readdir(typeDir);
+        for (const entry of entries) {
+          const dedupKey = `${type}:${entry}`;
+          if (seen.has(dedupKey)) continue;
+
+          const skillDir = join(typeDir, entry);
+          const skillStats = await stat(skillDir);
+          if (!skillStats.isDirectory()) continue;
+          const skillFile = join(skillDir, "SKILL.md");
+          try {
+            await stat(skillFile);
+            seen.add(dedupKey);
+            templates.push({
+              name: entry,
+              type,
+              filePath: skillFile,
+              relativePath: relative(root, skillFile),
+              templateRelativePath: normalizePath(relative(templatesDir, skillFile)),
+            });
+          } catch {
+            // SKILL.md doesn't exist in this folder
+          }
+        }
+      } else {
+        // Instructions and agents are flat .md files
+        const entries = await readdir(typeDir);
+        for (const entry of entries) {
+          if (!entry.endsWith(".md")) continue;
+          const name = basename(entry, ".md");
+          const dedupKey = `${type}:${name}`;
+          if (seen.has(dedupKey)) continue;
+
+          const filePath = join(typeDir, entry);
+          const fileStats = await stat(filePath);
+          if (!fileStats.isFile()) continue;
+
+          seen.add(dedupKey);
           templates.push({
-            name: entry,
+            name,
             type,
-            filePath: skillFile,
-            relativePath: relative(root, skillFile),
+            filePath,
+            relativePath: relative(root, filePath),
+            templateRelativePath: normalizePath(relative(templatesDir, filePath)),
           });
-        } catch {
-          // SKILL.md doesn't exist in this folder
         }
       }
-    } else {
-      // Instructions and agents are flat .md files
-      const entries = await readdir(typeDir);
-      for (const entry of entries) {
-        if (!entry.endsWith(".md")) continue;
-        const filePath = join(typeDir, entry);
-        const fileStats = await stat(filePath);
-        if (!fileStats.isFile()) continue;
-        const name = basename(entry, ".md");
-        templates.push({
-          name,
-          type,
-          filePath,
-          relativePath: relative(root, filePath),
-        });
-      }
     }
+  }
+
+  // Main dir first (wins priority via dedup)
+  await scanDir(safePath(root, config.templatesDir));
+
+  // Additional dirs in order
+  for (const dir of config.additionalTemplateDirs) {
+    await scanDir(resolveAdditionalDir(root, dir));
   }
 
   return templates;
@@ -162,21 +193,39 @@ async function discoverHookFiles(
   root: string,
   config: ResolvedConfig,
 ): Promise<DiscoveredHookFile[]> {
-  const hooksDir = safePath(root, join(config.templatesDir, "hooks"));
-  try {
-    const stats = await stat(hooksDir);
-    if (!stats.isDirectory()) return [];
-  } catch {
-    return [];
+  const files: DiscoveredHookFile[] = [];
+  const seen = new Set<string>();
+
+  async function scanHooksDir(templatesDir: string) {
+    const hooksDir = join(templatesDir, "hooks");
+    try {
+      const stats = await stat(hooksDir);
+      if (!stats.isDirectory()) return;
+    } catch {
+      return;
+    }
+
+    const entries = await readdir(hooksDir);
+    for (const file of entries) {
+      if (!file.endsWith(".json")) continue;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      files.push({
+        filePath: join(hooksDir, file),
+        templateRelativePath: normalizePath(join("hooks", file)),
+      });
+    }
   }
 
-  const entries = await readdir(hooksDir);
-  return entries
-    .filter((e) => e.endsWith(".json"))
-    .map((file) => ({
-      filePath: join(hooksDir, file),
-      templateRelativePath: normalizePath(join("hooks", file)),
-    }));
+  // Main dir first (wins priority via dedup)
+  await scanHooksDir(safePath(root, config.templatesDir));
+
+  // Additional dirs in order
+  for (const dir of config.additionalTemplateDirs) {
+    await scanHooksDir(resolveAdditionalDir(root, dir));
+  }
+
+  return files;
 }
 
 async function mergeHookFiles(
@@ -271,21 +320,39 @@ async function discoverMCPFiles(
   root: string,
   config: ResolvedConfig,
 ): Promise<DiscoveredMCPFile[]> {
-  const mcpDir = safePath(root, join(config.templatesDir, "mcp"));
-  try {
-    const stats = await stat(mcpDir);
-    if (!stats.isDirectory()) return [];
-  } catch {
-    return [];
+  const files: DiscoveredMCPFile[] = [];
+  const seen = new Set<string>();
+
+  async function scanMCPDir(templatesDir: string) {
+    const mcpDir = join(templatesDir, "mcp");
+    try {
+      const stats = await stat(mcpDir);
+      if (!stats.isDirectory()) return;
+    } catch {
+      return;
+    }
+
+    const entries = await readdir(mcpDir);
+    for (const file of entries) {
+      if (!file.endsWith(".json")) continue;
+      if (seen.has(file)) continue;
+      seen.add(file);
+      files.push({
+        filePath: join(mcpDir, file),
+        templateRelativePath: normalizePath(join("mcp", file)),
+      });
+    }
   }
 
-  const entries = await readdir(mcpDir);
-  return entries
-    .filter((e) => e.endsWith(".json"))
-    .map((file) => ({
-      filePath: join(mcpDir, file),
-      templateRelativePath: normalizePath(join("mcp", file)),
-    }));
+  // Main dir first (wins priority via dedup)
+  await scanMCPDir(safePath(root, config.templatesDir));
+
+  // Additional dirs in order
+  for (const dir of config.additionalTemplateDirs) {
+    await scanMCPDir(resolveAdditionalDir(root, dir));
+  }
+
+  return files;
 }
 
 interface MergedMCPData {
@@ -408,9 +475,8 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
 
     for (const targetName of config.targets) {
       // Check if template is excluded for this target
-      const templateRelPath = normalizePath(relative(config.templatesDir, template.relativePath));
       const isExcluded = excludeMatchers.get(targetName);
-      if (isExcluded?.(templateRelPath)) continue;
+      if (isExcluded?.(template.templateRelativePath)) continue;
 
       const targetDef = targets[targetName];
       if (!targetDef) continue;

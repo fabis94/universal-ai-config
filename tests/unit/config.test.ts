@@ -52,6 +52,22 @@ describe("userConfigSchema", () => {
   it("rejects exclude with non-string array items", () => {
     expect(() => userConfigSchema.parse({ exclude: [123] })).toThrow();
   });
+
+  it("validates additionalTemplateDirs as array of strings", () => {
+    const result = userConfigSchema.parse({
+      additionalTemplateDirs: ["~/.universal-ai-config", "/shared/templates"],
+    });
+    expect(result.additionalTemplateDirs).toEqual(["~/.universal-ai-config", "/shared/templates"]);
+  });
+
+  it("allows omitting additionalTemplateDirs", () => {
+    const result = userConfigSchema.parse({});
+    expect(result.additionalTemplateDirs).toBeUndefined();
+  });
+
+  it("rejects additionalTemplateDirs with non-string items", () => {
+    expect(() => userConfigSchema.parse({ additionalTemplateDirs: [123] })).toThrow();
+  });
 });
 
 describe("defineConfig", () => {

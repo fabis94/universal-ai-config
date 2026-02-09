@@ -34,6 +34,14 @@ If no existing instruction fits, investigate the project to decide where the ins
 
 **Example:** The user says "feature flags should be loaded from env vars." Feature flags might appear in 10 places across the codebase, but if only the API layer loads them from config, the right scope is `globs: ["src/api/**"]` rather than `alwaysApply: true`.
 
+## Additional Template Directories
+
+This project may have additional template directories configured via `additionalTemplateDirs` in the config file (`universal-ai-config.config.ts` or `universal-ai-config.overrides.ts`). If the user asks to update a template that doesn't exist in the main templates directory, or explicitly refers to shared/global/external templates:
+
+1. Read the config file(s) to find `additionalTemplateDirs` paths
+2. Search those directories for the relevant instruction
+3. **IMPORTANT:** Before editing any file outside the main `<%%= config.templatesDir %>/` directory, ask the user for explicit confirmation — these are shared templates that may affect other projects
+
 ## Deciding What to Do
 
 - **Create new**: when the topic is distinct from all existing instructions

@@ -6,7 +6,7 @@ globs: ["<%= templatesDir %>/**"]
 # Universal AI Config Template Guide
 
 This project uses **universal-ai-config** to manage AI tool configurations from a single set of templates.
-Templates live in `<%%= config.templatesDir %>/` and are rendered into target-specific config files (Claude, Copilot, Cursor) via `uac generate`.
+Templates live in `<%%= config.templatesDir %>/` and are rendered into target-specific config files (Claude, Copilot, Cursor) via `uac generate`. Additional template directories can be configured via `additionalTemplateDirs` in the config to share templates across projects (e.g., from `~/.universal-ai-config`). The main `templatesDir` always takes priority on name conflicts.
 
 ## Template Types
 

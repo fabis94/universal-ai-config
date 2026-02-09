@@ -52,6 +52,7 @@ Remove all generated config directories.
 The config file (`universal-ai-config.config.ts`) supports these options:
 
 - `templatesDir` — templates directory (default: `.universal-ai-config`)
+- `additionalTemplateDirs` — extra directories to discover templates from; supports absolute paths, relative paths, and `~` for home directory (default: `[]`). Main `templatesDir` takes priority on name conflicts.
 - `targets` — which targets to generate (default: all)
 - `types` — which template types to generate (default: all)
 - `variables` — custom variables for templates (EJS in markdown, `{{var}}` in JSON)

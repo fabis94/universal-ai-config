@@ -16,6 +16,7 @@ const excludeSchema = z.union([
 
 export const userConfigSchema = z.object({
   templatesDir: z.string().optional(),
+  additionalTemplateDirs: z.array(z.string()).optional(),
   targets: z.array(targetSchema).optional(),
   types: z.array(templateTypeSchema).optional(),
   variables: z.record(z.string(), z.unknown()).optional(),

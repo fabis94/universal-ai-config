@@ -15,6 +15,7 @@ function mergeConfigs(base: ResolvedConfig, override: UserConfig): ResolvedConfi
     // Scalars: override replaces
     templatesDir: override.templatesDir ?? base.templatesDir,
     // Arrays: override replaces entirely
+    additionalTemplateDirs: override.additionalTemplateDirs ?? base.additionalTemplateDirs,
     targets: override.targets ?? base.targets,
     types: override.types ?? base.types,
     // Objects: deep merge

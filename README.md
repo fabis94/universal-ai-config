@@ -427,6 +427,10 @@ export default defineConfig({
   // Where templates live (default: '.universal-ai-config')
   templatesDir: ".universal-ai-config",
 
+  // Additional directories to discover templates from (default: [])
+  // Supports absolute paths, relative paths, and ~ for home directory
+  additionalTemplateDirs: ["~/.universal-ai-config"],
+
   // Which targets to generate (default: all three)
   targets: ["claude", "copilot", "cursor"],
 
@@ -494,9 +498,25 @@ export default defineConfig({
 
 Supported glob syntax: `*` (single segment), `**` (recursive), `?` (single char), `{a,b}` (alternatives).
 
+### Additional Template Directories
+
+The `additionalTemplateDirs` option lets you load templates from extra directories alongside the project-local `templatesDir`. This is useful for sharing common templates (e.g., MCP servers, coding standards) across projects from a central location like your home directory.
+
+```typescript
+export default defineConfig({
+  additionalTemplateDirs: ["~/.universal-ai-config"],
+});
+```
+
+- Paths can be absolute, relative to the project root, or use `~` for the home directory
+- The main `templatesDir` always takes priority — if a template with the same name and type exists in both, the main dir's version is used
+- Within `additionalTemplateDirs`, earlier entries take priority over later ones
+- The `exclude` option works the same way — patterns match against type-relative paths (e.g., `instructions/foo.md`) regardless of source directory
+- Generated files are always written to the project's output directories
+
 ### Merge Behavior
 
-- **Arrays** (`targets`, `types`, `exclude`): overrides **replace** entirely
+- **Arrays** (`targets`, `types`, `exclude`, `additionalTemplateDirs`): overrides **replace** entirely
 - **Objects** (`variables`, `outputDirs`): **deep-merged**
 - **Scalars** (`templatesDir`): overrides **replace**
 

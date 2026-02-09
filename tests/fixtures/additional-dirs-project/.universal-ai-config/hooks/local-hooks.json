@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "postToolUse": [
+      {
+        "command": "echo local-hook",
+        "matcher": "Write",
+        "description": "Local hook"
+      }
+    ]
+  }
+}

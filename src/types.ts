@@ -6,6 +6,7 @@ export type PerTargetValue<T> = T | (Partial<Record<Target, T>> & { default?: T 
 
 export interface UserConfig {
   templatesDir?: string;
+  additionalTemplateDirs?: string[];
   targets?: Target[];
   types?: TemplateType[];
   variables?: Record<string, unknown>;
@@ -15,6 +16,7 @@ export interface UserConfig {
 
 export interface ResolvedConfig {
   templatesDir: string;
+  additionalTemplateDirs: string[];
   targets: Target[];
   types: TemplateType[];
   variables: Record<string, unknown>;
