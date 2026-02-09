@@ -38,6 +38,12 @@ Lifecycle automation that triggers on specific events (e.g. before tool use, aft
 
 **Use for:** validation, formatting, linting, logging, security enforcement, environment setup.
 
+### MCP Servers (`<%%= mcpTemplatePath() %>/*.json`)
+
+Model Context Protocol server configurations that provide external tools to AI assistants.
+
+**Use for:** connecting AI tools to external services (GitHub, databases, APIs), providing custom tool servers.
+
 ## Decision Guide
 
 Ask yourself:
@@ -46,6 +52,7 @@ Ask yourself:
 2. **Is it a repeatable task or workflow?** → Skill
 3. **Does it need an isolated AI with restricted tools?** → Agent
 4. **Should it run automatically on a lifecycle event?** → Hook
+5. **Does it connect the AI to an external tool server?** → MCP Server
 
 ## Template Structure
 
@@ -84,6 +91,7 @@ Template bodies support EJS for conditional content.
 - `<%%= skillTemplatePath('name') %>` — template path for a skill
 - `<%%= agentTemplatePath('name') %>` — template path for an agent
 - `<%%= hookTemplatePath('name') %>` — template path for a hook
+- `<%%= mcpTemplatePath('name') %>` — template path for an MCP config
 - `<%%= instructionTemplatePath() %>` — template directory for instructions
 
 For example, `<%%= skillPath('deploy') %>` renders to:
@@ -216,6 +224,101 @@ Hook handler fields (`command`, `matcher`, `timeout`, `description`) support per
 ```
 
 If `command` resolves to `undefined` for a target, the entire handler is skipped for that target.
+
+### Variable Interpolation (Hooks & MCP)
+
+JSON templates (hooks and MCP) support `{{variableName}}` interpolation from config variables. Variables are replaced before JSON parsing.
+
+```json
+{
+  "env": {
+    "API_HOST": "{{apiHost}}"
+  }
+}
+```
+
+Variables are defined in `universal-ai-config.config.ts` under the `variables` key. Unmatched `{{placeholders}}` are left as-is.
+
+**Important:** `{{varName}}` is for uac config variables. Use `${ENV_VAR}` for runtime environment variable references that should pass through to generated output unchanged.
+
+### MCP Servers
+
+MCP server configs define external tool servers. They use JSON format with this structure:
+
+```json
+{
+  "mcpServers": {
+    "server-name": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@some/mcp-server"],
+      "env": {
+        "API_KEY": "${API_KEY}"
+      }
+    }
+  }
+}
+```
+
+#### Server Fields
+
+| Field     | Required | Description                           |
+| --------- | -------- | ------------------------------------- |
+| `command` | Yes\*    | Command to launch the server (stdio)  |
+| `args`    | No       | Arguments for the command             |
+| `type`    | No       | Transport type (`"stdio"` or `"sse"`) |
+| `env`     | No       | Environment variables                 |
+| `url`     | Yes\*    | Server URL (SSE/HTTP transport)       |
+| `headers` | No       | HTTP headers (SSE/HTTP transport)     |
+
+\*A server must have either `command` or `url`. If neither is present after override resolution, the server is dropped for that target.
+
+#### Per-Target Overrides in MCP
+
+Server fields support per-target values (same syntax as hooks):
+
+```json
+{
+  "command": {
+    "default": "npx",
+    "cursor": "node"
+  },
+  "args": {
+    "default": ["-y", "@my/server"],
+    "cursor": ["./mcp-server.js"]
+  }
+}
+```
+
+#### Copilot Inputs
+
+An optional `inputs` array provides interactive secret prompts for Copilot:
+
+```json
+{
+  "mcpServers": { ... },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "github-token",
+      "description": "GitHub PAT",
+      "password": true
+    }
+  ]
+}
+```
+
+The `inputs` array is only included in Copilot output — Claude and Cursor ignore it.
+
+#### MCP Output Paths
+
+| Target  | Output Path        | Wrapper Key  | Notes                         |
+| ------- | ------------------ | ------------ | ----------------------------- |
+| Claude  | `.mcp.json`        | `mcpServers` | Project root                  |
+| Copilot | `.vscode/mcp.json` | `servers`    | Includes `inputs` if provided |
+| Cursor  | `.cursor/mcp.json` | `mcpServers` | Omits `type` field            |
+
+Multiple `.json` files in the `mcp/` directory are merged by server name (last-wins for duplicates). `inputs` arrays are concatenated.
 
 ## Available Tools
 

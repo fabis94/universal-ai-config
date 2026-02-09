@@ -21,6 +21,7 @@ Based on the user's request, decide which type of template to work with:
 - **Repeatable task, workflow, or slash command** → Use `/update-skill`
 - **Specialized AI persona with restricted tools** → Use `/update-agent`
 - **Automatic lifecycle automation (on events)** → Use `/update-hook`
+- **MCP server configuration** → Use `/update-mcp`
 
 ## 3. Delegate
 
@@ -30,7 +31,8 @@ Invoke the appropriate skill with the user's requirements. If the intent is ambi
 - "Create a deploy workflow" → `/update-skill`
 - "Set up a code reviewer" → `/update-agent`
 - "Run linting after file edits" → `/update-hook`
+- "Add an MCP server for GitHub" → `/update-mcp`
 
 ## Important
 
-The delegated skills (`/update-instruction`, `/update-skill`, `/update-agent`, `/update-hook`) must ONLY create or modify files inside `<%%= config.templatesDir %>/`. Never edit generated output files in `.claude/`, `.cursor/`, `.github/`, or similar target-specific directories — those are regenerated from templates and any direct changes will be lost.
+The delegated skills (`/update-instruction`, `/update-skill`, `/update-agent`, `/update-hook`, `/update-mcp`) must ONLY create or modify files inside `<%%= config.templatesDir %>/`. Never edit generated output files in `.claude/`, `.cursor/`, `.github/`, or similar target-specific directories — those are regenerated from templates and any direct changes will be lost.

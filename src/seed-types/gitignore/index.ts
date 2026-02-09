@@ -25,6 +25,10 @@ const PATTERNS = [
   ".cursor/rules/",
   ".cursor/skills/",
   ".cursor/hooks.json",
+  // MCP (root-relative output paths)
+  ".mcp.json",
+  ".vscode/mcp.json",
+  ".cursor/mcp.json",
 ];
 
 function buildBlock(): string {

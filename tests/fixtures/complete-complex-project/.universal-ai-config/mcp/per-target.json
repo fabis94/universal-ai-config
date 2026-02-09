@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "my-api": {
+      "type": {
+        "claude": "stdio",
+        "copilot": "stdio",
+        "cursor": "stdio"
+      },
+      "command": {
+        "default": "npx",
+        "cursor": "node"
+      },
+      "args": {
+        "default": ["-y", "@my/server"],
+        "cursor": ["./mcp-server.js"]
+      },
+      "env": {
+        "API_KEY": "test-key"
+      }
+    },
+    "claude-only": {
+      "type": {
+        "claude": "stdio"
+      },
+      "command": {
+        "claude": "npx"
+      },
+      "args": {
+        "claude": ["-y", "@claude/special-server"]
+      }
+    }
+  }
+}

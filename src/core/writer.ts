@@ -11,6 +11,13 @@ const CLEAN_PATHS: Record<string, string[]> = {
   cursor: ["rules", "skills", "hooks.json"],
 };
 
+/** Root-relative MCP output paths per target (not inside outputDir) */
+const CLEAN_MCP_PATHS: Record<string, string[]> = {
+  claude: [".mcp.json"],
+  copilot: [".vscode/mcp.json"],
+  cursor: [".cursor/mcp.json"],
+};
+
 async function mergeJsonKey(fullPath: string, content: string, mergeKey: string): Promise<string> {
   const newData = JSON.parse(content) as Record<string, unknown>;
   const mergeValue = newData[mergeKey];
@@ -86,6 +93,20 @@ export async function cleanTargetFiles(root: string, targetNames?: Target[]): Pr
     // Claude hooks are merged into settings.json — need special handling
     if (targetName === "claude") {
       await cleanClaudeHooks(root, outputDir);
+    }
+
+    // MCP files are root-relative, not inside outputDir
+    const mcpPaths = CLEAN_MCP_PATHS[targetName];
+    if (mcpPaths) {
+      for (const mcpPath of mcpPaths) {
+        const fullPath = join(root, mcpPath);
+        try {
+          await rm(fullPath, { force: true });
+          consola.info(`Cleaned ${mcpPath}`);
+        } catch {
+          // Path doesn't exist
+        }
+      }
     }
   }
 }

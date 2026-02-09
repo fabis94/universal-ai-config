@@ -43,9 +43,14 @@ describe("init command", () => {
     expect(gitignore).toContain(".cursor/rules/");
     expect(gitignore).toContain(".cursor/skills/");
     expect(gitignore).toContain(".cursor/hooks.json");
-    // Should NOT gitignore entire dirs or merged files
+    // Claude settings.json (hooks merge target)
+    expect(gitignore).toContain(".claude/settings.json");
+    // MCP output files (root-relative)
+    expect(gitignore).toContain(".mcp.json");
+    expect(gitignore).toContain(".vscode/mcp.json");
+    expect(gitignore).toContain(".cursor/mcp.json");
+    // Should NOT gitignore entire dirs
     expect(gitignore).not.toContain(".github\n");
-    expect(gitignore).not.toContain(".claude/settings.json");
 
     // Meta-instruction templates should exist (seeded by init)
     const templatesDir = join(tempDir, ".universal-ai-config");

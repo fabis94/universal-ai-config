@@ -149,6 +149,62 @@ describe("generate", () => {
     ).rejects.toThrow('Unknown target "nonexistent"');
   });
 
+  describe("mcp", () => {
+    it("generates claude MCP at .mcp.json with mcpServers wrapper", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["mcp"],
+      });
+
+      const mcp = files.find((f) => f.type === "mcp" && f.target === "claude");
+      expect(mcp).toBeDefined();
+      expect(mcp!.path).toBe(".mcp.json");
+
+      const parsed = JSON.parse(mcp!.content);
+      expect(parsed.mcpServers).toHaveProperty("github");
+      expect(parsed.mcpServers.github.type).toBe("stdio");
+      expect(parsed.mcpServers.github.command).toBe("npx");
+      expect(parsed.mcpServers.github.args).toEqual(["-y", "@modelcontextprotocol/server-github"]);
+      expect(parsed.mcpServers.github.env.GITHUB_TOKEN).toBe("${GITHUB_TOKEN}");
+    });
+
+    it("generates copilot MCP at .vscode/mcp.json with servers wrapper", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["copilot"],
+        types: ["mcp"],
+      });
+
+      const mcp = files.find((f) => f.type === "mcp" && f.target === "copilot");
+      expect(mcp).toBeDefined();
+      expect(mcp!.path).toBe(".vscode/mcp.json");
+
+      const parsed = JSON.parse(mcp!.content);
+      expect(parsed.servers).toHaveProperty("github");
+      expect(parsed.servers.github.type).toBe("stdio");
+      expect(parsed.servers.github.command).toBe("npx");
+    });
+
+    it("generates cursor MCP at .cursor/mcp.json without type field", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["cursor"],
+        types: ["mcp"],
+      });
+
+      const mcp = files.find((f) => f.type === "mcp" && f.target === "cursor");
+      expect(mcp).toBeDefined();
+      expect(mcp!.path).toBe(".cursor/mcp.json");
+
+      const parsed = JSON.parse(mcp!.content);
+      expect(parsed.mcpServers).toHaveProperty("github");
+      // Cursor omits the type field
+      expect(parsed.mcpServers.github).not.toHaveProperty("type");
+      expect(parsed.mcpServers.github.command).toBe("npx");
+    });
+  });
+
   describe("hooks", () => {
     it("generates claude hooks merged into settings.json format", async () => {
       const files = await generate({

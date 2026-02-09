@@ -8,8 +8,8 @@ describe("claude target", () => {
     expect(claude.outputDir).toBe(".claude");
   });
 
-  it("supports all four types", () => {
-    expect(claude.supportedTypes).toEqual(["instructions", "skills", "agents", "hooks"]);
+  it("supports all five types", () => {
+    expect(claude.supportedTypes).toEqual(["instructions", "skills", "agents", "hooks", "mcp"]);
   });
 
   describe("instructions", () => {

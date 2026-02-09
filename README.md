@@ -1,6 +1,6 @@
 # universal-ai-config
 
-Generate tool-specific AI config files from shared templates. Write your AI instructions, skills, agents, and hooks once — generate config for Claude Code, GitHub Copilot, and Cursor automatically.
+Generate tool-specific AI config files from shared templates. Write your AI instructions, skills, agents, hooks, and MCP server configs once — generate config for Claude Code, GitHub Copilot, and Cursor automatically.
 
 ## Table of Contents
 
@@ -13,6 +13,7 @@ Generate tool-specific AI config files from shared templates. Write your AI inst
   - [Skills](#skills)
   - [Agents](#agents)
   - [Hooks](#hooks)
+  - [MCP Servers](#mcp-servers)
 - [Per-Target Overrides](#per-target-overrides)
 - [EJS Template Variables](#ejs-template-variables)
 - [Configuration](#configuration)
@@ -75,14 +76,16 @@ your-project/
     │       └── SKILL.md
     ├── agents/                # Agent/subagent definitions
     │   └── code-reviewer.md
-    └── hooks/                 # Hook configs (JSON, no templating)
-        ├── security.json
-        └── quality.json
+    ├── hooks/                 # Hook configs (JSON)
+    │   ├── security.json
+    │   └── quality.json
+    └── mcp/                   # MCP server configs (JSON)
+        └── github.json
 ```
 
 ## Writing Templates
 
-Templates are markdown files with YAML frontmatter. The body supports [EJS](https://ejs.co/) for conditional content per target.
+Markdown templates use YAML frontmatter and [EJS](https://ejs.co/) for conditional content. JSON templates (hooks, MCP) support `{{variableName}}` interpolation from config variables.
 
 ### Instructions
 
@@ -239,9 +242,65 @@ Use camelCase event names. The CLI maps them to each target's format and silentl
 
 Cursor-specific events (`beforeShellExecution`, `afterFileEdit`, etc.) can be used directly — they pass through to Cursor and are dropped for other targets.
 
+### MCP Servers
+
+MCP server configs define external tool servers available to AI assistants. Like hooks, they use JSON format with `{{variable}}` interpolation support. Multiple `.json` files in the `mcp/` directory are merged by server name.
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+#### Server Fields
+
+| Field     | Type                     | Required | Description                           |
+| --------- | ------------------------ | -------- | ------------------------------------- |
+| `command` | `string`                 | yes\*    | Command to launch the server (stdio)  |
+| `args`    | `string[]`               | no       | Arguments for the command             |
+| `type`    | `string`                 | no       | Transport type (`"stdio"` or `"sse"`) |
+| `env`     | `Record<string, string>` | no       | Environment variables                 |
+| `url`     | `string`                 | yes\*    | Server URL (SSE/HTTP transport)       |
+| `headers` | `Record<string, string>` | no       | HTTP headers (SSE/HTTP transport)     |
+
+\*A server must have either `command` or `url`. If neither is present after per-target override resolution, the server is dropped for that target.
+
+Server fields support per-target overrides (same syntax as hooks):
+
+```json
+{
+  "mcpServers": {
+    "my-server": {
+      "command": { "default": "npx", "cursor": "node" },
+      "args": { "default": ["-y", "@my/server"], "cursor": ["./mcp-server.js"] }
+    }
+  }
+}
+```
+
+For Copilot, an optional `inputs` array provides interactive secret prompts. It's included in Copilot output only:
+
+```json
+{
+  "mcpServers": { ... },
+  "inputs": [
+    { "type": "promptString", "id": "github-token", "description": "GitHub PAT", "password": true }
+  ]
+}
+```
+
 ## Per-Target Overrides
 
-Any frontmatter field or hook handler field can accept per-target values instead of a single value. If a field's value is an object where **every key is a target name** (`claude`, `copilot`, `cursor`) or `default`, it's resolved to the matching target's value during generation. If the target isn't listed, the `default` value is used. If neither is present, the field is omitted.
+Any frontmatter field, hook handler field, or MCP server field can accept per-target values instead of a single value. If a field's value is an object where **every key is a target name** (`claude`, `copilot`, `cursor`) or `default`, it's resolved to the matching target's value during generation. If the target isn't listed, the `default` value is used. If neither is present, the field is omitted.
 
 ### Frontmatter
 
@@ -310,12 +369,12 @@ If `command` resolves to `undefined` for a target (i.e. that target isn't listed
 
 All templates have access to these variables:
 
-| Variable              | Type                                     | Description                                        |
-| --------------------- | ---------------------------------------- | -------------------------------------------------- |
-| `target`              | `'claude' \| 'copilot' \| 'cursor'`      | Current output target                              |
-| `type`                | `'instructions' \| 'skills' \| 'agents'` | Template type being rendered (hooks don't use EJS) |
-| `config`              | `ResolvedConfig`                         | Full resolved config object                        |
-| `...config.variables` | `Record<string, unknown>`                | Custom user variables spread into scope            |
+| Variable              | Type                                     | Description                                            |
+| --------------------- | ---------------------------------------- | ------------------------------------------------------ |
+| `target`              | `'claude' \| 'copilot' \| 'cursor'`      | Current output target                                  |
+| `type`                | `'instructions' \| 'skills' \| 'agents'` | Template type being rendered (hooks/MCP don't use EJS) |
+| `config`              | `ResolvedConfig`                         | Full resolved config object                            |
+| `...config.variables` | `Record<string, unknown>`                | Custom user variables spread into scope                |
 
 ### Path Helpers
 
@@ -337,6 +396,7 @@ Templates have access to path helper functions. All `name` parameters are option
 | `skillTemplatePath(name?)`       | Template source path (or directory) for a skill        |
 | `agentTemplatePath(name?)`       | Template source path (or directory) for an agent       |
 | `hookTemplatePath(name?)`        | Template source path (or directory) for a hook         |
+| `mcpTemplatePath(name?)`         | Template source path (or directory) for an MCP config  |
 
 For example, `<%= instructionPath('coding-style') %>` renders to:
 
@@ -371,7 +431,7 @@ export default defineConfig({
   targets: ["claude", "copilot", "cursor"],
 
   // Which types to generate (default: all)
-  types: ["instructions", "skills", "agents", "hooks"],
+  types: ["instructions", "skills", "agents", "hooks", "mcp"],
 
   // Custom EJS variables available in templates
   variables: {
@@ -409,7 +469,7 @@ export default defineConfig({
 
 ### Template Exclusion
 
-The `exclude` option accepts glob patterns to skip specific templates during generation. Patterns match against paths relative to the templates directory (e.g., `instructions/my-rule.md`, `skills/deploy-helper/SKILL.md`, `hooks/debug.json`).
+The `exclude` option accepts glob patterns to skip specific templates during generation. Patterns match against paths relative to the templates directory (e.g., `instructions/my-rule.md`, `skills/deploy-helper/SKILL.md`, `hooks/debug.json`, `mcp/internal.json`).
 
 **Array form** — same exclusions for all targets:
 
@@ -485,6 +545,7 @@ Seed the templates directory with pre-built template sets. Available seed types:
 
 - **`meta-instructions`** — Instruction and skill templates that teach AI tools how to create, update, and manage universal-ai-config templates. This bootstraps the AI's ability to extend its own configuration. Also seeded automatically by `uac init`.
 - **`examples`** — Example templates (instruction, skill, agent, hook) demonstrating template structure and frontmatter fields. Good for learning the format.
+- **`gitignore`** — Updates `.gitignore` with patterns for all generated output files (target config dirs, MCP files, etc.). Also run automatically by `uac init`.
 
 ```bash
 # Seed meta-instructions (also done by uac init)
@@ -492,6 +553,9 @@ uac seed meta-instructions
 
 # Seed example templates
 uac seed examples
+
+# Update .gitignore with output patterns
+uac seed gitignore
 
 # Seed with custom project root
 uac seed meta-instructions --root ./my-project
@@ -501,7 +565,7 @@ uac seed meta-instructions --root ./my-project
 | -------- | ----- | ------------ | ------- |
 | `--root` | `-r`  | Project root | cwd     |
 
-The `meta-instructions` seed creates 8 files in the templates directory:
+The `meta-instructions` seed creates 9 files in the templates directory:
 
 | File                                        | Purpose                                                        |
 | ------------------------------------------- | -------------------------------------------------------------- |
@@ -512,6 +576,7 @@ The `meta-instructions` seed creates 8 files in the templates directory:
 | `skills/update-skill/SKILL.md`              | Full lifecycle management for skill templates                  |
 | `skills/update-agent/SKILL.md`              | Full lifecycle management for agent templates                  |
 | `skills/update-hook/SKILL.md`               | Full lifecycle management for hook templates                   |
+| `skills/update-mcp/SKILL.md`                | Full lifecycle management for MCP server templates             |
 | `skills/import-existing-ai-config/SKILL.md` | Import existing target-specific configs as universal templates |
 
 Existing files are overwritten to ensure templates stay up to date.
@@ -526,6 +591,7 @@ Existing files are overwritten to ensure templates stay up to date.
 | Skills       | `.claude/skills/<name>/SKILL.md`                  |
 | Agents       | `.claude/agents/<name>.md`                        |
 | Hooks        | `.claude/settings.json` (merged into `hooks` key) |
+| MCP          | `.mcp.json`                                       |
 
 ### Copilot (`.github/`)
 
@@ -536,6 +602,7 @@ Existing files are overwritten to ensure templates stay up to date.
 | Skills                       | `.github/skills/<name>/SKILL.md`              |
 | Agents                       | `.github/agents/<name>.agent.md`              |
 | Hooks                        | `.github/hooks/hooks.json`                    |
+| MCP                          | `.vscode/mcp.json`                            |
 
 ### Cursor (`.cursor/`)
 
@@ -545,6 +612,7 @@ Existing files are overwritten to ensure templates stay up to date.
 | Skills       | `.cursor/skills/<name>/SKILL.md` |
 | Agents       | Not supported                    |
 | Hooks        | `.cursor/hooks.json`             |
+| MCP          | `.cursor/mcp.json`               |
 
 ## Complete Template Reference
 
@@ -618,6 +686,19 @@ For the most up-to-date reference on all frontmatter fields, available tools per
 | `matcher` support | Yes (groups handlers)               | Dropped                    | Yes (flat)                |
 | Handler structure | Nested: `{ matcher, hooks: [...] }` | Flat: `{ type, bash }`     | Flat: `{ type, command }` |
 | Version wrapper   | None                                | `"1"` (string)             | `1` (number)              |
+
+</details>
+
+<details>
+<summary>MCP mapping</summary>
+
+| Aspect           | Claude       | Copilot             | Cursor             |
+| ---------------- | ------------ | ------------------- | ------------------ |
+| Output file      | `.mcp.json`  | `.vscode/mcp.json`  | `.cursor/mcp.json` |
+| Wrapper key      | `mcpServers` | `servers`           | `mcpServers`       |
+| `type` field     | Included     | Included            | Omitted            |
+| `inputs` support | —            | Included if present | —                  |
+| Path relative to | Project root | Project root        | Project root       |
 
 </details>
 

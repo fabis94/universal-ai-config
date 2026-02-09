@@ -1,4 +1,10 @@
-import type { TemplateType, UniversalFrontmatter, UniversalHookHandler } from "../types.js";
+import type {
+  TemplateType,
+  UniversalFrontmatter,
+  UniversalHookHandler,
+  UniversalMCPInput,
+  UniversalMCPServer,
+} from "../types.js";
 
 export interface TemplateTypeConfig {
   /**
@@ -25,6 +31,16 @@ export interface HooksTypeConfig {
   mergeKey?: string;
 }
 
+export interface MCPTypeConfig {
+  /** Transform universal MCP servers to target-specific JSON output */
+  transform: (
+    servers: Record<string, UniversalMCPServer>,
+    inputs?: UniversalMCPInput[],
+  ) => Record<string, unknown>;
+  /** Output file path relative to project root (not outputDir) */
+  outputPath: string;
+}
+
 export interface TargetDefinition {
   name: string;
   outputDir: string;
@@ -33,6 +49,7 @@ export interface TargetDefinition {
   skills?: TemplateTypeConfig;
   agents?: TemplateTypeConfig;
   hooks?: HooksTypeConfig;
+  mcp?: MCPTypeConfig;
 }
 
 export function defineTarget(definition: TargetDefinition): TargetDefinition {
