@@ -36,10 +36,10 @@ AI coding tools each have their own config formats stored in `.claude/`, `.githu
 ```bash
 npm install -D universal-ai-config
 
-npm run uac <command>
+npm uac <command>
 ```
 
-> **Non-JS projects:** Use `npx uac` to run commands without installing, e.g. `npx uac generate -t claude`.
+> **Non-JS projects:** Use `npx universal-ai-config` to run commands without installing, e.g. `npx universal-ai-config generate -t claude`.
 
 ## Quick Start
 
