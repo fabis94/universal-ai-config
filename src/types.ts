@@ -10,6 +10,7 @@ export interface UserConfig {
   types?: TemplateType[];
   variables?: Record<string, unknown>;
   outputDirs?: Partial<Record<Target, string>>;
+  exclude?: PerTargetValue<string[]>;
 }
 
 export interface ResolvedConfig {
@@ -18,6 +19,7 @@ export interface ResolvedConfig {
   types: TemplateType[];
   variables: Record<string, unknown>;
   outputDirs: Record<Target, string>;
+  exclude: PerTargetValue<string[]>;
 }
 
 export interface GeneratedFile {

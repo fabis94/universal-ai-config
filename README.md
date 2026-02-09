@@ -385,6 +385,9 @@ export default defineConfig({
     copilot: ".github",
     cursor: ".cursor",
   },
+
+  // Exclude templates by glob pattern (optional)
+  exclude: ["agents/internal-only.md"],
 });
 ```
 
@@ -404,9 +407,36 @@ export default defineConfig({
 });
 ```
 
+### Template Exclusion
+
+The `exclude` option accepts glob patterns to skip specific templates during generation. Patterns match against paths relative to the templates directory (e.g., `instructions/my-rule.md`, `skills/deploy-helper/SKILL.md`, `hooks/debug.json`).
+
+**Array form** — same exclusions for all targets:
+
+```typescript
+export default defineConfig({
+  exclude: ["agents/security-checker.md", "hooks/debug.json"],
+});
+```
+
+**Per-target form** — different exclusions per target:
+
+```typescript
+export default defineConfig({
+  exclude: {
+    claude: ["agents/copilot-reviewer.md"],
+    copilot: ["skills/**"],
+    cursor: ["hooks/**"],
+    default: [],
+  },
+});
+```
+
+Supported glob syntax: `*` (single segment), `**` (recursive), `?` (single char), `{a,b}` (alternatives).
+
 ### Merge Behavior
 
-- **Arrays** (`targets`, `types`): overrides **replace** entirely
+- **Arrays** (`targets`, `types`, `exclude`): overrides **replace** entirely
 - **Objects** (`variables`, `outputDirs`): **deep-merged**
 - **Scalars** (`templatesDir`): overrides **replace**
 

@@ -1,7 +1,8 @@
 import { readFile, readdir, stat } from "node:fs/promises";
-import { join, basename, relative } from "node:path";
+import { join, basename, relative, sep } from "node:path";
 import { consola } from "consola";
 import { loadProjectConfig } from "../config/loader.js";
+import { createExcludeMatcher } from "./exclude.js";
 import { parseTemplate } from "./parser.js";
 import { resolveOverrides } from "./resolve-overrides.js";
 import { safePath } from "./safe-path.js";
@@ -16,6 +17,11 @@ import type {
   UniversalFrontmatter,
   UniversalHookHandler,
 } from "../types.js";
+
+/** Normalize path separators to forward slashes for glob matching */
+function normalizePath(p: string): string {
+  return sep === "/" ? p : p.split(sep).join("/");
+}
 
 interface DiscoveredTemplate {
   name: string;
@@ -136,27 +142,42 @@ function generateFileContent(frontmatter: Record<string, unknown>, body: string)
   return `---\n${fmString}\n---\n${body}`;
 }
 
-async function discoverAndMergeHooks(
+interface DiscoveredHookFile {
+  filePath: string;
+  /** Path relative to templates dir, e.g. "hooks/basic.json" */
+  templateRelativePath: string;
+}
+
+async function discoverHookFiles(
   root: string,
   config: ResolvedConfig,
-): Promise<Record<string, Record<string, unknown>[]> | null> {
+): Promise<DiscoveredHookFile[]> {
   const hooksDir = safePath(root, join(config.templatesDir, "hooks"));
   try {
     const stats = await stat(hooksDir);
-    if (!stats.isDirectory()) return null;
+    if (!stats.isDirectory()) return [];
   } catch {
-    return null;
+    return [];
   }
 
   const entries = await readdir(hooksDir);
-  const jsonFiles = entries.filter((e) => e.endsWith(".json"));
-  if (jsonFiles.length === 0) return null;
+  return entries
+    .filter((e) => e.endsWith(".json"))
+    .map((file) => ({
+      filePath: join(hooksDir, file),
+      templateRelativePath: normalizePath(join("hooks", file)),
+    }));
+}
+
+async function mergeHookFiles(
+  files: DiscoveredHookFile[],
+): Promise<Record<string, Record<string, unknown>[]> | null> {
+  if (files.length === 0) return null;
 
   const merged: Record<string, Record<string, unknown>[]> = {};
 
-  for (const file of jsonFiles) {
-    const filePath = join(hooksDir, file);
-    const content = await readFile(filePath, "utf-8");
+  for (const file of files) {
+    const content = await readFile(file.filePath, "utf-8");
     const parsed = JSON.parse(content) as {
       hooks?: Record<string, Record<string, unknown>[]>;
     };
@@ -190,8 +211,8 @@ function resolveHookHandlers(
 }
 
 async function generateHooksFiles(root: string, config: ResolvedConfig): Promise<GeneratedFile[]> {
-  const mergedHooks = await discoverAndMergeHooks(root, config);
-  if (!mergedHooks) return [];
+  const allHookFiles = await discoverHookFiles(root, config);
+  if (allHookFiles.length === 0) return [];
 
   const generatedFiles: GeneratedFile[] = [];
   const hooksRelativePath = join(config.templatesDir, "hooks");
@@ -202,6 +223,13 @@ async function generateHooksFiles(root: string, config: ResolvedConfig): Promise
 
     if (!targetDef.supportedTypes.includes("hooks")) continue;
     if (!targetDef.hooks) continue;
+
+    // Filter hook files by exclude patterns for this target
+    const isExcluded = createExcludeMatcher(config.exclude, targetName);
+    const filteredFiles = allHookFiles.filter((f) => !isExcluded(f.templateRelativePath));
+
+    const mergedHooks = await mergeHookFiles(filteredFiles);
+    if (!mergedHooks) continue;
 
     const hooksConfig = targetDef.hooks;
     const resolvedHooks = resolveHookHandlers(mergedHooks, targetName);
@@ -243,10 +271,21 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
   const templates = await discoverTemplates(root, config);
   const generatedFiles: GeneratedFile[] = [];
 
+  // Pre-create exclude matchers for each target
+  const excludeMatchers = new Map<string, (path: string) => boolean>();
+  for (const targetName of config.targets) {
+    excludeMatchers.set(targetName, createExcludeMatcher(config.exclude, targetName));
+  }
+
   for (const template of templates) {
     const content = await readFile(template.filePath, "utf-8");
 
     for (const targetName of config.targets) {
+      // Check if template is excluded for this target
+      const templateRelPath = normalizePath(relative(config.templatesDir, template.relativePath));
+      const isExcluded = excludeMatchers.get(targetName);
+      if (isExcluded?.(templateRelPath)) continue;
+
       const targetDef = targets[targetName];
       if (!targetDef) continue;
 

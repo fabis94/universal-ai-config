@@ -47,6 +47,33 @@ Remove all generated config directories.
 
 - `--target, -t <targets>` — comma-separated targets to clean
 
+## Configuration
+
+The config file (`universal-ai-config.config.ts`) supports these options:
+
+- `templatesDir` — templates directory (default: `.universal-ai-config`)
+- `targets` — which targets to generate (default: all)
+- `types` — which template types to generate (default: all)
+- `variables` — custom EJS variables for templates
+- `outputDirs` — override default output directories per target
+- `exclude` — glob patterns to skip templates from generation (array or per-target object)
+
+### Template Exclusion
+
+The `exclude` option accepts glob patterns matching paths relative to `templatesDir`:
+
+```typescript
+// Same exclusions for all targets
+exclude: ["agents/internal-only.md", "hooks/debug.json"]
+
+// Different exclusions per target
+exclude: {
+  claude: ["agents/copilot-reviewer.md"],
+  copilot: ["skills/**"],
+  default: [],
+}
+```
+
 ## Further Reading
 
 See `<%%= instructionPath('uac-template-guide') %>` for the full template authoring guide — template types, frontmatter fields, EJS variables, path helpers, per-target overrides, and hook event names.

@@ -28,6 +28,30 @@ describe("userConfigSchema", () => {
   it("rejects invalid type names", () => {
     expect(() => userConfigSchema.parse({ types: ["invalid"] })).toThrow();
   });
+
+  it("validates exclude as array of strings", () => {
+    const result = userConfigSchema.parse({ exclude: ["agents/**", "hooks/skip.json"] });
+    expect(result.exclude).toEqual(["agents/**", "hooks/skip.json"]);
+  });
+
+  it("validates exclude as per-target object", () => {
+    const result = userConfigSchema.parse({
+      exclude: {
+        claude: ["agents/**"],
+        default: [],
+      },
+    });
+    expect(result.exclude).toEqual({ claude: ["agents/**"], default: [] });
+  });
+
+  it("allows omitting exclude", () => {
+    const result = userConfigSchema.parse({});
+    expect(result.exclude).toBeUndefined();
+  });
+
+  it("rejects exclude with non-string array items", () => {
+    expect(() => userConfigSchema.parse({ exclude: [123] })).toThrow();
+  });
 });
 
 describe("defineConfig", () => {
