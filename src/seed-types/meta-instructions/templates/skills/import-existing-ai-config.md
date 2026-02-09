@@ -24,6 +24,7 @@ Scan the target's config directory for existing configuration files:
 - Skills: `.claude/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `allowed-tools`, `model`, `context`, `agent`, `disable-model-invocation`, `user-invocable`, `argument-hint`, `hooks`)
 - Agents: `.claude/agents/*.md` — agent files with frontmatter (`name`, `description`, `tools`, `disallowedTools`, `permissionMode`, `skills`, `hooks`, `memory`, `model`)
 - Hooks: `.claude/settings.json` → `hooks` key — JSON with PascalCase event names (`SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Stop`, `SubagentStart`, `SubagentStop`, `PreCompact`, `PermissionRequest`, `Notification`)
+- MCP: `.mcp.json` — JSON with `mcpServers` wrapper containing server configs (`type`, `command`, `args`, `env`, `url`, `headers`)
 
 **Copilot** (`.github/`):
 
@@ -31,12 +32,14 @@ Scan the target's config directory for existing configuration files:
 - Skills: `.github/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `license`, `compatibility`, `metadata`)
 - Agents: `.github/agents/*.agent.md` — agent files with frontmatter (`name`, `description`, `tools`, `model`, `target`, `mcp-servers`, `handoffs`)
 - Hooks: `.github/hooks/hooks.json` — JSON with version field and camelCase event names (`sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, `errorOccurred`)
+- MCP: `.vscode/mcp.json` — JSON with `servers` wrapper (not `mcpServers`), may include `inputs` array for interactive secret prompts
 
 **Cursor** (`.cursor/`):
 
 - Instructions: `.cursor/rules/*.mdc` or `.cursor/rules/*.md` — with `description`, `globs`, `alwaysApply` frontmatter
 - Skills: `.cursor/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `license`, `compatibility`, `metadata`, `disable-model-invocation`)
 - Hooks: `.cursor/hooks.json` — JSON with version field and camelCase event names (`sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `preToolUse`, `postToolUse`, `postToolUseFailure`, `stop`, `subagentStart`, `subagentStop`, `preCompact`, plus Cursor-specific events like `beforeShellExecution`, `afterFileEdit`)
+- MCP: `.cursor/mcp.json` — JSON with `mcpServers` wrapper, omits `type` field (Cursor infers transport from `command` vs `url`)
 - Note: Cursor does not have agents
 
 ### 2. Convert to Universal Format
@@ -92,6 +95,16 @@ Cursor-specific events (e.g. `beforeShellExecution`, `afterFileEdit`) should be 
 | `timeout`                   | `timeoutSec` | `timeout` | `timeout` |
 | `matcher` (in parent group) | —            | `matcher` | `matcher` |
 
+**MCP server conversion** (target-specific → universal):
+
+The universal MCP format uses `mcpServers` as the wrapper key, with each server having `type`, `command`, `args`, `env`, `url`, and `headers` fields.
+
+| Source                     | Conversion                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------------- |
+| Claude `.mcp.json`         | Copy `mcpServers` as-is (already matches universal format)                          |
+| Copilot `.vscode/mcp.json` | Rename `servers` → `mcpServers`, add `type` field if missing, copy `inputs`         |
+| Cursor `.cursor/mcp.json`  | Copy `mcpServers`, add `type: "stdio"` for servers with `command` (Cursor omits it) |
+
 ### 3. Write Universal Templates
 
 For each converted file:
@@ -106,6 +119,7 @@ For each converted file:
 - Skills → `<%%= skillTemplatePath('{name}') %>`
 - Agents → `<%%= agentTemplatePath('{name}') %>`
 - Hooks → `<%%= hookTemplatePath('{source-name}') %>`
+- MCP → `<%%= mcpTemplatePath('{source-name}') %>`
 
 ### 4. Handle Special Cases
 
@@ -114,6 +128,10 @@ For each converted file:
 - **Copilot hook `bash` field**: Convert to universal `command` field.
 - **Copilot hook `timeoutSec` field**: Convert to universal `timeout` field (both use seconds).
 - **Cursor `.mdc` files**: Read as regular markdown (the `.mdc` extension is just a convention).
+- **Copilot MCP `servers` key**: Rename to `mcpServers` in the universal template.
+- **Copilot MCP `inputs` array**: Preserve as-is — it's included in Copilot output only, ignored by Claude/Cursor.
+- **Cursor MCP missing `type`**: Add `"type": "stdio"` for servers with `command`, or `"type": "sse"` for servers with `url`.
+- **MCP env var references**: Leave `${ENV_VAR}` syntax as-is — it's passed through to generated output. If values look like they could be config variables, consider converting to `{{varName}}` syntax and adding a `variables` entry in the config file.
 - **Fields that only exist for one target**: Preserve them as-is. They'll be passed through to matching targets and ignored by others.
 
 ### 5. Verify
