@@ -4,6 +4,26 @@ import { join } from "node:path";
 import { consola } from "consola";
 import { runSeed } from "./seed.js";
 
+// Specific output subdirs/files per target — not entire dirs like .github/
+// which contain non-AI content (workflows, issue templates, etc.)
+const GITIGNORE_PATTERNS = [
+  "universal-ai-config.overrides.*",
+  // Claude
+  ".claude/rules/",
+  ".claude/skills/",
+  ".claude/agents/",
+  // Copilot (.github/ has non-AI content, so list specific subdirs)
+  ".github/copilot-instructions.md",
+  ".github/instructions/",
+  ".github/skills/",
+  ".github/agents/",
+  ".github/hooks/",
+  // Cursor
+  ".cursor/rules/",
+  ".cursor/skills/",
+  ".cursor/hooks.json",
+];
+
 const EXAMPLE_CONFIG = `import { defineConfig } from "universal-ai-config";
 
 export default defineConfig({
@@ -43,21 +63,42 @@ export default defineCommand({
       consola.success(`Created ${configPath.replace(root + "/", "")}`);
     }
 
-    // Add overrides to .gitignore
+    // Add overrides + output patterns to .gitignore
     const gitignorePath = join(root, ".gitignore");
-    const overridesPattern = "universal-ai-config.overrides.*";
+    const allPatterns = GITIGNORE_PATTERNS;
+
+    let existing = "";
     try {
-      const existing = await readFile(gitignorePath, "utf-8");
-      if (!existing.includes(overridesPattern)) {
-        const newContent = existing.endsWith("\n")
-          ? `${existing}${overridesPattern}\n`
-          : `${existing}\n${overridesPattern}\n`;
-        await writeFile(gitignorePath, newContent, "utf-8");
-        consola.success(`Added "${overridesPattern}" to .gitignore`);
-      }
+      existing = await readFile(gitignorePath, "utf-8");
     } catch {
-      await writeFile(gitignorePath, `${overridesPattern}\n`, "utf-8");
-      consola.success(`Created .gitignore with "${overridesPattern}"`);
+      // File doesn't exist yet
+    }
+
+    const missing = allPatterns.filter((p) => !existing.includes(p));
+
+    if (missing.length > 0) {
+      const header = "# universal-ai-config";
+      const hasHeader = existing.includes(header);
+      const block = missing.join("\n") + "\n";
+
+      let newContent: string;
+      if (!existing) {
+        newContent = `${header}\n${block}`;
+      } else if (!hasHeader) {
+        const sep = existing.endsWith("\n") ? "\n" : "\n\n";
+        newContent = `${existing}${sep}${header}\n${block}`;
+      } else {
+        const sep = existing.endsWith("\n") ? "" : "\n";
+        newContent = `${existing}${sep}${block}`;
+      }
+
+      await writeFile(gitignorePath, newContent, "utf-8");
+
+      if (!existing) {
+        consola.success("Created .gitignore with universal-ai-config patterns");
+      } else {
+        consola.success(`Added ${missing.length} pattern(s) to .gitignore`);
+      }
     }
 
     // Seed meta-instructions
