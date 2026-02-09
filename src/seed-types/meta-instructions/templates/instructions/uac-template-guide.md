@@ -54,6 +54,14 @@ Ask yourself:
 4. **Should it run automatically on a lifecycle event?** → Hook
 5. **Does it connect the AI to an external tool server?** → MCP Server
 
+## Important: Avoid Backticks with Exclamation Marks in Skill Templates
+
+Claude Code has a known bug where skill file (SKILL.md) content is incorrectly passed through a Bash permission checker. When backticks and exclamation marks appear together, they get misinterpreted as shell operators — backticks as command substitution and `!` as bash history expansion.
+
+**When writing skill templates**, avoid combining backticks with exclamation marks in the markdown body. Backticks on their own are fine, but exclamation marks inside or adjacent to backtick-wrapped text will trigger false permission errors. If you need to use an exclamation mark near code references, use double quotes or **bold** instead of backticks for that reference.
+
+This limitation only affects **skill templates** — instructions, agents, and hooks are not impacted.
+
 ## Template Structure
 
 All markdown templates use YAML frontmatter + body content:
