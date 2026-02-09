@@ -20,6 +20,8 @@ function mergeConfigs(base: ResolvedConfig, override: UserConfig): ResolvedConfi
     // Objects: deep merge
     variables: { ...base.variables, ...override.variables },
     outputDirs: { ...base.outputDirs, ...override.outputDirs },
+    // Exclude: override replaces entirely
+    exclude: override.exclude ?? base.exclude,
   };
 }
 

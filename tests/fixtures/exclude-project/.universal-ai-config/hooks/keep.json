@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "postToolUse": [
+      {
+        "command": ".hooks/keep.sh",
+        "timeout": 10
+      }
+    ]
+  }
+}

@@ -10,4 +10,5 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     copilot: ".github",
     cursor: ".cursor",
   },
+  exclude: [],
 };

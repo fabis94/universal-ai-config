@@ -1,9 +1,9 @@
-import { readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { renderTemplate, getSeedTemplatesDir } from "../shared.js";
 import type { SeedTemplate } from "../shared.js";
 
-const TEMPLATES_DIR = getSeedTemplatesDir("meta-instructions");
+const TEMPLATES_DIR = getSeedTemplatesDir("examples");
 
 export function getTemplates(templatesDir: string): SeedTemplate[] {
   const vars = { templatesDir };
@@ -27,6 +27,26 @@ export function getTemplates(templatesDir: string): SeedTemplate[] {
     templates.push({
       relativePath: `skills/${skillName}/SKILL.md`,
       content: renderTemplate(join(skillsDir, file), vars),
+    });
+  }
+
+  // Agents: flat .md files
+  const agentsDir = join(TEMPLATES_DIR, "agents");
+  for (const file of readdirSync(agentsDir)) {
+    if (!file.endsWith(".md")) continue;
+    templates.push({
+      relativePath: `agents/${file}`,
+      content: renderTemplate(join(agentsDir, file), vars),
+    });
+  }
+
+  // Hooks: flat .json files (no EJS rendering)
+  const hooksDir = join(TEMPLATES_DIR, "hooks");
+  for (const file of readdirSync(hooksDir)) {
+    if (!file.endsWith(".json")) continue;
+    templates.push({
+      relativePath: `hooks/${file}`,
+      content: readFileSync(join(hooksDir, file), "utf-8"),
     });
   }
 

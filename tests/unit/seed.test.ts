@@ -148,3 +148,56 @@ describe("seed meta-instructions", () => {
     expect(guide).toContain("<%= config.templatesDir %>");
   });
 });
+
+describe("seed examples", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "uac-seed-examples-"));
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("creates all 4 example template files", async () => {
+    await runCommand(seedCommand, { rawArgs: ["examples", "--root", tempDir] });
+
+    const templatesDir = join(tempDir, ".universal-ai-config");
+
+    // Instruction example
+    const instruction = await readFile(join(templatesDir, "instructions/example.md"), "utf-8");
+    expect(instruction).toContain("description: Example coding guidelines");
+    expect(instruction).toContain('globs: ["**/*.ts"]');
+
+    // Skill example
+    const skill = await readFile(join(templatesDir, "skills/test-generation/SKILL.md"), "utf-8");
+    expect(skill).toContain("name: test-generation");
+    expect(skill).toContain("Generate comprehensive tests");
+
+    // Agent example
+    const agent = await readFile(join(templatesDir, "agents/code-reviewer.md"), "utf-8");
+    expect(agent).toContain("name: code-reviewer");
+    expect(agent).toContain("tools:");
+
+    // Hook example (JSON)
+    const hook = await readFile(join(templatesDir, "hooks/example.json"), "utf-8");
+    const hookData = JSON.parse(hook);
+    expect(hookData.hooks.postToolUse).toBeDefined();
+    expect(hookData.hooks.postToolUse[0].matcher).toBe("Write|Edit");
+  });
+
+  it("overwrites existing files", async () => {
+    const templatesDir = join(tempDir, ".universal-ai-config");
+    const examplePath = join(templatesDir, "instructions/example.md");
+
+    await mkdir(join(templatesDir, "instructions"), { recursive: true });
+    await writeFile(examplePath, "my custom content", "utf-8");
+
+    await runCommand(seedCommand, { rawArgs: ["examples", "--root", tempDir] });
+
+    const content = await readFile(examplePath, "utf-8");
+    expect(content).not.toBe("my custom content");
+    expect(content).toContain("description: Example coding guidelines");
+  });
+});

@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": ".hooks/skip.sh",
+        "matcher": "Bash",
+        "timeout": 5
+      }
+    ]
+  }
+}

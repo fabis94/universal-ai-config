@@ -15,10 +15,10 @@ First, you must figure out what the project's local package manager is. Other in
 
 Examples for different package managers:
 
-- **pnpm**: `pnpm run uac <command>`
-- **npm**: `npm run uac <command>`
-- **yarn**: `yarn run uac <command>`
-- **bun**: `bun run uac <command>`
+- **pnpm**: `pnpm uac <command>`
+- **npm**: `npm uac <command>`
+- **yarn**: `yarn uac <command>`
+- **bun**: `bun uac <command>`
 
 If `uac` is not a local dependency (e.g. non-JS projects): `npx universal-ai-config <command>`
 
@@ -35,17 +35,44 @@ Generate target-specific config files from templates.
 
 ### `uac init`
 
-Scaffold a new `.universal-ai-config/` directory with example templates and config file.
+Scaffold a new `.universal-ai-config/` directory with meta-instruction templates and config file.
 
 ### `uac seed <type>`
 
-Seed pre-built template sets into the templates directory. Available types: `meta-instructions`.
+Seed pre-built template sets into the templates directory. Available types: `meta-instructions`, `examples`.
 
 ### `uac clean`
 
 Remove all generated config directories.
 
 - `--target, -t <targets>` — comma-separated targets to clean
+
+## Configuration
+
+The config file (`universal-ai-config.config.ts`) supports these options:
+
+- `templatesDir` — templates directory (default: `.universal-ai-config`)
+- `targets` — which targets to generate (default: all)
+- `types` — which template types to generate (default: all)
+- `variables` — custom EJS variables for templates
+- `outputDirs` — override default output directories per target
+- `exclude` — glob patterns to skip templates from generation (array or per-target object)
+
+### Template Exclusion
+
+The `exclude` option accepts glob patterns matching paths relative to `templatesDir`:
+
+```typescript
+// Same exclusions for all targets
+exclude: ["agents/internal-only.md", "hooks/debug.json"]
+
+// Different exclusions per target
+exclude: {
+  claude: ["agents/copilot-reviewer.md"],
+  copilot: ["skills/**"],
+  default: [],
+}
+```
 
 ## Further Reading
 
