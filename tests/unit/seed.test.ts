@@ -149,6 +149,66 @@ describe("seed meta-instructions", () => {
   });
 });
 
+describe("seed gitignore", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "uac-seed-gitignore-"));
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("creates .gitignore with block markers and all patterns", async () => {
+    await runCommand(seedCommand, { rawArgs: ["gitignore", "--root", tempDir] });
+
+    const gitignore = await readFile(join(tempDir, ".gitignore"), "utf-8");
+    expect(gitignore).toContain("# >>> universal-ai-config >>>");
+    expect(gitignore).toContain("# <<< universal-ai-config <<<");
+    expect(gitignore).toContain("universal-ai-config.overrides.*");
+    expect(gitignore).toContain(".claude/rules/");
+    expect(gitignore).toContain(".github/instructions/");
+    expect(gitignore).toContain(".cursor/rules/");
+  });
+
+  it("appends block to existing .gitignore", async () => {
+    await writeFile(join(tempDir, ".gitignore"), "node_modules/\n.env\n", "utf-8");
+
+    await runCommand(seedCommand, { rawArgs: ["gitignore", "--root", tempDir] });
+
+    const gitignore = await readFile(join(tempDir, ".gitignore"), "utf-8");
+    expect(gitignore).toContain("node_modules/");
+    expect(gitignore).toContain(".env");
+    expect(gitignore).toContain("# >>> universal-ai-config >>>");
+    expect(gitignore).toContain(".claude/rules/");
+  });
+
+  it("replaces existing block on re-run", async () => {
+    await runCommand(seedCommand, { rawArgs: ["gitignore", "--root", tempDir] });
+    await runCommand(seedCommand, { rawArgs: ["gitignore", "--root", tempDir] });
+
+    const gitignore = await readFile(join(tempDir, ".gitignore"), "utf-8");
+    // Block markers should appear exactly once
+    expect(gitignore.match(/# >>> universal-ai-config >>>/g)?.length).toBe(1);
+    expect(gitignore.match(/# <<< universal-ai-config <<</g)?.length).toBe(1);
+  });
+
+  it("preserves content around existing block when replacing", async () => {
+    const initial =
+      "node_modules/\n\n# >>> universal-ai-config >>>\nold-pattern\n# <<< universal-ai-config <<<\n\ndist/\n";
+    await writeFile(join(tempDir, ".gitignore"), initial, "utf-8");
+
+    await runCommand(seedCommand, { rawArgs: ["gitignore", "--root", tempDir] });
+
+    const gitignore = await readFile(join(tempDir, ".gitignore"), "utf-8");
+    expect(gitignore).toContain("node_modules/");
+    expect(gitignore).toContain("dist/");
+    expect(gitignore).not.toContain("old-pattern");
+    expect(gitignore).toContain(".claude/rules/");
+  });
+});
+
 describe("seed examples", () => {
   let tempDir: string;
 

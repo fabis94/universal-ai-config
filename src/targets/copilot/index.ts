@@ -1,5 +1,10 @@
 import { defineTarget } from "../define-target.js";
-import type { UniversalFrontmatter, UniversalHookHandler } from "../../types.js";
+import type {
+  UniversalFrontmatter,
+  UniversalHookHandler,
+  UniversalMCPInput,
+  UniversalMCPServer,
+} from "../../types.js";
 
 // Copilot uses camelCase but with some different event names
 const EVENT_NAME_MAP: Record<string, string> = {
@@ -33,10 +38,33 @@ function transformCopilotHooks(
   return { version: "1", hooks: result };
 }
 
+function transformCopilotMCP(
+  servers: Record<string, UniversalMCPServer>,
+  inputs?: UniversalMCPInput[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [name, server] of Object.entries(servers)) {
+    const entry: Record<string, unknown> = {};
+    if (server.type !== undefined) entry.type = server.type;
+    if (server.command !== undefined) entry.command = server.command;
+    if (server.args !== undefined) entry.args = server.args;
+    if (server.env !== undefined) entry.env = server.env;
+    if (server.url !== undefined) entry.url = server.url;
+    if (server.headers !== undefined) entry.headers = server.headers;
+    if (server.envFile !== undefined) entry.envFile = server.envFile;
+    result[name] = entry;
+  }
+  const output: Record<string, unknown> = { servers: result };
+  if (inputs && inputs.length > 0) {
+    output.inputs = inputs;
+  }
+  return output;
+}
+
 export default defineTarget({
   name: "copilot",
   outputDir: ".github",
-  supportedTypes: ["instructions", "skills", "agents", "hooks"],
+  supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
 
   instructions: {
     frontmatterMap: {
@@ -87,5 +115,10 @@ export default defineTarget({
   hooks: {
     transform: transformCopilotHooks,
     outputPath: "hooks/hooks.json",
+  },
+
+  mcp: {
+    transform: transformCopilotMCP,
+    outputPath: ".vscode/mcp.json",
   },
 });

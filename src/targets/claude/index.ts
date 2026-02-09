@@ -1,5 +1,5 @@
 import { defineTarget } from "../define-target.js";
-import type { UniversalHookHandler } from "../../types.js";
+import type { UniversalHookHandler, UniversalMCPServer } from "../../types.js";
 
 // Claude uses PascalCase event names
 const EVENT_NAME_MAP: Record<string, string> = {
@@ -60,10 +60,25 @@ function transformClaudeHooks(
   return { hooks: result };
 }
 
+function transformClaudeMCP(servers: Record<string, UniversalMCPServer>): Record<string, unknown> {
+  const mcpServers: Record<string, unknown> = {};
+  for (const [name, server] of Object.entries(servers)) {
+    const entry: Record<string, unknown> = {};
+    if (server.type !== undefined) entry.type = server.type;
+    if (server.command !== undefined) entry.command = server.command;
+    if (server.args !== undefined) entry.args = server.args;
+    if (server.env !== undefined) entry.env = server.env;
+    if (server.url !== undefined) entry.url = server.url;
+    if (server.headers !== undefined) entry.headers = server.headers;
+    mcpServers[name] = entry;
+  }
+  return { mcpServers };
+}
+
 export default defineTarget({
   name: "claude",
   outputDir: ".claude",
-  supportedTypes: ["instructions", "skills", "agents", "hooks"],
+  supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
 
   instructions: {
     frontmatterMap: {
@@ -118,5 +133,10 @@ export default defineTarget({
     transform: transformClaudeHooks,
     outputPath: "settings.json",
     mergeKey: "hooks",
+  },
+
+  mcp: {
+    transform: transformClaudeMCP,
+    outputPath: ".mcp.json",
   },
 });

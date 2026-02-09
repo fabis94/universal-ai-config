@@ -16,6 +16,8 @@ import type {
   TemplateType,
   UniversalFrontmatter,
   UniversalHookHandler,
+  UniversalMCPInput,
+  UniversalMCPServer,
 } from "../types.js";
 
 /** Normalize path separators to forward slashes for glob matching */
@@ -81,8 +83,8 @@ async function discoverTemplates(
   const templates: DiscoveredTemplate[] = [];
 
   for (const type of config.types) {
-    // Hooks are handled separately — they use JSON, not markdown templates
-    if (type === "hooks") continue;
+    // Hooks and MCP are handled separately — they use JSON, not markdown templates
+    if (type === "hooks" || type === "mcp") continue;
 
     const typeDir = join(templatesDir, type);
     try {
@@ -142,6 +144,14 @@ function generateFileContent(frontmatter: Record<string, unknown>, body: string)
   return `---\n${fmString}\n---\n${body}`;
 }
 
+/** Replace {{varName}} placeholders with values from config variables */
+function interpolateVariables(jsonText: string, variables: Record<string, unknown>): string {
+  return jsonText.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
+    const value = variables[key];
+    return value !== undefined ? String(value) : match;
+  });
+}
+
 interface DiscoveredHookFile {
   filePath: string;
   /** Path relative to templates dir, e.g. "hooks/basic.json" */
@@ -171,13 +181,15 @@ async function discoverHookFiles(
 
 async function mergeHookFiles(
   files: DiscoveredHookFile[],
+  variables: Record<string, unknown>,
 ): Promise<Record<string, Record<string, unknown>[]> | null> {
   if (files.length === 0) return null;
 
   const merged: Record<string, Record<string, unknown>[]> = {};
 
   for (const file of files) {
-    const content = await readFile(file.filePath, "utf-8");
+    const rawContent = await readFile(file.filePath, "utf-8");
+    const content = interpolateVariables(rawContent, variables);
     const parsed = JSON.parse(content) as {
       hooks?: Record<string, Record<string, unknown>[]>;
     };
@@ -228,7 +240,7 @@ async function generateHooksFiles(root: string, config: ResolvedConfig): Promise
     const isExcluded = createExcludeMatcher(config.exclude, targetName);
     const filteredFiles = allHookFiles.filter((f) => !isExcluded(f.templateRelativePath));
 
-    const mergedHooks = await mergeHookFiles(filteredFiles);
+    const mergedHooks = await mergeHookFiles(filteredFiles, config.variables);
     if (!mergedHooks) continue;
 
     const hooksConfig = targetDef.hooks;
@@ -244,6 +256,120 @@ async function generateHooksFiles(root: string, config: ResolvedConfig): Promise
       type: "hooks",
       sourcePath: hooksRelativePath,
       mergeKey: hooksConfig.mergeKey,
+    });
+  }
+
+  return generatedFiles;
+}
+
+interface DiscoveredMCPFile {
+  filePath: string;
+  templateRelativePath: string;
+}
+
+async function discoverMCPFiles(
+  root: string,
+  config: ResolvedConfig,
+): Promise<DiscoveredMCPFile[]> {
+  const mcpDir = safePath(root, join(config.templatesDir, "mcp"));
+  try {
+    const stats = await stat(mcpDir);
+    if (!stats.isDirectory()) return [];
+  } catch {
+    return [];
+  }
+
+  const entries = await readdir(mcpDir);
+  return entries
+    .filter((e) => e.endsWith(".json"))
+    .map((file) => ({
+      filePath: join(mcpDir, file),
+      templateRelativePath: normalizePath(join("mcp", file)),
+    }));
+}
+
+interface MergedMCPData {
+  servers: Record<string, Record<string, unknown>>;
+  inputs: UniversalMCPInput[];
+}
+
+async function mergeMCPFiles(
+  files: DiscoveredMCPFile[],
+  variables: Record<string, unknown>,
+): Promise<MergedMCPData | null> {
+  if (files.length === 0) return null;
+
+  const servers: Record<string, Record<string, unknown>> = {};
+  const inputs: UniversalMCPInput[] = [];
+
+  for (const file of files) {
+    const rawContent = await readFile(file.filePath, "utf-8");
+    const content = interpolateVariables(rawContent, variables);
+    const parsed = JSON.parse(content) as {
+      mcpServers?: Record<string, Record<string, unknown>>;
+      inputs?: UniversalMCPInput[];
+    };
+
+    if (parsed.mcpServers) {
+      for (const [name, serverConfig] of Object.entries(parsed.mcpServers)) {
+        servers[name] = serverConfig;
+      }
+    }
+
+    if (parsed.inputs) {
+      inputs.push(...parsed.inputs);
+    }
+  }
+
+  return Object.keys(servers).length > 0 ? { servers, inputs } : null;
+}
+
+function resolveMCPServers(
+  servers: Record<string, Record<string, unknown>>,
+  target: string,
+): Record<string, UniversalMCPServer> {
+  const result: Record<string, UniversalMCPServer> = {};
+  for (const [name, serverConfig] of Object.entries(servers)) {
+    const resolved = resolveOverrides(serverConfig, target);
+    // Drop server if neither command nor url is present
+    if (!resolved.command && !resolved.url) continue;
+    result[name] = resolved as unknown as UniversalMCPServer;
+  }
+  return result;
+}
+
+async function generateMCPFiles(root: string, config: ResolvedConfig): Promise<GeneratedFile[]> {
+  const allMCPFiles = await discoverMCPFiles(root, config);
+  if (allMCPFiles.length === 0) return [];
+
+  const generatedFiles: GeneratedFile[] = [];
+  const mcpRelativePath = join(config.templatesDir, "mcp");
+
+  for (const targetName of config.targets) {
+    const targetDef = targets[targetName];
+    if (!targetDef) continue;
+
+    if (!targetDef.supportedTypes.includes("mcp")) continue;
+    if (!targetDef.mcp) continue;
+
+    const isExcluded = createExcludeMatcher(config.exclude, targetName);
+    const filteredFiles = allMCPFiles.filter((f) => !isExcluded(f.templateRelativePath));
+
+    const mergedData = await mergeMCPFiles(filteredFiles, config.variables);
+    if (!mergedData) continue;
+
+    const mcpConfig = targetDef.mcp;
+    const resolvedServers = resolveMCPServers(mergedData.servers, targetName);
+    if (Object.keys(resolvedServers).length === 0) continue;
+
+    const transformed = mcpConfig.transform(resolvedServers, mergedData.inputs);
+
+    generatedFiles.push({
+      path: mcpConfig.outputPath,
+      content: JSON.stringify(transformed, null, 2) + "\n",
+      target: targetName as Target,
+      type: "mcp",
+      sourcePath: mcpRelativePath,
     });
   }
 
@@ -331,6 +457,12 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
   if (config.types.includes("hooks")) {
     const hooksFiles = await generateHooksFiles(root, config);
     generatedFiles.push(...hooksFiles);
+  }
+
+  // Generate MCP files (separate pipeline — JSON, root-relative output)
+  if (config.types.includes("mcp")) {
+    const mcpFiles = await generateMCPFiles(root, config);
+    generatedFiles.push(...mcpFiles);
   }
 
   return generatedFiles;

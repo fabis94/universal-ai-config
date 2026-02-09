@@ -63,6 +63,8 @@ function buildPathHelpers(target: Target, templatesDir: string) {
       name ? join(templatesDir, `agents/${name}.md`) : join(templatesDir, "agents"),
     hookTemplatePath: (name?: string) =>
       name ? join(templatesDir, `hooks/${name}.json`) : join(templatesDir, "hooks"),
+    mcpTemplatePath: (name?: string) =>
+      name ? join(templatesDir, `mcp/${name}.json`) : join(templatesDir, "mcp"),
   };
 }
 

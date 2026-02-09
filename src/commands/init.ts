@@ -1,5 +1,5 @@
 import { defineCommand } from "citty";
-import { mkdir, writeFile, readFile, stat } from "node:fs/promises";
+import { mkdir, writeFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { consola } from "consola";
 import { runSeed } from "./seed.js";
@@ -43,24 +43,8 @@ export default defineCommand({
       consola.success(`Created ${configPath.replace(root + "/", "")}`);
     }
 
-    // Add overrides to .gitignore
-    const gitignorePath = join(root, ".gitignore");
-    const overridesPattern = "universal-ai-config.overrides.*";
-    try {
-      const existing = await readFile(gitignorePath, "utf-8");
-      if (!existing.includes(overridesPattern)) {
-        const newContent = existing.endsWith("\n")
-          ? `${existing}${overridesPattern}\n`
-          : `${existing}\n${overridesPattern}\n`;
-        await writeFile(gitignorePath, newContent, "utf-8");
-        consola.success(`Added "${overridesPattern}" to .gitignore`);
-      }
-    } catch {
-      await writeFile(gitignorePath, `${overridesPattern}\n`, "utf-8");
-      consola.success(`Created .gitignore with "${overridesPattern}"`);
-    }
-
-    // Seed meta-instructions
+    // Seed gitignore patterns + meta-instructions
+    await runSeed("gitignore", root);
     await runSeed("meta-instructions", root, { templatesDir });
 
     consola.success("Initialized .universal-ai-config/");

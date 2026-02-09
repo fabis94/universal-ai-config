@@ -156,6 +156,65 @@ describe("per-target overrides", () => {
     });
   });
 
+  describe("mcp", () => {
+    it("claude: resolves per-target command/args, includes claude-only server", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["mcp"],
+      });
+
+      const mcp = files.find((f) => f.type === "mcp");
+      expect(mcp).toBeDefined();
+      const parsed = JSON.parse(mcp!.content);
+
+      // my-api: uses default command/args
+      expect(parsed.mcpServers["my-api"].command).toBe("npx");
+      expect(parsed.mcpServers["my-api"].args).toEqual(["-y", "@my/server"]);
+      expect(parsed.mcpServers["my-api"].type).toBe("stdio");
+
+      // claude-only: command defined for claude
+      expect(parsed.mcpServers).toHaveProperty("claude-only");
+      expect(parsed.mcpServers["claude-only"].command).toBe("npx");
+    });
+
+    it("copilot: resolves per-target command, drops claude-only server", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["copilot"],
+        types: ["mcp"],
+      });
+
+      const mcp = files.find((f) => f.type === "mcp");
+      expect(mcp).toBeDefined();
+      const parsed = JSON.parse(mcp!.content);
+
+      expect(parsed.servers["my-api"].command).toBe("npx");
+      expect(parsed.servers["my-api"].type).toBe("stdio");
+      // claude-only has no command for copilot -> dropped
+      expect(parsed.servers).not.toHaveProperty("claude-only");
+    });
+
+    it("cursor: resolves cursor-specific command and args, drops claude-only", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["cursor"],
+        types: ["mcp"],
+      });
+
+      const mcp = files.find((f) => f.type === "mcp");
+      expect(mcp).toBeDefined();
+      const parsed = JSON.parse(mcp!.content);
+
+      expect(parsed.mcpServers["my-api"].command).toBe("node");
+      expect(parsed.mcpServers["my-api"].args).toEqual(["./mcp-server.js"]);
+      // Cursor omits type
+      expect(parsed.mcpServers["my-api"]).not.toHaveProperty("type");
+      // claude-only has no command for cursor -> dropped
+      expect(parsed.mcpServers).not.toHaveProperty("claude-only");
+    });
+  });
+
   describe("hooks", () => {
     it("claude: resolves per-target command, matcher, timeout", async () => {
       const files = await generate({

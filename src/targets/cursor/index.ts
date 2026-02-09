@@ -1,5 +1,5 @@
 import { defineTarget } from "../define-target.js";
-import type { UniversalHookHandler } from "../../types.js";
+import type { UniversalHookHandler, UniversalMCPServer } from "../../types.js";
 
 // Cursor uses camelCase but with some different event names
 const EVENT_NAME_MAP: Record<string, string> = {
@@ -49,10 +49,25 @@ function transformCursorHooks(
   return { version: 1, hooks: result };
 }
 
+function transformCursorMCP(servers: Record<string, UniversalMCPServer>): Record<string, unknown> {
+  const mcpServers: Record<string, unknown> = {};
+  for (const [name, server] of Object.entries(servers)) {
+    const entry: Record<string, unknown> = {};
+    // Cursor omits type — infers from command vs url
+    if (server.command !== undefined) entry.command = server.command;
+    if (server.args !== undefined) entry.args = server.args;
+    if (server.env !== undefined) entry.env = server.env;
+    if (server.url !== undefined) entry.url = server.url;
+    if (server.headers !== undefined) entry.headers = server.headers;
+    mcpServers[name] = entry;
+  }
+  return { mcpServers };
+}
+
 export default defineTarget({
   name: "cursor",
   outputDir: ".cursor",
-  supportedTypes: ["instructions", "skills", "hooks"],
+  supportedTypes: ["instructions", "skills", "hooks", "mcp"],
 
   instructions: {
     frontmatterMap: {
@@ -80,5 +95,10 @@ export default defineTarget({
   hooks: {
     transform: transformCursorHooks,
     outputPath: "hooks.json",
+  },
+
+  mcp: {
+    transform: transformCursorMCP,
+    outputPath: ".cursor/mcp.json",
   },
 });

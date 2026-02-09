@@ -10,10 +10,13 @@ export type {
   UserConfig,
   UniversalFrontmatter,
   UniversalHookHandler,
+  UniversalMCPServer,
+  UniversalMCPInput,
   PerTargetValue,
 } from "./types.js";
 export type {
   TargetDefinition,
   TemplateTypeConfig,
   HooksTypeConfig,
+  MCPTypeConfig,
 } from "./targets/define-target.js";

@@ -1,5 +1,5 @@
 export type Target = "claude" | "copilot" | "cursor";
-export type TemplateType = "instructions" | "skills" | "agents" | "hooks";
+export type TemplateType = "instructions" | "skills" | "agents" | "hooks" | "mcp";
 
 /** A value that can be specified globally or per-target (with optional default fallback) */
 export type PerTargetValue<T> = T | (Partial<Record<Target, T>> & { default?: T });
@@ -37,6 +37,24 @@ export interface UniversalHookHandler {
   matcher?: string;
   timeout?: number;
   description?: string;
+}
+
+export interface UniversalMCPServer {
+  type?: string;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export interface UniversalMCPInput {
+  type: string;
+  id: string;
+  description?: string;
+  password?: boolean;
+  [key: string]: unknown;
 }
 
 export interface GenerateOptions {
