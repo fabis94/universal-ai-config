@@ -24,9 +24,10 @@ describe("init command", () => {
     expect(configContent).toContain("defineConfig");
     expect(configContent).toContain('targets: ["claude", "copilot", "cursor"]');
 
-    // .gitignore should have overrides pattern and output patterns
+    // .gitignore should have block markers and output patterns
     const gitignore = await readFile(join(tempDir, ".gitignore"), "utf-8");
-    expect(gitignore).toContain("# universal-ai-config");
+    expect(gitignore).toContain("# >>> universal-ai-config >>>");
+    expect(gitignore).toContain("# <<< universal-ai-config <<<");
     expect(gitignore).toContain("universal-ai-config.overrides.*");
     // Claude output dirs
     expect(gitignore).toContain(".claude/rules/");
@@ -64,13 +65,9 @@ describe("init command", () => {
     expect(content).toBe("// my custom config\n");
   });
 
-  it("appends only missing patterns to existing .gitignore", async () => {
+  it("appends block to existing .gitignore preserving user content", async () => {
     const gitignorePath = join(tempDir, ".gitignore");
-    await writeFile(
-      gitignorePath,
-      "node_modules/\n.env\nuniversal-ai-config.overrides.*\n",
-      "utf-8",
-    );
+    await writeFile(gitignorePath, "node_modules/\n.env\n", "utf-8");
 
     await runCommand(initCommand, { rawArgs: ["--root", tempDir] });
 
@@ -78,12 +75,26 @@ describe("init command", () => {
     // Original content preserved
     expect(gitignore).toContain("node_modules/");
     expect(gitignore).toContain(".env");
-    // Overrides pattern not duplicated
-    expect(gitignore.match(/universal-ai-config\.overrides\.\*/g)?.length).toBe(1);
-    // Output patterns added
+    // Block added
+    expect(gitignore).toContain("# >>> universal-ai-config >>>");
     expect(gitignore).toContain(".claude/rules/");
-    expect(gitignore).toContain(".github/instructions/");
-    expect(gitignore).toContain(".cursor/rules/");
+  });
+
+  it("replaces existing block on re-run", async () => {
+    // First init
+    await runCommand(initCommand, { rawArgs: ["--root", tempDir] });
+
+    const gitignorePath = join(tempDir, ".gitignore");
+    const first = await readFile(gitignorePath, "utf-8");
+    expect(first).toContain("# >>> universal-ai-config >>>");
+
+    // Second init — should replace, not duplicate
+    await runCommand(initCommand, { rawArgs: ["--root", tempDir] });
+
+    const second = await readFile(gitignorePath, "utf-8");
+    expect(second.match(/# >>> universal-ai-config >>>/g)?.length).toBe(1);
+    expect(second.match(/# <<< universal-ai-config <<</g)?.length).toBe(1);
+    expect(second).toContain(".claude/rules/");
   });
 
   it("does not create old hardcoded example files", async () => {

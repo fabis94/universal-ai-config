@@ -5,7 +5,7 @@ import { consola } from "consola";
 import { loadProjectConfig } from "../config/loader.js";
 import type { SeedTemplate } from "../seed-types/shared.js";
 
-const SEED_TYPES = ["meta-instructions", "examples"] as const;
+const SEED_TYPES = ["meta-instructions", "examples", "gitignore"] as const;
 type SeedType = (typeof SEED_TYPES)[number];
 
 async function loadSeedTemplates(
@@ -21,6 +21,8 @@ async function loadSeedTemplates(
       const { getTemplates } = await import("../seed-types/examples/index.js");
       return getTemplates(templatesDir);
     }
+    case "gitignore":
+      return [];
   }
 }
 
@@ -35,6 +37,13 @@ export async function runSeed(
 ): Promise<void> {
   if (!SEED_TYPES.includes(seedType as SeedType)) {
     throw new Error(`Unknown seed type: "${seedType}". Available: ${SEED_TYPES.join(", ")}`);
+  }
+
+  // Gitignore seed has its own flow — writes to .gitignore, not templates dir
+  if (seedType === "gitignore") {
+    const { run } = await import("../seed-types/gitignore/index.js");
+    await run(root);
+    return;
   }
 
   const templatesDir = options?.templatesDir ?? (await loadProjectConfig({ root })).templatesDir;
