@@ -1,5 +1,6 @@
 import { defineTarget } from "../define-target.js";
 import type { UniversalHookHandler, UniversalMCPServer } from "../../types.js";
+import { normalizeGlobs } from "../../core/normalize-globs.js";
 
 // Claude uses PascalCase event names
 const EVENT_NAME_MAP: Record<string, string> = {
@@ -88,7 +89,8 @@ export default defineTarget({
           // When alwaysApply is true, omit paths entirely
           return {};
         }
-        return { paths: value };
+        // Claude expects YAML array for paths
+        return { paths: normalizeGlobs(value) };
       },
       alwaysApply: () => {
         // Handled by globs mapper — alwaysApply means no paths field

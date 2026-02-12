@@ -5,6 +5,7 @@ import type {
   UniversalMCPInput,
   UniversalMCPServer,
 } from "../../types.js";
+import { normalizeGlobs } from "../../core/normalize-globs.js";
 
 // Copilot uses camelCase but with some different event names
 const EVENT_NAME_MAP: Record<string, string> = {
@@ -70,9 +71,8 @@ export default defineTarget({
     frontmatterMap: {
       description: "description",
       globs: (value) => {
-        // Copilot uses applyTo as a comma-joined string
-        const globs = Array.isArray(value) ? value : [value];
-        return { applyTo: globs.join(", ") };
+        // Copilot uses applyTo as a comma-separated string
+        return { applyTo: normalizeGlobs(value).join(",") };
       },
       alwaysApply: () => {
         // Handled by getOutputPath — alwaysApply templates go to copilot-instructions.md

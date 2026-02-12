@@ -13,6 +13,14 @@ List files in `<%= hookTemplatePath() %>/` to discover existing hook templates (
 
 **Note:** Hooks from multiple files are merged by event name during generation. You can organize hooks by concern (e.g. `linting.json`, `security.json`).
 
+## Additional Template Directories
+
+This project may have additional template directories configured via `additionalTemplateDirs`. To find them, search the project root for **all** config files matching `universal-ai-config.*` (e.g. `universal-ai-config.config.ts`, `universal-ai-config.overrides.config.ts`, and any other variants) and read the `additionalTemplateDirs` field from each. If the user asks to update a template that doesn't exist in the main templates directory, or explicitly refers to shared/global/external templates:
+
+1. Read all `universal-ai-config.*` config files in the project root to find `additionalTemplateDirs` paths
+2. Search those directories for the relevant hook file
+3. **IMPORTANT:** Before editing any file outside the main `<%= config.templatesDir %>/` directory, ask the user for explicit confirmation — these are shared templates that may affect other projects
+
 ## Deciding What to Do
 
 - **Create new file**: for an entirely new concern or automation area

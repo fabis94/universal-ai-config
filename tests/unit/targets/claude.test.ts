@@ -20,10 +20,24 @@ describe("claude target", () => {
       expect(map).toBe("description");
     });
 
-    it("maps globs to paths when not alwaysApply", () => {
+    it("maps globs to paths array when not alwaysApply", () => {
       const mapper = config.frontmatterMap.globs as Function;
       const fm: UniversalFrontmatter = { globs: ["**/*.ts"] };
       const result = mapper(["**/*.ts"], fm);
+      expect(result).toEqual({ paths: ["**/*.ts"] });
+    });
+
+    it("normalizes comma-separated globs string to paths array", () => {
+      const mapper = config.frontmatterMap.globs as Function;
+      const fm: UniversalFrontmatter = { globs: "**/*.ts,**/*.tsx" };
+      const result = mapper("**/*.ts,**/*.tsx", fm);
+      expect(result).toEqual({ paths: ["**/*.ts", "**/*.tsx"] });
+    });
+
+    it("normalizes single string glob to paths array", () => {
+      const mapper = config.frontmatterMap.globs as Function;
+      const fm: UniversalFrontmatter = { globs: "**/*.ts" };
+      const result = mapper("**/*.ts", fm);
       expect(result).toEqual({ paths: ["**/*.ts"] });
     });
 

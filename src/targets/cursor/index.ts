@@ -1,5 +1,6 @@
 import { defineTarget } from "../define-target.js";
 import type { UniversalHookHandler, UniversalMCPServer } from "../../types.js";
+import { normalizeGlobs } from "../../core/normalize-globs.js";
 
 // Cursor uses camelCase but with some different event names
 const EVENT_NAME_MAP: Record<string, string> = {
@@ -72,7 +73,10 @@ export default defineTarget({
   instructions: {
     frontmatterMap: {
       description: "description",
-      globs: "globs",
+      globs: (value) => {
+        // Cursor uses globs as comma-separated string (no spaces)
+        return { globs: normalizeGlobs(value).join(",") };
+      },
       alwaysApply: "alwaysApply",
     },
     getOutputPath: (name) => `rules/${name}.mdc`,

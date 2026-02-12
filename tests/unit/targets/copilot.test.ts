@@ -11,16 +11,22 @@ describe("copilot target", () => {
   describe("instructions", () => {
     const config = copilot.instructions!;
 
-    it("maps globs to comma-joined applyTo string", () => {
+    it("maps globs to comma-separated applyTo string", () => {
       const mapper = config.frontmatterMap.globs as Function;
       const result = mapper(["**/*.ts", "**/*.tsx"]);
-      expect(result).toEqual({ applyTo: "**/*.ts, **/*.tsx" });
+      expect(result).toEqual({ applyTo: "**/*.ts,**/*.tsx" });
     });
 
     it("maps single glob to applyTo string", () => {
       const mapper = config.frontmatterMap.globs as Function;
       const result = mapper("**/*.ts");
       expect(result).toEqual({ applyTo: "**/*.ts" });
+    });
+
+    it("normalizes comma-separated globs string to applyTo", () => {
+      const mapper = config.frontmatterMap.globs as Function;
+      const result = mapper("**/*.ts,**/*.tsx");
+      expect(result).toEqual({ applyTo: "**/*.ts,**/*.tsx" });
     });
 
     it("routes alwaysApply templates to copilot-instructions.md", () => {

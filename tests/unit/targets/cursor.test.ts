@@ -16,8 +16,22 @@ describe("cursor target", () => {
   describe("instructions", () => {
     const config = cursor.instructions!;
 
-    it("maps globs directly", () => {
-      expect(config.frontmatterMap.globs).toBe("globs");
+    it("maps globs array to comma-separated string (no spaces)", () => {
+      const mapper = config.frontmatterMap.globs as Function;
+      const result = mapper(["**/*.ts", "**/*.tsx"]);
+      expect(result).toEqual({ globs: "**/*.ts,**/*.tsx" });
+    });
+
+    it("normalizes single glob string", () => {
+      const mapper = config.frontmatterMap.globs as Function;
+      const result = mapper("**/*.ts");
+      expect(result).toEqual({ globs: "**/*.ts" });
+    });
+
+    it("normalizes comma-separated globs string", () => {
+      const mapper = config.frontmatterMap.globs as Function;
+      const result = mapper("**/*.ts,**/*.tsx");
+      expect(result).toEqual({ globs: "**/*.ts,**/*.tsx" });
     });
 
     it("maps alwaysApply directly", () => {

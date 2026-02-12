@@ -13,6 +13,14 @@ Agents are specialized AI personas with scoped tools and permissions that run in
 
 List files in `<%= agentTemplatePath() %>/` to discover existing agent templates. Read their frontmatter to understand each agent's purpose and capabilities.
 
+## Additional Template Directories
+
+This project may have additional template directories configured via `additionalTemplateDirs`. To find them, search the project root for **all** config files matching `universal-ai-config.*` (e.g. `universal-ai-config.config.ts`, `universal-ai-config.overrides.config.ts`, and any other variants) and read the `additionalTemplateDirs` field from each. If the user asks to update a template that doesn't exist in the main templates directory, or explicitly refers to shared/global/external templates:
+
+1. Read all `universal-ai-config.*` config files in the project root to find `additionalTemplateDirs` paths
+2. Search those directories for the relevant agent
+3. **IMPORTANT:** Before editing any file outside the main `<%= config.templatesDir %>/` directory, ask the user for explicit confirmation — these are shared templates that may affect other projects
+
 ## Deciding What to Do
 
 - **Create new**: when you need a new specialized persona with distinct capabilities
