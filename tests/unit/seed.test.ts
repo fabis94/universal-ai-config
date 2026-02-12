@@ -26,7 +26,7 @@ describe("seed meta-instructions", () => {
     expect(guide).toContain(
       "description: Guide for creating and managing universal-ai-config templates",
     );
-    expect(guide).toContain('globs: [".universal-ai-config/**"]');
+    expect(guide).toContain('globs: [".universal-ai-config/**/*"]');
 
     // Instruction - uac usage
     const usage = await readFile(join(templatesDir, "instructions/uac-usage.md"), "utf-8");
@@ -107,7 +107,7 @@ describe("seed meta-instructions", () => {
 
     const customDir = join(tempDir, "custom-ai-config");
     const guide = await readFile(join(customDir, "instructions/uac-template-guide.md"), "utf-8");
-    expect(guide).toContain('globs: ["custom-ai-config/**"]');
+    expect(guide).toContain('globs: ["custom-ai-config/**/*"]');
 
     // Verify the dispatcher references the template guide via EJS helper (resolved at generate time)
     const dispatcher = await readFile(join(customDir, "skills/update-ai-config/SKILL.md"), "utf-8");

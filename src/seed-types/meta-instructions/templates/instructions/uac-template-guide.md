@@ -1,6 +1,6 @@
 ---
 description: Guide for creating and managing universal-ai-config templates
-globs: ["<%= templatesDir %>/**"]
+globs: ["<%= templatesDir %>/**/*"]
 ---
 
 # Universal AI Config Template Guide

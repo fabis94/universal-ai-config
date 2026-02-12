@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
 import { generate } from "../../src/core/generate.js";
+import { expectYamlField } from "../test-helpers.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/basic-project");
 
@@ -34,7 +35,7 @@ describe("generate", () => {
     const alwaysRule = files.find((f) => f.path.includes("always-rule"));
     expect(alwaysRule).toBeDefined();
     expect(alwaysRule!.path).toBe(".claude/rules/always-rule.md");
-    expect(alwaysRule!.content).toContain("description: Always applied coding standards");
+    expectYamlField(alwaysRule!.content, "description", "Always applied coding standards");
     // alwaysApply should result in no paths field for claude
     expect(alwaysRule!.content).not.toContain("paths:");
     // EJS should render claude-specific content
@@ -101,7 +102,7 @@ describe("generate", () => {
     expect(skill).toBeDefined();
     expect(skill!.path).toBe(".claude/skills/test-gen/SKILL.md");
     expect(skill!.content).toContain("disable-model-invocation: true");
-    expect(skill!.content).toContain("user-invocable: /test");
+    expectYamlField(skill!.content, "user-invocable", "/test");
   });
 
   it("generates agents correctly for claude", async () => {
@@ -114,7 +115,7 @@ describe("generate", () => {
     const agent = files.find((f) => f.type === "agents");
     expect(agent).toBeDefined();
     expect(agent!.path).toBe(".claude/agents/reviewer.md");
-    expect(agent!.content).toContain("model: sonnet");
+    expectYamlField(agent!.content, "model", "sonnet");
     expect(agent!.content).toContain("tools:");
   });
 

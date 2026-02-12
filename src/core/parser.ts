@@ -1,4 +1,4 @@
-import matter from "gray-matter";
+import { parse as parseYAML } from "yaml";
 import ejs from "ejs";
 import { join } from "node:path";
 import { targets } from "../targets/index.js";
@@ -16,11 +16,20 @@ interface RenderContext {
 }
 
 export function parseFrontmatter(content: string): ParsedTemplate {
-  const { data, content: body } = matter(content);
-  return {
-    frontmatter: data as UniversalFrontmatter,
-    body,
-  };
+  // Match frontmatter delimited by --- at the start of the file
+  const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/;
+  const match = content.match(frontmatterRegex);
+
+  if (!match) {
+    // No frontmatter - return empty data and full content as body
+    return { frontmatter: {} as UniversalFrontmatter, body: content };
+  }
+
+  const yamlContent = match[1] ?? "";
+  const body = match[2] ?? "";
+  const frontmatter = (yamlContent ? parseYAML(yamlContent) : {}) as UniversalFrontmatter;
+
+  return { frontmatter, body };
 }
 
 function buildPathHelpers(target: Target, templatesDir: string) {

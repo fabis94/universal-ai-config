@@ -2,6 +2,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { join, basename, relative, sep, resolve, isAbsolute } from "node:path";
 import { homedir } from "node:os";
 import { consola } from "consola";
+import { stringify as stringifyYAML } from "yaml";
 import { loadProjectConfig } from "../config/loader.js";
 import { createExcludeMatcher } from "./exclude.js";
 import { parseTemplate } from "./parser.js";
@@ -43,27 +44,22 @@ function resolveAdditionalDir(root: string, dir: string): string {
 }
 
 function formatFrontmatter(data: Record<string, unknown>): string {
-  const lines: string[] = [];
-  for (const [key, value] of Object.entries(data)) {
-    if (value === undefined || value === null) continue;
-    if (typeof value === "string") {
-      lines.push(`${key}: ${value}`);
-    } else if (typeof value === "boolean") {
-      lines.push(`${key}: ${value}`);
-    } else if (typeof value === "number") {
-      lines.push(`${key}: ${value}`);
-    } else if (Array.isArray(value)) {
-      if (value.length === 0) continue;
-      lines.push(`${key}:`);
-      for (const item of value) {
-        lines.push(`  - ${typeof item === "string" ? item : JSON.stringify(item)}`);
-      }
-    } else {
-      // Object — use inline JSON for simplicity
-      lines.push(`${key}: ${JSON.stringify(value)}`);
-    }
+  // Filter out undefined and null values
+  const filteredData = Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined && value !== null),
+  );
+
+  if (Object.keys(filteredData).length === 0) {
+    return "";
   }
-  return lines.join("\n");
+
+  return stringifyYAML(filteredData, {
+    // Quote strings for safety and explicitness - avoids YAML ambiguity
+    defaultStringType: "QUOTE_DOUBLE",
+    defaultKeyType: "PLAIN",
+    // Use 2-space indentation to match existing style
+    indent: 2,
+  }).trim();
 }
 
 function mapFrontmatter(

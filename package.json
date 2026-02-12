@@ -57,8 +57,8 @@
     "citty": "^0.2.0",
     "consola": "^3.4.2",
     "ejs": "^4.0.1",
-    "gray-matter": "^4.0.3",
     "picomatch": "^4.0.3",
+    "yaml": "^2.8.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
