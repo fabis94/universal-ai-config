@@ -4,6 +4,7 @@ import { mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { runCommand } from "citty";
 import seedCommand from "../../src/commands/seed.js";
+import { collectSkillTemplates } from "../../src/seed-types/shared.js";
 
 describe("seed meta-instructions", () => {
   let tempDir: string;
@@ -259,5 +260,83 @@ describe("seed examples", () => {
     const content = await readFile(examplePath, "utf-8");
     expect(content).not.toBe("my custom content");
     expect(content).toContain("description: Example coding guidelines");
+  });
+});
+
+describe("collectSkillTemplates", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "uac-seed-skills-"));
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("handles flat .md files (legacy format)", async () => {
+    await writeFile(join(tempDir, "my-skill.md"), "---\nname: my-skill\n---\nBody", "utf-8");
+
+    const templates = collectSkillTemplates(tempDir, { templatesDir: ".uac" });
+    expect(templates).toHaveLength(1);
+    expect(templates[0]!.relativePath).toBe("skills/my-skill/SKILL.md");
+    expect(templates[0]!.content).toContain("name: my-skill");
+  });
+
+  it("handles directory-based skills with extra files", async () => {
+    // Create a skill directory with SKILL.md + extras
+    await mkdir(join(tempDir, "my-skill/references/data"), { recursive: true });
+    await writeFile(join(tempDir, "my-skill/SKILL.md"), "---\nname: my-skill\n---\nBody", "utf-8");
+    await writeFile(
+      join(tempDir, "my-skill/references/example.md"),
+      "# Example\nDir: <%= templatesDir %>",
+      "utf-8",
+    );
+    await writeFile(join(tempDir, "my-skill/references/data/raw.txt"), "raw content", "utf-8");
+
+    const templates = collectSkillTemplates(tempDir, { templatesDir: ".uac" });
+    expect(templates).toHaveLength(3);
+
+    const skillMd = templates.find((t) => t.relativePath === "skills/my-skill/SKILL.md");
+    expect(skillMd).toBeDefined();
+    expect(skillMd!.content).toContain("name: my-skill");
+
+    const extraMd = templates.find(
+      (t) => t.relativePath === "skills/my-skill/references/example.md",
+    );
+    expect(extraMd).toBeDefined();
+    // .md files should have EJS rendered
+    expect(extraMd!.content).toContain("Dir: .uac");
+
+    const rawTxt = templates.find(
+      (t) => t.relativePath === "skills/my-skill/references/data/raw.txt",
+    );
+    expect(rawTxt).toBeDefined();
+    // Non-.md files should be raw
+    expect(rawTxt!.content).toBe("raw content");
+  });
+
+  it("skips directories without SKILL.md", async () => {
+    await mkdir(join(tempDir, "not-a-skill"), { recursive: true });
+    await writeFile(join(tempDir, "not-a-skill/readme.md"), "Not a skill", "utf-8");
+
+    const templates = collectSkillTemplates(tempDir, { templatesDir: ".uac" });
+    expect(templates).toHaveLength(0);
+  });
+
+  it("handles mix of flat files and directories", async () => {
+    // Flat file
+    await writeFile(join(tempDir, "flat-skill.md"), "---\nname: flat\n---\nFlat", "utf-8");
+    // Directory
+    await mkdir(join(tempDir, "dir-skill"), { recursive: true });
+    await writeFile(join(tempDir, "dir-skill/SKILL.md"), "---\nname: dir\n---\nDir", "utf-8");
+    await writeFile(join(tempDir, "dir-skill/extra.txt"), "extra", "utf-8");
+
+    const templates = collectSkillTemplates(tempDir, { templatesDir: ".uac" });
+    expect(templates).toHaveLength(3);
+
+    expect(templates.find((t) => t.relativePath === "skills/flat-skill/SKILL.md")).toBeDefined();
+    expect(templates.find((t) => t.relativePath === "skills/dir-skill/SKILL.md")).toBeDefined();
+    expect(templates.find((t) => t.relativePath === "skills/dir-skill/extra.txt")).toBeDefined();
   });
 });

@@ -24,7 +24,9 @@ src/
 │   ├── parser.ts                  # Frontmatter + EJS parsing
 │   ├── resolve-overrides.ts       # Per-target override resolution
 │   ├── writer.ts                  # File writing + cleanup
-│   └── safe-path.ts               # Path traversal protection
+│   ├── safe-path.ts               # Path traversal protection
+│   ├── exclude.ts                 # Template exclusion matching
+│   └── normalize-globs.ts         # Glob pattern normalization
 ├── config/                        # Configuration system
 │   ├── loader.ts                  # c12-based config loading
 │   ├── schema.ts                  # Zod schema + defineConfig
@@ -46,15 +48,21 @@ tests/
 │   ├── config.test.ts
 │   ├── init.test.ts
 │   ├── seed.test.ts
+│   ├── exclude.test.ts
+│   ├── normalize-globs.test.ts
 │   └── targets/                   # Per-target mapping tests
 ├── integration/                   # Full pipeline tests
 │   ├── generate.test.ts
 │   ├── complete-project.test.ts
-│   └── per-target-overrides.test.ts
+│   ├── per-target-overrides.test.ts
+│   ├── additional-dirs.test.ts
+│   └── exclude.test.ts
 └── fixtures/                      # Self-contained test projects
     ├── basic-project/
     ├── complete-project/
-    └── complete-complex-project/
+    ├── complete-complex-project/
+    ├── exclude-project/
+    └── additional-dirs-project/
 ```
 
 ## Core Pipeline
@@ -62,15 +70,17 @@ tests/
 The generation pipeline in `src/core/generate.ts` runs this sequence:
 
 1. **Load Config** → merges base config + overrides + CLI flags
-2. **Discover Templates** → finds `.md` files in `instructions/`, `skills/`, `agents/` and `.json` files in `hooks/`
+2. **Discover Templates** → finds `.md` files in `instructions/`, `skills/`, `agents/` and `.json` files in `hooks/`, `mcp/`
 3. **For each template × target:**
    - **Parse** (`parseTemplate`) → extract YAML frontmatter, render EJS body
    - **Resolve Overrides** (`resolveOverrides`) → extract per-target values from override objects
    - **Map Frontmatter** (`mapFrontmatter`) → transform universal keys to target-specific keys
    - **Generate Output Path** → compute target-specific file location
    - **Format Output** → assemble final frontmatter + body as markdown
+   - **Copy Extra Files** (skills only) → copy supporting files from skill directories (`.md` with EJS, others raw)
 4. **Generate Hooks** (separate path) → merge JSON files, resolve per-target overrides at handler level, transform to target format
-5. **Return** `GeneratedFile[]` — files aren't written until the caller invokes `writeGeneratedFiles()`
+5. **Generate MCP** (separate path) → merge JSON files, resolve per-target overrides per server, transform to target format
+6. **Return** `GeneratedFile[]` — files aren't written until the caller invokes `writeGeneratedFiles()`
 
 ### Key Modules
 
@@ -78,6 +88,8 @@ The generation pipeline in `src/core/generate.ts` runs this sequence:
 - **`resolve-overrides.ts`** — detects per-target objects (all keys in `[claude, copilot, cursor, default]`), resolves to the target's value or `default`, returns `undefined` if no match (field dropped)
 - **`writer.ts`** — writes files to disk, handles `mergeKey` for JSON merge (e.g. Claude hooks → `settings.json`), handles cleanup per target
 - **`safe-path.ts`** — prevents `../` directory traversal attacks
+- **`exclude.ts`** — creates glob matchers from `exclude` config (supports per-target exclusion patterns)
+- **`normalize-globs.ts`** — `normalizeGlobs()` normalizes glob input (string, comma-separated string, or array) to a consistent array format
 
 ## Target System
 
@@ -92,6 +104,7 @@ Each target in `src/targets/` implements the `TargetDefinition` interface:
   skills?: { frontmatterMap, getOutputPath };
   agents?: { frontmatterMap, getOutputPath };
   hooks?: { transform, outputPath, mergeKey? };
+  mcp?: { transform, outputPath };      // MCP server config generation
 }
 ```
 
@@ -128,9 +141,9 @@ All commands are in `src/commands/`:
 
 - **`meta-instructions`** — instructions about uac + management skills (seeded on `uac init`)
 - **`examples`** — example templates for each type (seeded on `uac seed examples`)
-- **`shared.ts`** — common utilities: `renderTemplate()`, `getSeedTemplatesDir()`, `findPackageRoot()`
+- **`shared.ts`** — common utilities: `renderTemplate()`, `getSeedTemplatesDir()`, `collectSkillTemplates()`
 
-Seed templates are EJS-rendered with `config.templatesDir` as a variable.
+Seed templates are EJS-rendered with `config.templatesDir` as a variable. Skills can be seeded as flat `.md` files (become `skills/{name}/SKILL.md`) or as directories with `SKILL.md` + extra supporting files.
 
 ## Code Conventions
 
@@ -147,7 +160,7 @@ Seed templates are EJS-rendered with `config.templatesDir` as a variable.
 Exported from `src/index.ts`:
 
 - **Functions**: `generate()`, `defineConfig()`, `defineTarget()`
-- **Types**: `GeneratedFile`, `GenerateOptions`, `ResolvedConfig`, `UserConfig`, `Target`, `TemplateType`, `PerTargetValue`, `UniversalFrontmatter`, `UniversalHookHandler`, `TargetDefinition`, `TemplateTypeConfig`, `HooksTypeConfig`
+- **Types**: `GeneratedFile`, `GenerateOptions`, `ResolvedConfig`, `UserConfig`, `Target`, `TemplateType`, `PerTargetValue`, `UniversalFrontmatter`, `UniversalHookHandler`, `UniversalMCPServer`, `UniversalMCPInput`, `TargetDefinition`, `TemplateTypeConfig`, `HooksTypeConfig`, `MCPTypeConfig`
 
 ## Testing
 

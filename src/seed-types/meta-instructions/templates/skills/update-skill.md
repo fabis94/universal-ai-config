@@ -37,16 +37,16 @@ See the **Skills** section in `<%%= instructionPath('uac-template-guide') %>` fo
 
 ### Supporting Files
 
-Skills can include additional files in their directory:
+Skills can include additional files in their directory. These are automatically copied to generated output during `uac generate`. `.md` extra files are rendered through EJS (with access to `target`, `config`, path helpers), while non-`.md` files are copied as-is.
 
 ```
 my-skill/
 ├── SKILL.md          # Main instructions (required)
-├── template.md       # Template for the AI to fill in
+├── template.md       # Template for the AI to fill in (EJS rendered)
 ├── examples/
-│   └── sample.md     # Example output
+│   └── sample.md     # Example output (EJS rendered)
 └── scripts/
-    └── helper.sh     # Script the AI can execute
+    └── helper.sh     # Script the AI can execute (copied raw)
 ```
 
 Reference supporting files from `SKILL.md` so the AI knows they exist.

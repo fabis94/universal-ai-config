@@ -21,7 +21,7 @@ Scan the target's config directory for existing configuration files:
 **Claude** (`.claude/`):
 
 - Instructions: `.claude/rules/*.md` — each file has `description` and optional `paths` frontmatter
-- Skills: `.claude/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `allowed-tools`, `model`, `context`, `agent`, `disable-model-invocation`, `user-invocable`, `argument-hint`, `hooks`)
+- Skills: `.claude/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `allowed-tools`, `model`, `context`, `agent`, `disable-model-invocation`, `user-invocable`, `argument-hint`, `hooks`). Skill directories may also contain extra supporting files (references, examples, scripts) alongside `SKILL.md`.
 - Agents: `.claude/agents/*.md` — agent files with frontmatter (`name`, `description`, `tools`, `disallowedTools`, `permissionMode`, `skills`, `hooks`, `memory`, `model`)
 - Hooks: `.claude/settings.json` → `hooks` key — JSON with PascalCase event names (`SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Stop`, `SubagentStart`, `SubagentStop`, `PreCompact`, `PermissionRequest`, `Notification`)
 - MCP: `.mcp.json` — JSON with `mcpServers` wrapper containing server configs (`type`, `command`, `args`, `env`, `url`, `headers`)
@@ -30,7 +30,7 @@ Scan the target's config directory for existing configuration files:
 **Copilot** (`.github/`):
 
 - Instructions: `.github/copilot-instructions.md` (always-apply) and `.github/instructions/*.instructions.md` (with `applyTo` frontmatter)
-- Skills: `.github/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `license`, `compatibility`, `metadata`)
+- Skills: `.github/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `license`, `compatibility`, `metadata`). May contain extra supporting files alongside `SKILL.md`.
 - Agents: `.github/agents/*.agent.md` — agent files with frontmatter (`name`, `description`, `tools`, `model`, `target`, `mcp-servers`, `handoffs`)
 - Hooks: `.github/hooks/hooks.json` — JSON with version field and camelCase event names (`sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, `errorOccurred`)
 - MCP: `.vscode/mcp.json` — JSON with `servers` wrapper (not `mcpServers`), may include `inputs` array for interactive secret prompts
@@ -38,7 +38,7 @@ Scan the target's config directory for existing configuration files:
 **Cursor** (`.cursor/`):
 
 - Instructions: `.cursor/rules/*.mdc` or `.cursor/rules/*.md` — with `description`, `globs`, `alwaysApply` frontmatter
-- Skills: `.cursor/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `license`, `compatibility`, `metadata`, `disable-model-invocation`)
+- Skills: `.cursor/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `license`, `compatibility`, `metadata`, `disable-model-invocation`). May contain extra supporting files alongside `SKILL.md`.
 - Hooks: `.cursor/hooks.json` — JSON with version field and camelCase event names (`sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `preToolUse`, `postToolUse`, `postToolUseFailure`, `stop`, `subagentStart`, `subagentStop`, `preCompact`, plus Cursor-specific events like `beforeShellExecution`, `afterFileEdit`)
 - MCP: `.cursor/mcp.json` — JSON with `mcpServers` wrapper, omits `type` field (Cursor infers transport from `command` vs `url`)
 - Note: Cursor does not have agents
@@ -136,6 +136,7 @@ For each converted file:
 - **Cursor MCP missing `type`**: Add `"type": "stdio"` for servers with `command`, or `"type": "sse"` for servers with `url`.
 - **MCP env var references**: Leave `${ENV_VAR}` syntax as-is — it's passed through to generated output. If values look like they could be config variables, consider converting to `{{varName}}` syntax and adding a `variables` entry in the config file.
 - **Fields that only exist for one target**: Preserve them as-is. They'll be passed through to matching targets and ignored by others.
+- **Skill extra files**: When importing skill directories, copy **all** files in the directory — not just `SKILL.md`. Extra files (references, examples, scripts, data) should be placed in the same relative paths within the universal template's skill directory (e.g. `.claude/skills/my-skill/references/example.md` → `<%%= skillTemplatePath('my-skill') %>/../references/example.md`, i.e. `skills/my-skill/references/example.md` in the templates dir). During generation, `.md` extra files are rendered through EJS (with access to `target`, `config`, path helpers), while non-`.md` files are copied as-is.
 - **Claude commands → skills**: Commands are single `.md` files but skills are directories. Create a skill directory and place the converted command content as `SKILL.md` inside it. Use the filename (without `.md`) as the skill name.
 - **Claude commands: `disableAutoInvocation`**: Commands are manual-only (no auto-invocation by the AI). Set `disableAutoInvocation: true` on the converted skill to preserve this behavior.
 - **Claude commands: namespaced subdirectories**: Subdirectories in `.claude/commands/` are organizational only — they don't affect the command name. Use the filename as the skill name. If two commands from different subdirectories share a filename, disambiguate by prefixing with the subdirectory name (e.g. `frontend-component`).

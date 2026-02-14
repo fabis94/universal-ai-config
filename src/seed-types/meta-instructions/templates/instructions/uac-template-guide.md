@@ -20,7 +20,7 @@ Persistent context and rules that apply to AI conversations. Scoped by glob patt
 
 ### Skills (`<%%= skillTemplatePath() %>/*/SKILL.md`)
 
-Reusable actions or workflows invocable as slash commands (e.g. `/skill-name`) or auto-triggered by the AI.
+Reusable actions or workflows invocable as slash commands (e.g. `/skill-name`) or auto-triggered by the AI. Skill directories can contain extra supporting files (references, examples, scripts) alongside `SKILL.md` — these are copied to generated output automatically. `.md` extra files are rendered through EJS (with access to `target`, `config`, path helpers), while non-`.md` files are copied as-is.
 
 **Use for:** repeatable tasks like code generation patterns, deployments, reviews, migrations, project-specific workflows.
 

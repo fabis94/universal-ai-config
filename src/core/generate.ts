@@ -5,7 +5,7 @@ import { consola } from "consola";
 import { stringify as stringifyYAML } from "yaml";
 import { loadProjectConfig } from "../config/loader.js";
 import { createExcludeMatcher } from "./exclude.js";
-import { parseTemplate } from "./parser.js";
+import { parseTemplate, renderEjs } from "./parser.js";
 import { resolveOverrides } from "./resolve-overrides.js";
 import { safePath } from "./safe-path.js";
 import { targets } from "../targets/index.js";
@@ -27,6 +27,13 @@ function normalizePath(p: string): string {
   return sep === "/" ? p : p.split(sep).join("/");
 }
 
+interface ExtraFile {
+  /** Path relative to the skill directory, e.g. "references/example.md" */
+  relativePath: string;
+  /** Absolute path to the file on disk */
+  filePath: string;
+}
+
 interface DiscoveredTemplate {
   name: string;
   type: TemplateType;
@@ -35,6 +42,8 @@ interface DiscoveredTemplate {
   relativePath: string;
   /** Path relative to the containing templates dir, e.g. "instructions/foo.md" (used for exclude matching) */
   templateRelativePath: string;
+  /** Extra files in skill directories (beyond SKILL.md) */
+  extraFiles?: ExtraFile[];
 }
 
 /** Resolve an additional template dir path: expands ~ and resolves relative paths against root */
@@ -81,6 +90,25 @@ function mapFrontmatter(
   return result;
 }
 
+/** Recursively collect all files in a directory, returning paths relative to the base dir */
+async function collectFiles(dir: string, base: string = dir): Promise<ExtraFile[]> {
+  const results: ExtraFile[] = [];
+  const entries = await readdir(dir);
+  for (const entry of entries) {
+    const fullPath = join(dir, entry);
+    const stats = await stat(fullPath);
+    if (stats.isDirectory()) {
+      results.push(...(await collectFiles(fullPath, base)));
+    } else if (stats.isFile()) {
+      results.push({
+        relativePath: normalizePath(relative(base, fullPath)),
+        filePath: fullPath,
+      });
+    }
+  }
+  return results;
+}
+
 async function discoverTemplates(
   root: string,
   config: ResolvedConfig,
@@ -102,7 +130,7 @@ async function discoverTemplates(
       }
 
       if (type === "skills") {
-        // Skills are folders, each containing SKILL.md
+        // Skills are folders, each containing SKILL.md + optional extra files
         const entries = await readdir(typeDir);
         for (const entry of entries) {
           const dedupKey = `${type}:${entry}`;
@@ -115,12 +143,18 @@ async function discoverTemplates(
           try {
             await stat(skillFile);
             seen.add(dedupKey);
+
+            // Collect extra files (everything except SKILL.md)
+            const allFiles = await collectFiles(skillDir);
+            const extraFiles = allFiles.filter((f) => f.relativePath !== "SKILL.md");
+
             templates.push({
               name: entry,
               type,
               filePath: skillFile,
               relativePath: relative(root, skillFile),
               templateRelativePath: normalizePath(relative(templatesDir, skillFile)),
+              extraFiles: extraFiles.length > 0 ? extraFiles : undefined,
             });
           } catch {
             // SKILL.md doesn't exist in this folder
@@ -512,6 +546,32 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
         type: template.type,
         sourcePath: template.relativePath,
       });
+
+      // Copy extra files from skill directories
+      if (template.extraFiles) {
+        for (const extra of template.extraFiles) {
+          const extraContent = await readFile(extra.filePath, "utf-8");
+          const skillOutputDir = join(outputDir, `skills/${template.name}`);
+          const extraOutputPath = join(skillOutputDir, extra.relativePath);
+
+          // Render .md files through EJS, copy everything else raw
+          const processedContent = extra.relativePath.endsWith(".md")
+            ? renderEjs(extraContent, {
+                target: targetName as Target,
+                type: template.type,
+                config,
+              })
+            : extraContent;
+
+          generatedFiles.push({
+            path: extraOutputPath,
+            content: processedContent,
+            target: targetName as Target,
+            type: template.type,
+            sourcePath: relative(root, extra.filePath),
+          });
+        }
+      }
     }
   }
 

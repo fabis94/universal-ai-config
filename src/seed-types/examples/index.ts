@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { renderTemplate, getSeedTemplatesDir } from "../shared.js";
+import { renderTemplate, getSeedTemplatesDir, collectSkillTemplates } from "../shared.js";
 import type { SeedTemplate } from "../shared.js";
 
 const TEMPLATES_DIR = getSeedTemplatesDir("examples");
@@ -19,16 +19,8 @@ export function getTemplates(templatesDir: string): SeedTemplate[] {
     });
   }
 
-  // Skills: each .md file becomes a skill directory with SKILL.md
-  const skillsDir = join(TEMPLATES_DIR, "skills");
-  for (const file of readdirSync(skillsDir)) {
-    if (!file.endsWith(".md")) continue;
-    const skillName = file.replace(/\.md$/, "");
-    templates.push({
-      relativePath: `skills/${skillName}/SKILL.md`,
-      content: renderTemplate(join(skillsDir, file), vars),
-    });
-  }
+  // Skills: flat .md files and/or directories with SKILL.md + extras
+  templates.push(...collectSkillTemplates(join(TEMPLATES_DIR, "skills"), vars));
 
   // Agents: flat .md files
   const agentsDir = join(TEMPLATES_DIR, "agents");

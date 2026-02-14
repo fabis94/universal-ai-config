@@ -98,11 +98,76 @@ describe("generate", () => {
       types: ["skills"],
     });
 
-    const skill = files.find((f) => f.type === "skills");
+    const skill = files.find((f) => f.type === "skills" && f.path.endsWith("SKILL.md"));
     expect(skill).toBeDefined();
     expect(skill!.path).toBe(".claude/skills/test-gen/SKILL.md");
     expect(skill!.content).toContain("disable-model-invocation: true");
     expectYamlField(skill!.content, "user-invocable", "/test");
+  });
+
+  describe("skill extra files", () => {
+    it("copies .md extra files with EJS rendering", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["skills"],
+      });
+
+      const extraMd = files.find((f) => f.path.includes("references/example.md"));
+      expect(extraMd).toBeDefined();
+      expect(extraMd!.path).toBe(".claude/skills/test-gen/references/example.md");
+      expect(extraMd!.target).toBe("claude");
+      expect(extraMd!.type).toBe("skills");
+      // EJS should be rendered — target variable replaced
+      expect(extraMd!.content).toContain("Target: claude");
+      expect(extraMd!.content).not.toContain("<%= target %>");
+    });
+
+    it("copies non-.md extra files as raw content", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["skills"],
+      });
+
+      const extraTxt = files.find((f) => f.path.includes("data/sample.txt"));
+      expect(extraTxt).toBeDefined();
+      expect(extraTxt!.path).toBe(".claude/skills/test-gen/references/data/sample.txt");
+      expect(extraTxt!.content).toBe(
+        "This is raw sample data.\nIt should be copied as-is with no processing.\n",
+      );
+    });
+
+    it("generates extra files for all targets that support skills", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude", "copilot", "cursor"],
+        types: ["skills"],
+      });
+
+      for (const target of ["claude", "copilot", "cursor"] as const) {
+        const targetDirs: Record<string, string> = {
+          claude: ".claude",
+          copilot: ".github",
+          cursor: ".cursor",
+        };
+        const dir = targetDirs[target];
+
+        const extraMd = files.find(
+          (f) => f.target === target && f.path.includes("references/example.md"),
+        );
+        expect(extraMd, `${target} should have example.md`).toBeDefined();
+        expect(extraMd!.path).toBe(`${dir}/skills/test-gen/references/example.md`);
+        // EJS renders target-specific content
+        expect(extraMd!.content).toContain(`Target: ${target}`);
+
+        const extraTxt = files.find(
+          (f) => f.target === target && f.path.includes("data/sample.txt"),
+        );
+        expect(extraTxt, `${target} should have sample.txt`).toBeDefined();
+        expect(extraTxt!.path).toBe(`${dir}/skills/test-gen/references/data/sample.txt`);
+      }
+    });
   });
 
   it("generates agents correctly for claude", async () => {
