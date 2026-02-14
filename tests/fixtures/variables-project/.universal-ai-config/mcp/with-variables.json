@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": "{{playwrightArgs}}",
+      "env": {
+        "DISPLAY": "{{displayVar}}"
+      }
+    },
+    "api": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@my/server"],
+      "env": {
+        "HOST": "host-{{apiHost}}-suffix"
+      }
+    },
+    "no-var": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@plain/server"]
+    }
+  }
+}

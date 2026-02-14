@@ -26,7 +26,8 @@ src/
 │   ├── writer.ts                  # File writing + cleanup
 │   ├── safe-path.ts               # Path traversal protection
 │   ├── exclude.ts                 # Template exclusion matching
-│   └── normalize-globs.ts         # Glob pattern normalization
+│   ├── normalize-globs.ts         # Glob pattern normalization
+│   └── resolve-json-variables.ts  # Typed variable resolution for JSON
 ├── config/                        # Configuration system
 │   ├── loader.ts                  # c12-based config loading
 │   ├── schema.ts                  # Zod schema + defineConfig
@@ -50,19 +51,22 @@ tests/
 │   ├── seed.test.ts
 │   ├── exclude.test.ts
 │   ├── normalize-globs.test.ts
+│   ├── resolve-json-variables.test.ts
 │   └── targets/                   # Per-target mapping tests
 ├── integration/                   # Full pipeline tests
 │   ├── generate.test.ts
 │   ├── complete-project.test.ts
 │   ├── per-target-overrides.test.ts
 │   ├── additional-dirs.test.ts
-│   └── exclude.test.ts
+│   ├── exclude.test.ts
+│   └── variables.test.ts
 └── fixtures/                      # Self-contained test projects
     ├── basic-project/
     ├── complete-project/
     ├── complete-complex-project/
     ├── exclude-project/
-    └── additional-dirs-project/
+    ├── additional-dirs-project/
+    └── variables-project/
 ```
 
 ## Core Pipeline
@@ -78,8 +82,8 @@ The generation pipeline in `src/core/generate.ts` runs this sequence:
    - **Generate Output Path** → compute target-specific file location
    - **Format Output** → assemble final frontmatter + body as markdown
    - **Copy Extra Files** (skills only) → copy supporting files from skill directories (`.md` with EJS, others raw)
-4. **Generate Hooks** (separate path) → merge JSON files, resolve per-target overrides at handler level, transform to target format
-5. **Generate MCP** (separate path) → merge JSON files, resolve per-target overrides per server, transform to target format
+4. **Generate Hooks** (separate path) → merge JSON files, resolve typed variables (`resolveJsonVariables`), resolve per-target overrides at handler level, transform to target format
+5. **Generate MCP** (separate path) → merge JSON files, resolve typed variables (`resolveJsonVariables`), resolve per-target overrides per server, transform to target format
 6. **Return** `GeneratedFile[]` — files aren't written until the caller invokes `writeGeneratedFiles()`
 
 ### Key Modules
@@ -90,6 +94,7 @@ The generation pipeline in `src/core/generate.ts` runs this sequence:
 - **`safe-path.ts`** — prevents `../` directory traversal attacks
 - **`exclude.ts`** — creates glob matchers from `exclude` config (supports per-target exclusion patterns)
 - **`normalize-globs.ts`** — `normalizeGlobs()` normalizes glob input (string, comma-separated string, or array) to a consistent array format
+- **`resolve-json-variables.ts`** — `resolveJsonVariables()` walks parsed JSON trees resolving `{{varName}}` placeholders: exact-match (`"{{var}}"` as entire value) preserves typed values (arrays, objects, etc.); embedded match does string interpolation
 
 ## Target System
 

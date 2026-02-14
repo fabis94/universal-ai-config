@@ -65,14 +65,14 @@ A server must have either `command` (stdio) or `url` (SSE/HTTP). If neither is p
 
 ### Variable Interpolation
 
-Use `{{variableName}}` syntax to reference variables from the config file:
+Use `{{variableName}}` syntax to reference variables from the config file. Variables support **typed resolution**: when the entire JSON value is `"{{varName}}"`, it resolves to the raw typed value (array, object, number, boolean). When embedded in other text, it does string interpolation.
 
 ```json
 {
   "mcpServers": {
-    "api": {
+    "playwright": {
       "command": "npx",
-      "args": ["-y", "@my/server"],
+      "args": "{{playwrightArgs}}",
       "env": {
         "API_HOST": "{{apiHost}}"
       }
@@ -86,7 +86,24 @@ Variables are defined in `universal-ai-config.config.ts`:
 ```typescript
 export default defineConfig({
   variables: {
+    playwrightArgs: ["-y", "@playwright/mcp@latest"],
     apiHost: "api.example.com",
+  },
+});
+```
+
+For environment-specific values, use `universal-ai-config.overrides.ts` (gitignored):
+
+```typescript
+export default defineConfig({
+  variables: {
+    playwrightArgs: [
+      "-y",
+      "@playwright/mcp@latest",
+      "--headless",
+      "--executable-path",
+      "/usr/bin/chromium",
+    ],
   },
 });
 ```

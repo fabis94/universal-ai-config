@@ -6,6 +6,7 @@ import { stringify as stringifyYAML } from "yaml";
 import { loadProjectConfig } from "../config/loader.js";
 import { createExcludeMatcher } from "./exclude.js";
 import { parseTemplate, renderEjs } from "./parser.js";
+import { resolveJsonVariables } from "./resolve-json-variables.js";
 import { resolveOverrides } from "./resolve-overrides.js";
 import { safePath } from "./safe-path.js";
 import { targets } from "../targets/index.js";
@@ -205,14 +206,6 @@ function generateFileContent(frontmatter: Record<string, unknown>, body: string)
   return `---\n${fmString}\n---\n${body}`;
 }
 
-/** Replace {{varName}} placeholders with values from config variables */
-function interpolateVariables(jsonText: string, variables: Record<string, unknown>): string {
-  return jsonText.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
-    const value = variables[key];
-    return value !== undefined ? String(value) : match;
-  });
-}
-
 interface DiscoveredHookFile {
   filePath: string;
   /** Path relative to templates dir, e.g. "hooks/basic.json" */
@@ -268,8 +261,8 @@ async function mergeHookFiles(
 
   for (const file of files) {
     const rawContent = await readFile(file.filePath, "utf-8");
-    const content = interpolateVariables(rawContent, variables);
-    const parsed = JSON.parse(content) as {
+    const rawParsed = JSON.parse(rawContent);
+    const parsed = resolveJsonVariables(rawParsed, variables) as {
       hooks?: Record<string, Record<string, unknown>[]>;
     };
     if (!parsed.hooks) continue;
@@ -401,8 +394,8 @@ async function mergeMCPFiles(
 
   for (const file of files) {
     const rawContent = await readFile(file.filePath, "utf-8");
-    const content = interpolateVariables(rawContent, variables);
-    const parsed = JSON.parse(content) as {
+    const rawParsed = JSON.parse(rawContent);
+    const parsed = resolveJsonVariables(rawParsed, variables) as {
       mcpServers?: Record<string, Record<string, unknown>>;
       inputs?: UniversalMCPInput[];
     };

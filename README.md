@@ -85,7 +85,7 @@ your-project/
 
 ## Writing Templates
 
-Markdown templates use YAML frontmatter and [EJS](https://ejs.co/) for conditional content. JSON templates (hooks, MCP) support `{{variableName}}` interpolation from config variables.
+Markdown templates use YAML frontmatter and [EJS](https://ejs.co/) for conditional content. JSON templates (hooks, MCP) support `{{variableName}}` interpolation from config variables — when the entire value is a placeholder (e.g. `"args": "{{myArgs}}"`), it resolves to the raw typed value (arrays, objects, etc.), enabling environment-specific configs via `overrides.ts`.
 
 ### Instructions
 
@@ -244,7 +244,7 @@ Cursor-specific events (`beforeShellExecution`, `afterFileEdit`, etc.) can be us
 
 ### MCP Servers
 
-MCP server configs define external tool servers available to AI assistants. Like hooks, they use JSON format with `{{variable}}` interpolation support. Multiple `.json` files in the `mcp/` directory are merged by server name.
+MCP server configs define external tool servers available to AI assistants. Like hooks, they use JSON format with typed `{{variable}}` interpolation support. Multiple `.json` files in the `mcp/` directory are merged by server name. Use exact-match placeholders like `"args": "{{myArgs}}"` to substitute entire typed values (arrays, objects) from config variables.
 
 ```json
 {
