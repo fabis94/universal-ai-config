@@ -25,6 +25,7 @@ Scan the target's config directory for existing configuration files:
 - Agents: `.claude/agents/*.md` — agent files with frontmatter (`name`, `description`, `tools`, `disallowedTools`, `permissionMode`, `skills`, `hooks`, `memory`, `model`)
 - Hooks: `.claude/settings.json` → `hooks` key — JSON with PascalCase event names (`SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Stop`, `SubagentStart`, `SubagentStop`, `PreCompact`, `PermissionRequest`, `Notification`)
 - MCP: `.mcp.json` — JSON with `mcpServers` wrapper containing server configs (`type`, `command`, `args`, `env`, `url`, `headers`)
+- Commands (deprecated): `.claude/commands/*.md` — single-file slash commands with optional frontmatter (`description`, `allowed-tools`, `argument-hint`, `model`). May include subdirectories for namespacing (e.g. `.claude/commands/frontend/component.md` — command name is `component`). Body may use `$ARGUMENTS` placeholder, `!` prefix for bash execution, and `@` prefix for file references.
 
 **Copilot** (`.github/`):
 
@@ -59,6 +60,7 @@ For each file found, convert it to a universal-ai-config template:
 | `agent`                    | —                         | —                          | `subagentType`          |
 | `argument-hint`            | —                         | —                          | `argumentHint`          |
 | `hooks`                    | —                         | —                          | `hooks`                 |
+| (commands: manual-only)    | —                         | —                          | `disableAutoInvocation` |
 | —                          | `excludeAgent`            | —                          | `excludeAgent`          |
 | —                          | `license`                 | `license`                  | `license`               |
 | —                          | `compatibility`           | `compatibility`            | `compatibility`         |
@@ -120,6 +122,7 @@ For each converted file:
 - Agents → `<%= agentTemplatePath('{name}') %>`
 - Hooks → `<%= hookTemplatePath('{source-name}') %>`
 - MCP → `<%= mcpTemplatePath('{source-name}') %>`
+- Commands → `<%= skillTemplatePath('{name}') %>` (commands convert to skills)
 
 ### 4. Handle Special Cases
 
@@ -133,6 +136,14 @@ For each converted file:
 - **Cursor MCP missing `type`**: Add `"type": "stdio"` for servers with `command`, or `"type": "sse"` for servers with `url`.
 - **MCP env var references**: Leave `${ENV_VAR}` syntax as-is — it's passed through to generated output. If values look like they could be config variables, consider converting to `{{varName}}` syntax and adding a `variables` entry in the config file.
 - **Fields that only exist for one target**: Preserve them as-is. They'll be passed through to matching targets and ignored by others.
+- **Claude commands → skills**: Commands are single `.md` files but skills are directories. Create a skill directory and place the converted command content as `SKILL.md` inside it. Use the filename (without `.md`) as the skill name.
+- **Claude commands: `disableAutoInvocation`**: Commands are manual-only (no auto-invocation by the AI). Set `disableAutoInvocation: true` on the converted skill to preserve this behavior.
+- **Claude commands: namespaced subdirectories**: Subdirectories in `.claude/commands/` are organizational only — they don't affect the command name. Use the filename as the skill name. If two commands from different subdirectories share a filename, disambiguate by prefixing with the subdirectory name (e.g. `frontend-component`).
+- **Claude commands: rewrite body to agent-agnostic language**: Command bodies use Claude-specific syntax that must be converted to plain, agent-agnostic instructions:
+  - `$ARGUMENTS` → Describe what input is expected. E.g., `Fix issue #$ARGUMENTS` becomes "The user will specify an issue number when invoking this skill. Fix the GitHub issue specified by the user."
+  - `!\`command\``(pre-executed bash) → Convert to step-by-step instructions for the agent to run itself. E.g.,`!\`git status\``becomes "Run`git status` to see current changes". The agent runs these as tool calls rather than having them pre-executed.
+  - `@filepath` (file references) → Convert to instructions to read those files. E.g., `@src/utils/helpers.js` becomes "Read the file `src/utils/helpers.js`".
+- **Claude commands: personal commands**: Personal commands from `~/.claude/commands/` are user-level, not project-level. Only import project commands (`.claude/commands/`) by default — flag personal commands and ask the user whether to include them.
 
 ### 5. Verify
 

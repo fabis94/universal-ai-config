@@ -8,6 +8,6 @@ export default {
     ];
   },
   "*.{json,md,yml,yaml,mjs}": (files) => {
-    return [`pnpm prettier --check ${files.join(" ")}`];
+    return [`pnpm prettier --write ${files.join(" ")}`];
   },
 };

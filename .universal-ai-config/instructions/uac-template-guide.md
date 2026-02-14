@@ -146,12 +146,12 @@ model:
 | `name`                  | Skill identifier (becomes the slash command name)                                              |
 | `description`           | When to use this skill                                                                         |
 | `disableAutoInvocation` | If true, only invocable manually via slash command                                             |
-| `userInvocable`         | If false, only the AI can trigger it (Claude only)                                             |
+| `userInvocable`         | If false, only the AI can trigger it (Claude/Copilot)                                          |
 | `allowedTools`          | Restrict which tools the skill can use (Claude only) — see [Available Tools](#available-tools) |
 | `model`                 | Override the AI model used (Claude only)                                                       |
 | `subagentType`          | Run in a specific subagent type (Claude only)                                                  |
 | `forkContext`           | If true, run in an isolated context (Claude only)                                              |
-| `argumentHint`          | Hint for expected arguments (Claude only)                                                      |
+| `argumentHint`          | Hint for expected arguments (Claude/Copilot)                                                   |
 | `license`               | License info (Copilot/Cursor only)                                                             |
 | `compatibility`         | Compatibility info (Copilot/Cursor only)                                                       |
 | `metadata`              | Extra metadata object (Copilot/Cursor only)                                                    |
