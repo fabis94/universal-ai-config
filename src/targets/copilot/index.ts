@@ -92,6 +92,9 @@ export default defineTarget({
     frontmatterMap: {
       name: "name",
       description: "description",
+      disableAutoInvocation: "disable-model-invocation",
+      userInvocable: "user-invocable",
+      argumentHint: "argument-hint",
       compatibility: "compatibility",
       license: "license",
       metadata: "metadata",

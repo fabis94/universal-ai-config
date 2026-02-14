@@ -51,6 +51,12 @@ describe("copilot target", () => {
       expect(config.frontmatterMap.metadata).toBe("metadata");
     });
 
+    it("maps disableAutoInvocation, userInvocable, and argumentHint", () => {
+      expect(config.frontmatterMap.disableAutoInvocation).toBe("disable-model-invocation");
+      expect(config.frontmatterMap.userInvocable).toBe("user-invocable");
+      expect(config.frontmatterMap.argumentHint).toBe("argument-hint");
+    });
+
     it("generates correct output path", () => {
       const fm: UniversalFrontmatter = {};
       expect(config.getOutputPath("test-gen", fm)).toBe("skills/test-gen/SKILL.md");

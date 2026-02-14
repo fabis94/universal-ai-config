@@ -124,17 +124,17 @@ describe("complete-project (all frontmatter fields)", () => {
 
       expectYamlField(c, "name", "deploy-helper");
       expectYamlField(c, "description", "Assists with deployment tasks");
+      expect(c).toContain("disable-model-invocation: true");
+      expectYamlField(c, "user-invocable", "/deploy");
+      expectYamlField(c, "argument-hint", "<environment> [--dry-run]");
       expectYamlField(c, "license", "MIT");
       expectYamlField(c, "compatibility", ">=1.0.0");
       expect(c).toContain("metadata:");
 
       // Copilot doesn't map claude-specific fields
-      expect(c).not.toContain("disable-model-invocation");
-      expect(c).not.toContain("user-invocable");
       expect(c).not.toContain("allowed-tools");
       expect(c).not.toContain("agent:");
       expect(c).not.toContain("context:");
-      expect(c).not.toContain("argument-hint");
       expect(c).not.toContain("hooks:");
     });
 

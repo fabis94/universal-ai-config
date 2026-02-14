@@ -144,12 +144,12 @@ Generate comprehensive tests using vitest for the given code.
 | `name`                  | `string`            | Skill identifier                       |
 | `description`           | `string`            | What this skill does                   |
 | `disableAutoInvocation` | `boolean`           | Prevent automatic triggering           |
-| `userInvocable`         | `boolean \| string` | Slash command trigger (Claude only)    |
+| `userInvocable`         | `boolean \| string` | Slash command trigger (Claude/Copilot) |
 | `allowedTools`          | `string[]`          | Tools this skill can use (Claude only) |
 | `model`                 | `string`            | Model to use (Claude only)             |
 | `subagentType`          | `string`            | Agent type (Claude only)               |
 | `forkContext`           | `boolean`           | Fork context (Claude only)             |
-| `argumentHint`          | `string`            | Hint for arguments (Claude only)       |
+| `argumentHint`          | `string`            | Hint for arguments (Claude/Copilot)    |
 | `license`               | `string`            | License info (Copilot/Cursor)          |
 | `compatibility`         | `string`            | Compatibility info (Copilot/Cursor)    |
 | `metadata`              | `object`            | Extra metadata (Copilot/Cursor)        |

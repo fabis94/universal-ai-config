@@ -71,7 +71,7 @@ describe("per-target overrides", () => {
       expect(c).toContain("disable-model-invocation: true");
     });
 
-    it("copilot: resolves per-target description, drops fields missing for copilot", async () => {
+    it("copilot: resolves per-target description, disableAutoInvocation, and argumentHint", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
@@ -83,6 +83,8 @@ describe("per-target overrides", () => {
       const c = skill!.content;
 
       expectYamlField(c, "description", "Copilot test generation skill");
+      expect(c).toContain("disable-model-invocation: true");
+      expectYamlField(c, "argument-hint", "<file> [--verbose]");
       expectYamlField(c, "license", "MIT");
       // model only set for claude, so copilot shouldn't have it
       expect(c).not.toContain("model:");
