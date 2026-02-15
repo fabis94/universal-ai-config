@@ -725,21 +725,58 @@ For the most up-to-date reference on all frontmatter fields, available tools per
 ## Programmatic API
 
 ```typescript
-import { generate, defineConfig } from "universal-ai-config";
+import {
+  generate,
+  writeGeneratedFiles,
+  cleanTargetFiles,
+  loadProjectConfig,
+} from "universal-ai-config";
 
+// Generate files (returns GeneratedFile[] without writing to disk)
 const files = await generate({
   root: process.cwd(),
   targets: ["claude"],
-  dryRun: true,
+  // Inline config overrides — no config file needed
+  overrides: {
+    variables: { projectName: "my-app" },
+    exclude: ["agents/**"],
+    outputDirs: { claude: ".custom-claude" },
+  },
 });
 
-for (const file of files) {
-  console.log(file.path); // ".claude/rules/react-patterns.md"
-  console.log(file.content); // Rendered file content
-  console.log(file.target); // "claude"
-  console.log(file.type); // "instructions"
-}
+// Write generated files to disk
+await writeGeneratedFiles(files, process.cwd());
+
+// Clean generated files before regenerating
+await cleanTargetFiles(process.cwd(), ["claude"]);
+
+// Load resolved config directly (for advanced use)
+const config = await loadProjectConfig({ root: process.cwd() });
 ```
+
+### `generate(options?)`
+
+| Option      | Type             | Description                         |
+| ----------- | ---------------- | ----------------------------------- |
+| `root`      | `string`         | Project root (default: `cwd`)       |
+| `targets`   | `Target[]`       | Override targets (highest priority) |
+| `types`     | `TemplateType[]` | Override types (highest priority)   |
+| `config`    | `string`         | Config file path                    |
+| `overrides` | `UserConfig`     | Inline config overrides (see below) |
+
+The `overrides` option accepts all config file fields (`templatesDir`, `additionalTemplateDirs`, `variables`, `outputDirs`, `exclude`, `targets`, `types`). Priority order: defaults → config file → overrides file → **inline overrides** → CLI-level `targets`/`types`.
+
+### `writeGeneratedFiles(files, root)`
+
+Writes `GeneratedFile[]` to disk. Handles `mergeKey` for JSON merge targets (e.g., Claude hooks into `settings.json`).
+
+### `cleanTargetFiles(root, targets?)`
+
+Removes generated config files for specified targets (or all targets if omitted).
+
+### `loadProjectConfig(options?)`
+
+Loads and resolves the full config chain. Accepts `inlineOverrides` for programmatic config.
 
 ## Adding a New Target
 

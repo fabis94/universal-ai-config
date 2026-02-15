@@ -66,6 +66,8 @@ export interface GenerateOptions {
   config?: string;
   dryRun?: boolean;
   clean?: boolean;
+  /** Inline config overrides — merged after config file, before CLI-level target/type overrides */
+  overrides?: UserConfig;
 }
 
 export interface UniversalFrontmatter {

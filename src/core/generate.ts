@@ -474,6 +474,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
     configPath: options.config,
     cliTargets: options.targets,
     cliTypes: options.types,
+    inlineOverrides: options.overrides,
   });
 
   // Validate target names

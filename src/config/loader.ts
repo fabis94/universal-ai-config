@@ -3,11 +3,13 @@ import { userConfigSchema } from "./schema.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { ResolvedConfig, UserConfig, Target, TemplateType } from "../types.js";
 
-interface LoadConfigOptions {
+export interface LoadConfigOptions {
   root?: string;
   configPath?: string;
   cliTargets?: Target[];
   cliTypes?: TemplateType[];
+  /** Inline config overrides — applied after overrides file, before CLI target/type overrides */
+  inlineOverrides?: UserConfig;
 }
 
 function mergeConfigs(base: ResolvedConfig, override: UserConfig): ResolvedConfig {
@@ -52,6 +54,12 @@ export async function loadProjectConfig(options: LoadConfigOptions = {}): Promis
   if (overridesRaw && Object.keys(overridesRaw).length > 0) {
     const overridesParsed = userConfigSchema.parse(overridesRaw);
     resolved = mergeConfigs(resolved, overridesParsed);
+  }
+
+  // Inline overrides (programmatic API) — above config files, below CLI target/type
+  if (options.inlineOverrides && Object.keys(options.inlineOverrides).length > 0) {
+    const inlineParsed = userConfigSchema.parse(options.inlineOverrides);
+    resolved = mergeConfigs(resolved, inlineParsed);
   }
 
   // CLI flags override everything

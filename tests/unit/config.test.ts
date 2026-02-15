@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { join } from "node:path";
 import { userConfigSchema, defineConfig } from "../../src/config/schema.js";
+import { loadProjectConfig } from "../../src/config/loader.js";
+
+const BASIC_FIXTURES_DIR = join(import.meta.dirname, "../fixtures/basic-project");
+const VARIABLES_FIXTURES_DIR = join(import.meta.dirname, "../fixtures/variables-project");
 
 describe("userConfigSchema", () => {
   it("validates a complete config", () => {
@@ -74,5 +79,77 @@ describe("defineConfig", () => {
   it("returns the config as-is (identity helper)", () => {
     const config = { targets: ["claude" as const], variables: { x: 1 } };
     expect(defineConfig(config)).toBe(config);
+  });
+});
+
+describe("loadProjectConfig with inline overrides", () => {
+  it("applies inline overrides above config file defaults", async () => {
+    const config = await loadProjectConfig({
+      root: BASIC_FIXTURES_DIR,
+      inlineOverrides: {
+        variables: { customVar: "hello" },
+        templatesDir: ".custom-templates",
+      },
+    });
+    expect(config.variables.customVar).toBe("hello");
+    expect(config.templatesDir).toBe(".custom-templates");
+  });
+
+  it("CLI targets override inline overrides targets", async () => {
+    const config = await loadProjectConfig({
+      root: BASIC_FIXTURES_DIR,
+      inlineOverrides: { targets: ["copilot"] },
+      cliTargets: ["claude"],
+    });
+    expect(config.targets).toEqual(["claude"]);
+  });
+
+  it("inline overrides targets apply when no CLI targets given", async () => {
+    const config = await loadProjectConfig({
+      root: BASIC_FIXTURES_DIR,
+      inlineOverrides: { targets: ["copilot"] },
+    });
+    expect(config.targets).toEqual(["copilot"]);
+  });
+
+  it("inline overrides variables deep-merge with config file variables", async () => {
+    const config = await loadProjectConfig({
+      root: VARIABLES_FIXTURES_DIR,
+      inlineOverrides: { variables: { newVar: "new" } },
+    });
+    // Should have both the fixture's variables AND the inline ones
+    expect(config.variables.newVar).toBe("new");
+    expect(config.variables.apiHost).toBe("example.com");
+  });
+
+  it("inline overrides outputDirs deep-merge with defaults", async () => {
+    const config = await loadProjectConfig({
+      root: BASIC_FIXTURES_DIR,
+      inlineOverrides: { outputDirs: { claude: ".custom-claude" } },
+    });
+    expect(config.outputDirs.claude).toBe(".custom-claude");
+    // Other targets unchanged
+    expect(config.outputDirs.copilot).toBe(".github");
+    expect(config.outputDirs.cursor).toBe(".cursor");
+  });
+
+  it("validates inline overrides with Zod schema", async () => {
+    await expect(
+      loadProjectConfig({
+        root: BASIC_FIXTURES_DIR,
+        inlineOverrides: { targets: ["invalid" as "claude"] },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("ignores empty inline overrides", async () => {
+    const withEmpty = await loadProjectConfig({
+      root: BASIC_FIXTURES_DIR,
+      inlineOverrides: {},
+    });
+    const without = await loadProjectConfig({
+      root: BASIC_FIXTURES_DIR,
+    });
+    expect(withEmpty).toEqual(without);
   });
 });

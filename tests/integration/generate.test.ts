@@ -271,6 +271,58 @@ describe("generate", () => {
     });
   });
 
+  describe("inline overrides", () => {
+    it("uses inline exclude to filter templates", async () => {
+      const allFiles = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["instructions"],
+      });
+      const filteredFiles = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["instructions"],
+        overrides: {
+          exclude: ["instructions/always-rule.md"],
+        },
+      });
+      expect(filteredFiles.length).toBeLessThan(allFiles.length);
+      expect(filteredFiles.find((f) => f.path.includes("always-rule"))).toBeUndefined();
+      expect(filteredFiles.find((f) => f.path.includes("glob-rule"))).toBeDefined();
+    });
+
+    it("uses inline outputDirs to change output paths", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["instructions"],
+        overrides: {
+          outputDirs: { claude: ".custom-claude" },
+        },
+      });
+      expect(files.length).toBeGreaterThan(0);
+      expect(files.every((f) => f.path.startsWith(".custom-claude/"))).toBe(true);
+    });
+
+    it("uses inline variables in template rendering", async () => {
+      const VARIABLES_DIR = join(import.meta.dirname, "../fixtures/variables-project");
+      const files = await generate({
+        root: VARIABLES_DIR,
+        targets: ["claude"],
+        types: ["mcp"],
+        overrides: {
+          variables: { apiHost: "overridden.com" },
+        },
+      });
+
+      const mcp = files.find((f) => f.type === "mcp" && f.target === "claude");
+      expect(mcp).toBeDefined();
+      const parsed = JSON.parse(mcp!.content);
+      // The overridden variable should take effect
+      expect(parsed.mcpServers.api.env.HOST).toBe("host-overridden.com-suffix");
+    });
+  });
+
   describe("hooks", () => {
     it("generates claude hooks merged into settings.json format", async () => {
       const files = await generate({
