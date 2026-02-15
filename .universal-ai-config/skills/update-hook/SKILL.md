@@ -1,6 +1,7 @@
 ---
 name: update-hook
 description: Create, update, or manage universal-ai-config hook templates. Handles finding existing hooks, deciding whether to create or modify, and writing the template.
+userInvocable: false
 ---
 
 # Manage Hook Templates
@@ -12,14 +13,6 @@ Hooks are lifecycle automation that triggers on specific events during AI sessio
 List files in `<%= hookTemplatePath() %>/` to discover existing hook templates (`.json` files). Read them to understand what events are already handled.
 
 **Note:** Hooks from multiple files are merged by event name during generation. You can organize hooks by concern (e.g. `linting.json`, `security.json`).
-
-## Additional Template Directories
-
-This project may have additional template directories configured via `additionalTemplateDirs`. To find them, search the project root for **all** config files matching `universal-ai-config.*` (e.g. `universal-ai-config.config.ts`, `universal-ai-config.overrides.config.ts`, and any other variants) and read the `additionalTemplateDirs` field from each. If the user asks to update a template that doesn't exist in the main templates directory, or explicitly refers to shared/global/external templates:
-
-1. Read all `universal-ai-config.*` config files in the project root to find `additionalTemplateDirs` paths
-2. Search those directories for the relevant hook file
-3. **IMPORTANT:** Before editing any file outside the main `<%= config.templatesDir %>/` directory, ask the user for explicit confirmation — these are shared templates that may affect other projects
 
 ## Deciding What to Do
 
@@ -78,9 +71,3 @@ Use camelCase event names (e.g. `sessionStart`, `preToolUse`, `postToolUse`). Th
   }
 }
 ```
-
-## After Changes
-
-Run `uac generate` to regenerate target-specific config files and verify the output.
-
-**Reminder:** Always edit templates in `<%= hookTemplatePath() %>/` — never edit generated target-specific files directly.

@@ -42,10 +42,10 @@ describe("seed meta-instructions", () => {
       "utf-8",
     );
     expect(dispatcher).toContain("name: update-ai-config");
-    expect(dispatcher).toContain("/update-instruction");
-    expect(dispatcher).toContain("/update-skill");
-    expect(dispatcher).toContain("/update-agent");
-    expect(dispatcher).toContain("/update-hook");
+    expect(dispatcher).toContain("skillPath('update-instruction')");
+    expect(dispatcher).toContain("skillPath('update-skill')");
+    expect(dispatcher).toContain("skillPath('update-agent')");
+    expect(dispatcher).toContain("skillPath('update-hook')");
 
     // Type-specific skills
     const instruction = await readFile(

@@ -55,7 +55,7 @@ The config file (`universal-ai-config.config.ts`) supports these options:
 - `additionalTemplateDirs` — extra directories to discover templates from; supports absolute paths, relative paths, and `~` for home directory (default: `[]`). Main `templatesDir` takes priority on name conflicts.
 - `targets` — which targets to generate (default: all)
 - `types` — which template types to generate (default: all)
-- `variables` — custom variables for templates (EJS in markdown, `{{var}}` in JSON)
+- `variables` — custom variables for templates (EJS in markdown, typed `{{var}}` in JSON — exact-match placeholders resolve to raw values like arrays/objects)
 - `outputDirs` — override default output directories per target
 - `exclude` — glob patterns to skip templates from generation (array or per-target object)
 

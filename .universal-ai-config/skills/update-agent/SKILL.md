@@ -1,6 +1,7 @@
 ---
 name: update-agent
 description: Create, update, or manage universal-ai-config agent templates. Handles finding existing agents, deciding whether to create or modify, and writing the template.
+userInvocable: false
 ---
 
 # Manage Agent Templates
@@ -12,14 +13,6 @@ Agents are specialized AI personas with scoped tools and permissions that run in
 ## Finding Existing Agents
 
 List files in `<%= agentTemplatePath() %>/` to discover existing agent templates. Read their frontmatter to understand each agent's purpose and capabilities.
-
-## Additional Template Directories
-
-This project may have additional template directories configured via `additionalTemplateDirs`. To find them, search the project root for **all** config files matching `universal-ai-config.*` (e.g. `universal-ai-config.config.ts`, `universal-ai-config.overrides.config.ts`, and any other variants) and read the `additionalTemplateDirs` field from each. If the user asks to update a template that doesn't exist in the main templates directory, or explicitly refers to shared/global/external templates:
-
-1. Read all `universal-ai-config.*` config files in the project root to find `additionalTemplateDirs` paths
-2. Search those directories for the relevant agent
-3. **IMPORTANT:** Before editing any file outside the main `<%= config.templatesDir %>/` directory, ask the user for explicit confirmation — these are shared templates that may affect other projects
 
 ## Deciding What to Do
 
@@ -54,9 +47,3 @@ You are a security-focused code reviewer. When invoked:
 3. Review dependency usage for known CVEs
 4. Report findings by severity (critical, warning, info)
 ```
-
-## After Changes
-
-Run `uac generate` to regenerate target-specific config files and verify the output.
-
-**Reminder:** Always edit templates in `<%= agentTemplatePath() %>/` — never edit generated target-specific files directly.

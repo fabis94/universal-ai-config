@@ -1,6 +1,7 @@
 ---
 name: update-mcp
 description: Create, update, or manage universal-ai-config MCP server templates. Handles finding existing configs, deciding whether to create or modify, and writing the template.
+userInvocable: false
 ---
 
 # Manage MCP Server Templates
@@ -12,14 +13,6 @@ MCP (Model Context Protocol) server configurations define external tool servers 
 List files in `<%%= mcpTemplatePath() %>/` to discover existing MCP templates (`.json` files). Read them to understand what servers are already configured.
 
 **Note:** Servers from multiple files are merged by server name during generation (last-wins for duplicates). You can organize servers by concern (e.g. `github.json`, `databases.json`).
-
-## Additional Template Directories
-
-This project may have additional template directories configured via `additionalTemplateDirs`. To find them, search the project root for **all** config files matching `universal-ai-config.*` (e.g. `universal-ai-config.config.ts`, `universal-ai-config.overrides.config.ts`, and any other variants) and read the `additionalTemplateDirs` field from each. If the user asks to update a template that doesn't exist in the main templates directory, or explicitly refers to shared/global/external templates:
-
-1. Read all `universal-ai-config.*` config files in the project root to find `additionalTemplateDirs` paths
-2. Search those directories for the relevant MCP config
-3. **IMPORTANT:** Before editing any file outside the main `<%%= config.templatesDir %>/` directory, ask the user for explicit confirmation — these are shared templates that may affect other projects
 
 ## Deciding What to Do
 
@@ -198,9 +191,3 @@ Generated MCP files are placed at root-relative paths (not inside the target's o
   }
 }
 ```
-
-## After Changes
-
-Run `uac generate` to regenerate target-specific config files and verify the output.
-
-**Reminder:** Always edit templates in `<%%= mcpTemplatePath() %>/` — never edit generated MCP files (`.mcp.json`, `.vscode/mcp.json`, `.cursor/mcp.json`) directly.

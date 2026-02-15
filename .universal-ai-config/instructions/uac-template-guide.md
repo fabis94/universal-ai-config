@@ -20,7 +20,7 @@ Persistent context and rules that apply to AI conversations. Scoped by glob patt
 
 ### Skills (`<%= skillTemplatePath() %>/*/SKILL.md`)
 
-Reusable actions or workflows invocable as slash commands (e.g. `/skill-name`) or auto-triggered by the AI.
+Reusable actions or workflows invocable as slash commands (e.g. `/skill-name`) or auto-triggered by the AI. Skill directories can contain extra supporting files (references, examples, scripts) alongside `SKILL.md` — these are copied to generated output automatically. `.md` extra files are rendered through EJS (with access to `target`, `config`, path helpers), while non-`.md` files are copied as-is.
 
 **Use for:** repeatable tasks like code generation patterns, deployments, reviews, migrations, project-specific workflows.
 
@@ -235,17 +235,34 @@ If `command` resolves to `undefined` for a target, the entire handler is skipped
 
 ### Variable Interpolation (Hooks & MCP)
 
-JSON templates (hooks and MCP) support `{{variableName}}` interpolation from config variables. Variables are replaced before JSON parsing.
+JSON templates (hooks and MCP) support `{{variableName}}` interpolation from config variables with **typed resolution**:
+
+- **Exact match** — when the entire JSON value is `"{{varName}}"`, it resolves to the raw typed value (array, object, number, boolean), not just a string
+- **Embedded match** — when `{{varName}}` appears within other text (e.g. `"prefix-{{varName}}-suffix"`), it does string interpolation
 
 ```json
 {
+  "args": "{{playwrightArgs}}",
   "env": {
-    "API_HOST": "{{apiHost}}"
+    "API_HOST": "{{apiHost}}",
+    "FULL_URL": "https://{{apiHost}}:{{port}}/api"
   }
 }
 ```
 
-Variables are defined in `universal-ai-config.config.ts` under the `variables` key. Unmatched `{{placeholders}}` are left as-is.
+With config variables `{ playwrightArgs: ["-y", "@playwright/mcp@latest"], apiHost: "example.com", port: 3000 }`, this resolves to:
+
+```json
+{
+  "args": ["-y", "@playwright/mcp@latest"],
+  "env": {
+    "API_HOST": "example.com",
+    "FULL_URL": "https://example.com:3000/api"
+  }
+}
+```
+
+Variables are defined in `universal-ai-config.config.ts` under the `variables` key. Unmatched `{{placeholders}}` are left as-is. Use `universal-ai-config.overrides.ts` (gitignored) to set environment-specific variable values.
 
 **Important:** `{{varName}}` is for uac config variables. Use `${ENV_VAR}` for runtime environment variable references that should pass through to generated output unchanged.
 

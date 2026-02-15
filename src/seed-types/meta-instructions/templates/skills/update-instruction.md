@@ -1,6 +1,7 @@
 ---
 name: update-instruction
 description: Create, update, or manage universal-ai-config instruction templates. Handles finding existing instructions, deciding whether to create or modify, and writing the template.
+userInvocable: false
 ---
 
 # Manage Instruction Templates
@@ -33,14 +34,6 @@ If no existing instruction fits, investigate the project to decide where the ins
    - If the topic appears in many places but the instruction only makes sense for a subset, scope to that subset
 
 **Example:** The user says "feature flags should be loaded from env vars." Feature flags might appear in 10 places across the codebase, but if only the API layer loads them from config, the right scope is `globs: ["src/api/**"]` rather than `alwaysApply: true`.
-
-## Additional Template Directories
-
-This project may have additional template directories configured via `additionalTemplateDirs`. To find them, search the project root for **all** config files matching `universal-ai-config.*` (e.g. `universal-ai-config.config.ts`, `universal-ai-config.overrides.config.ts`, and any other variants) and read the `additionalTemplateDirs` field from each. If the user asks to update a template that doesn't exist in the main templates directory, or explicitly refers to shared/global/external templates:
-
-1. Read all `universal-ai-config.*` config files in the project root to find `additionalTemplateDirs` paths
-2. Search those directories for the relevant instruction
-3. **IMPORTANT:** Before editing any file outside the main `<%%= config.templatesDir %>/` directory, ask the user for explicit confirmation — these are shared templates that may affect other projects
 
 ## Deciding What to Do
 
@@ -85,9 +78,3 @@ Follow these TypeScript conventions:
 - Prefer interfaces over type aliases for object shapes
 - Use explicit return types on exported functions
 ```
-
-## After Changes
-
-Run `uac generate` to regenerate target-specific config files and verify the output.
-
-**Reminder:** Always edit templates in `<%%= instructionTemplatePath() %>/` — never edit generated target-specific files directly.

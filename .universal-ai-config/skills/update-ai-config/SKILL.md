@@ -17,22 +17,42 @@ Read the template guide at `<%= instructionPath('uac-template-guide') %>` to und
 
 Based on the user's request, decide which type of template to work with:
 
-- **Persistent context, rules, or guidelines** → Use `/update-instruction`
-- **Repeatable task, workflow, or slash command** → Use `/update-skill`
-- **Specialized AI persona with restricted tools** → Use `/update-agent`
-- **Automatic lifecycle automation (on events)** → Use `/update-hook`
-- **MCP server configuration** → Use `/update-mcp`
+- **Persistent context, rules, or guidelines** → Instruction template
+- **Repeatable task, workflow, or slash command** → Skill template
+- **Specialized AI persona with restricted tools** → Agent template
+- **Automatic lifecycle automation (on events)** → Hook template
+- **MCP server configuration** → MCP template
+
+Examples:
+
+- "Add a rule about error handling" → Instruction
+- "Create a deploy workflow" → Skill
+- "Set up a code reviewer" → Agent
+- "Run linting after file edits" → Hook
+- "Add an MCP server for GitHub" → MCP
+
+If the intent is ambiguous, ask the user to clarify before proceeding.
 
 ## 3. Delegate
 
-Invoke the appropriate skill with the user's requirements. If the intent is ambiguous, ask the user to clarify before proceeding. For example:
+Read the detailed guide for the chosen template type and follow its instructions:
 
-- "Add a rule about error handling" → `/update-instruction`
-- "Create a deploy workflow" → `/update-skill`
-- "Set up a code reviewer" → `/update-agent`
-- "Run linting after file edits" → `/update-hook`
-- "Add an MCP server for GitHub" → `/update-mcp`
+- **Instructions** → `<%= skillPath('update-instruction') %>`
+- **Skills** → `<%= skillPath('update-skill') %>`
+- **Agents** → `<%= skillPath('update-agent') %>`
+- **Hooks** → `<%= skillPath('update-hook') %>`
+- **MCP** → `<%= skillPath('update-mcp') %>`
 
-## Important
+These skills primarily create or modify files inside `<%= config.templatesDir %>/`. They may also modify files in directories listed under `additionalTemplateDirs` in the config — but only with explicit user confirmation, since those are shared templates that may affect other projects. Never edit generated output files in `.claude/`, `.cursor/`, `.github/`, or similar target-specific directories — those are regenerated from templates and any direct changes will be lost.
 
-The delegated skills (`/update-instruction`, `/update-skill`, `/update-agent`, `/update-hook`, `/update-mcp`) primarily create or modify files inside `<%= config.templatesDir %>/`. They may also modify files in directories listed under `additionalTemplateDirs` in the config — but only with explicit user confirmation, since those are shared templates that may affect other projects. Never edit generated output files in `.claude/`, `.cursor/`, `.github/`, or similar target-specific directories — those are regenerated from templates and any direct changes will be lost.
+## Additional Template Directories
+
+This project may have additional template directories configured via `additionalTemplateDirs`. To find them, search the project root for **all** config files matching `universal-ai-config.*` (e.g. `universal-ai-config.config.ts`, `universal-ai-config.overrides.config.ts`, and any other variants) and read the `additionalTemplateDirs` field from each. If the user asks to update a template that doesn't exist in the main templates directory, or explicitly refers to shared/global/external templates:
+
+1. Read all `universal-ai-config.*` config files in the project root to find `additionalTemplateDirs` paths
+2. Search those directories for the relevant template
+3. **IMPORTANT:** Before editing any file outside the main `<%= config.templatesDir %>/` directory, ask the user for explicit confirmation — these are shared templates that may affect other projects
+
+## After Changes
+
+Run `uac generate` to regenerate target-specific config files and verify the output.
