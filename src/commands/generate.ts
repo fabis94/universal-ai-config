@@ -2,7 +2,28 @@ import { defineCommand } from "citty";
 import { consola } from "consola";
 import { generate } from "../core/generate.js";
 import { writeGeneratedFiles, cleanTargetFiles } from "../core/writer.js";
-import type { Target, TemplateType } from "../types.js";
+import type { GeneratedFile, Target, TemplateType } from "../types.js";
+
+function formatTargetSummary(files: GeneratedFile[]): string[] {
+  const byTarget = new Map<string, Map<string, number>>();
+  for (const file of files) {
+    let types = byTarget.get(file.target);
+    if (!types) {
+      types = new Map<string, number>();
+      byTarget.set(file.target, types);
+    }
+    types.set(file.type, (types.get(file.type) ?? 0) + 1);
+  }
+
+  const lines: string[] = [];
+  for (const [target, types] of byTarget) {
+    const parts = [...types.entries()].map(
+      ([type, count]) => `${count} ${count === 1 ? type.replace(/s$/, "") : type}`,
+    );
+    lines.push(`${target} — ${parts.join(", ")}`);
+  }
+  return lines;
+}
 
 export default defineCommand({
   meta: {
@@ -40,6 +61,12 @@ export default defineCommand({
       description: "Remove existing generated files before generating",
       default: false,
     },
+    verbose: {
+      type: "boolean",
+      alias: "v",
+      description: "Show per-file output instead of summary",
+      default: false,
+    },
   },
   async run({ args }) {
     const root = args.root ?? process.cwd();
@@ -64,14 +91,27 @@ export default defineCommand({
     });
 
     if (args["dry-run"]) {
-      consola.info(`Would generate ${files.length} file(s):\n`);
-      for (const file of files) {
-        consola.log(`  ${file.path} (${file.target}/${file.type} ← ${file.sourcePath})`);
+      if (args.verbose) {
+        consola.info(`Would generate ${files.length} file(s):\n`);
+        for (const file of files) {
+          consola.log(`  ${file.path} (${file.target}/${file.type} ← ${file.sourcePath})`);
+        }
+      } else {
+        for (const line of formatTargetSummary(files)) {
+          consola.info(line);
+        }
+        consola.info(`Would generate ${files.length} file(s)`);
       }
       return;
     }
 
-    await writeGeneratedFiles(files, root);
+    await writeGeneratedFiles(files, root, { verbose: args.verbose });
+
+    if (!args.verbose) {
+      for (const line of formatTargetSummary(files)) {
+        consola.success(line);
+      }
+    }
     consola.success(`Generated ${files.length} file(s)`);
   },
 });

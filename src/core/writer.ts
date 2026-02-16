@@ -34,7 +34,11 @@ async function mergeJsonKey(fullPath: string, content: string, mergeKey: string)
   return JSON.stringify(existing, null, 2) + "\n";
 }
 
-export async function writeGeneratedFiles(files: GeneratedFile[], root: string): Promise<void> {
+export async function writeGeneratedFiles(
+  files: GeneratedFile[],
+  root: string,
+  options?: { verbose?: boolean },
+): Promise<void> {
   for (const file of files) {
     const fullPath = safePath(root, file.path);
     await mkdir(dirname(fullPath), { recursive: true });
@@ -46,7 +50,9 @@ export async function writeGeneratedFiles(files: GeneratedFile[], root: string):
       await writeFile(fullPath, file.content, "utf-8");
     }
 
-    consola.success(`Generated ${file.path}`);
+    if (options?.verbose) {
+      consola.success(`Generated ${file.path}`);
+    }
   }
 }
 
