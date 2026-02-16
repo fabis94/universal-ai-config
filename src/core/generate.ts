@@ -33,6 +33,8 @@ interface ExtraFile {
   relativePath: string;
   /** Absolute path to the file on disk */
   filePath: string;
+  /** In-memory content — when present, readFile is skipped */
+  content?: string;
 }
 
 interface DiscoveredTemplate {
@@ -45,6 +47,8 @@ interface DiscoveredTemplate {
   templateRelativePath: string;
   /** Extra files in skill directories (beyond SKILL.md) */
   extraFiles?: ExtraFile[];
+  /** In-memory content — when present, readFile is skipped */
+  content?: string;
 }
 
 /** Resolve an additional template dir path: expands ~ and resolves relative paths against root */
@@ -486,6 +490,36 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
   }
 
   const templates = await discoverTemplates(root, config);
+
+  // Append in-memory templates (file-discovered templates win on name conflicts)
+  if (options.templates) {
+    const seen = new Set(templates.map((t) => `${t.type}:${t.name}`));
+    for (const inMem of options.templates) {
+      const key = `${inMem.type}:${inMem.name}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const relativePath =
+        inMem.type === "skills"
+          ? `skills/${inMem.name}/SKILL.md`
+          : `${inMem.type}/${inMem.name}.md`;
+
+      templates.push({
+        name: inMem.name,
+        type: inMem.type,
+        filePath: "",
+        relativePath,
+        templateRelativePath: relativePath,
+        content: inMem.content,
+        extraFiles: inMem.extraFiles?.map((ef) => ({
+          relativePath: ef.relativePath,
+          filePath: "",
+          content: ef.content,
+        })),
+      });
+    }
+  }
+
   const generatedFiles: GeneratedFile[] = [];
 
   // Pre-create exclude matchers for each target
@@ -495,7 +529,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
   }
 
   for (const template of templates) {
-    const content = await readFile(template.filePath, "utf-8");
+    const content = template.content ?? (await readFile(template.filePath, "utf-8"));
 
     for (const targetName of config.targets) {
       // Check if template is excluded for this target
@@ -544,7 +578,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
       // Copy extra files from skill directories
       if (template.extraFiles) {
         for (const extra of template.extraFiles) {
-          const extraContent = await readFile(extra.filePath, "utf-8");
+          const extraContent = extra.content ?? (await readFile(extra.filePath, "utf-8"));
           const skillOutputDir = join(outputDir, `skills/${template.name}`);
           const extraOutputPath = join(skillOutputDir, extra.relativePath);
 
@@ -562,7 +596,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
             content: processedContent,
             target: targetName as Target,
             type: template.type,
-            sourcePath: relative(root, extra.filePath),
+            sourcePath: extra.filePath ? relative(root, extra.filePath) : extra.relativePath,
           });
         }
       }

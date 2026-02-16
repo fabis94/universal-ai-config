@@ -59,6 +59,24 @@ export interface UniversalMCPInput {
   [key: string]: unknown;
 }
 
+export interface InMemoryExtraFile {
+  /** Path relative to the skill directory, e.g. "references/example.md" */
+  relativePath: string;
+  /** File content */
+  content: string;
+}
+
+export interface InMemoryTemplate {
+  /** Template name — e.g. "my-skill" for a skill, "general" for an instruction */
+  name: string;
+  /** Template type */
+  type: TemplateType;
+  /** The full template content (markdown with optional frontmatter + EJS) */
+  content: string;
+  /** Extra files for skills (non-SKILL.md files in the skill directory) */
+  extraFiles?: InMemoryExtraFile[];
+}
+
 export interface GenerateOptions {
   root?: string;
   targets?: Target[];
@@ -68,6 +86,8 @@ export interface GenerateOptions {
   clean?: boolean;
   /** Inline config overrides — merged after config file, before CLI-level target/type overrides */
   overrides?: UserConfig;
+  /** In-memory templates — processed alongside (or instead of) file-discovered templates */
+  templates?: InMemoryTemplate[];
 }
 
 export interface UniversalFrontmatter {

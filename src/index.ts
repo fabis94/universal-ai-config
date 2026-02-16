@@ -6,6 +6,8 @@ export { defineTarget } from "./targets/define-target.js";
 export type {
   GeneratedFile,
   GenerateOptions,
+  InMemoryTemplate,
+  InMemoryExtraFile,
   ResolvedConfig,
   Target,
   TemplateType,
