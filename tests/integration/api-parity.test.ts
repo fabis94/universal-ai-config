@@ -45,7 +45,7 @@ describe("programmatic API parity", () => {
 
   it("cleanTargetFiles does not throw when nothing to clean", async () => {
     const tempDir = await createTempDir();
-    await expect(cleanTargetFiles(tempDir, ["claude"])).resolves.toBeUndefined();
+    await expect(cleanTargetFiles(tempDir, ["claude"])).resolves.toEqual([]);
   });
 
   it("cleanTargetFiles removes generated files", async () => {

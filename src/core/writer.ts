@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { consola } from "consola";
 import { targets } from "../targets/index.js";
@@ -56,7 +56,7 @@ export async function writeGeneratedFiles(
   }
 }
 
-async function cleanClaudeHooks(root: string, outputDir: string): Promise<void> {
+async function cleanClaudeHooks(root: string, outputDir: string): Promise<string | undefined> {
   const settingsPath = join(root, outputDir, "settings.json");
   try {
     const content = await readFile(settingsPath, "utf-8");
@@ -68,15 +68,21 @@ async function cleanClaudeHooks(root: string, outputDir: string): Promise<void> 
       } else {
         await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
       }
-      consola.info(`Cleaned hooks from ${join(outputDir, "settings.json")}`);
+      return join(outputDir, "settings.json");
     }
   } catch {
     // File doesn't exist, nothing to clean
   }
+  return undefined;
 }
 
-export async function cleanTargetFiles(root: string, targetNames?: Target[]): Promise<void> {
+export async function cleanTargetFiles(
+  root: string,
+  targetNames?: Target[],
+  options?: { verbose?: boolean },
+): Promise<string[]> {
   const targetList = targetNames ?? (Object.keys(targets) as Target[]);
+  const cleaned: string[] = [];
 
   for (const targetName of targetList) {
     const targetDef = targets[targetName];
@@ -88,17 +94,28 @@ export async function cleanTargetFiles(root: string, targetNames?: Target[]): Pr
 
     for (const p of paths) {
       const fullPath = join(root, outputDir, p);
-      try {
-        await rm(fullPath, { recursive: true, force: true });
-        consola.info(`Cleaned ${join(outputDir, p)}`);
-      } catch {
-        // Path doesn't exist, that's fine
+      const exists = await access(fullPath).then(
+        () => true,
+        () => false,
+      );
+      if (!exists) continue;
+      await rm(fullPath, { recursive: true, force: true });
+      const label = join(outputDir, p);
+      cleaned.push(label);
+      if (options?.verbose) {
+        consola.info(`Cleaned ${label}`);
       }
     }
 
     // Claude hooks are merged into settings.json — need special handling
     if (targetName === "claude") {
-      await cleanClaudeHooks(root, outputDir);
+      const hookLabel = await cleanClaudeHooks(root, outputDir);
+      if (hookLabel) {
+        cleaned.push(hookLabel);
+        if (options?.verbose) {
+          consola.info(`Cleaned hooks from ${hookLabel}`);
+        }
+      }
     }
 
     // MCP files are root-relative, not inside outputDir
@@ -106,13 +123,19 @@ export async function cleanTargetFiles(root: string, targetNames?: Target[]): Pr
     if (mcpPaths) {
       for (const mcpPath of mcpPaths) {
         const fullPath = join(root, mcpPath);
-        try {
-          await rm(fullPath, { force: true });
+        const exists = await access(fullPath).then(
+          () => true,
+          () => false,
+        );
+        if (!exists) continue;
+        await rm(fullPath, { force: true });
+        cleaned.push(mcpPath);
+        if (options?.verbose) {
           consola.info(`Cleaned ${mcpPath}`);
-        } catch {
-          // Path doesn't exist
         }
       }
     }
   }
+
+  return cleaned;
 }

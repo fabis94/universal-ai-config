@@ -26,7 +26,7 @@ export default defineCommand({
       ? (args.target.split(",").map((s) => s.trim()) as Target[])
       : undefined;
 
-    await cleanTargetFiles(root, targets);
+    await cleanTargetFiles(root, targets, { verbose: true });
     consola.success("Clean complete");
   },
 });
