@@ -24,7 +24,6 @@ Generate tool-specific AI config files from shared templates. Write your AI inst
   - [`uac seed`](#uac-seed)
 - [Output Paths](#output-paths)
 - [Complete Template Reference](#complete-template-reference)
-- [Frontmatter Mapping Reference](#frontmatter-mapping-reference)
 - [Programmatic API](#programmatic-api)
 - [Adding a New Target](#adding-a-new-target)
 
@@ -585,7 +584,7 @@ uac seed meta-instructions --root ./my-project
 | -------- | ----- | ------------ | ------- |
 | `--root` | `-r`  | Project root | cwd     |
 
-The `meta-instructions` seed creates 9 files in the templates directory:
+The `meta-instructions` seed creates 12 files in the templates directory:
 
 | File                                        | Purpose                                                        |
 | ------------------------------------------- | -------------------------------------------------------------- |
@@ -598,6 +597,8 @@ The `meta-instructions` seed creates 9 files in the templates directory:
 | `skills/update-hook/SKILL.md`               | Full lifecycle management for hook templates                   |
 | `skills/update-mcp/SKILL.md`                | Full lifecycle management for MCP server templates             |
 | `skills/import-existing-ai-config/SKILL.md` | Import existing target-specific configs as universal templates |
+| `skills/ai-config-compress/SKILL.md`        | Compress LLM instructions to reduce token count                |
+|                                             |
 
 Existing files are overwritten to ensure templates stay up to date.
 
@@ -637,90 +638,6 @@ Existing files are overwritten to ensure templates stay up to date.
 ## Complete Template Reference
 
 For the most up-to-date reference on all frontmatter fields, available tools per platform (Claude, Copilot, Cursor), MCP tool syntax, hook matcher patterns, and per-target overrides, see the [UAC Template Guide](src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md). This guide is also seeded into your project via `uac seed meta-instructions` and made available to your AI tools as a rule/instruction.
-
-## Frontmatter Mapping Reference
-
-<details>
-<summary>Instructions mapping</summary>
-
-| Universal      | Claude        | Copilot                             | Cursor              |
-| -------------- | ------------- | ----------------------------------- | ------------------- |
-| `description`  | `description` | `description`                       | `description`       |
-| `globs`        | `paths`       | `applyTo` (comma-joined)            | `globs`             |
-| `alwaysApply`  | omits `paths` | routes to `copilot-instructions.md` | `alwaysApply: true` |
-| `excludeAgent` | —             | `excludeAgent`                      | —                   |
-
-</details>
-
-<details>
-<summary>Skills mapping</summary>
-
-| Universal               | Claude                     | Copilot         | Cursor                     |
-| ----------------------- | -------------------------- | --------------- | -------------------------- |
-| `name`                  | `name`                     | `name`          | `name`                     |
-| `description`           | `description`              | `description`   | `description`              |
-| `disableAutoInvocation` | `disable-model-invocation` | —               | `disable-model-invocation` |
-| `userInvocable`         | `user-invocable`           | —               | —                          |
-| `allowedTools`          | `allowed-tools`            | —               | —                          |
-| `model`                 | `model`                    | —               | —                          |
-| `subagentType`          | `agent`                    | —               | —                          |
-| `forkContext`           | `context: fork`            | —               | —                          |
-| `argumentHint`          | `argument-hint`            | —               | —                          |
-| `license`               | —                          | `license`       | `license`                  |
-| `compatibility`         | —                          | `compatibility` | `compatibility`            |
-| `metadata`              | —                          | `metadata`      | `metadata`                 |
-| `hooks`                 | `hooks`                    | —               | —                          |
-
-</details>
-
-<details>
-<summary>Agents mapping</summary>
-
-| Universal         | Claude            | Copilot       |
-| ----------------- | ----------------- | ------------- |
-| `name`            | `name`            | `name`        |
-| `description`     | `description`     | `description` |
-| `model`           | `model`           | `model`       |
-| `tools`           | `tools`           | `tools`       |
-| `disallowedTools` | `disallowedTools` | —             |
-| `permissionMode`  | `permissionMode`  | —             |
-| `skills`          | `skills`          | —             |
-| `hooks`           | `hooks`           | —             |
-| `memory`          | `memory`          | —             |
-| `target`          | —                 | `target`      |
-| `mcpServers`      | —                 | `mcp-servers` |
-| `handoffs`        | —                 | `handoffs`    |
-
-</details>
-
-<details>
-<summary>Hooks mapping</summary>
-
-| Aspect            | Claude                              | Copilot                    | Cursor                    |
-| ----------------- | ----------------------------------- | -------------------------- | ------------------------- |
-| Output file       | `.claude/settings.json`             | `.github/hooks/hooks.json` | `.cursor/hooks.json`      |
-| Merge behavior    | Merges into `hooks` key             | Standalone file            | Standalone file           |
-| Event names       | PascalCase                          | camelCase (some renamed)   | camelCase (some renamed)  |
-| `command` field   | `command`                           | `bash`                     | `command`                 |
-| `timeout` field   | `timeout`                           | `timeoutSec`               | `timeout`                 |
-| `matcher` support | Yes (groups handlers)               | Dropped                    | Yes (flat)                |
-| Handler structure | Nested: `{ matcher, hooks: [...] }` | Flat: `{ type, bash }`     | Flat: `{ type, command }` |
-| Version wrapper   | None                                | `"1"` (string)             | `1` (number)              |
-
-</details>
-
-<details>
-<summary>MCP mapping</summary>
-
-| Aspect           | Claude       | Copilot             | Cursor             |
-| ---------------- | ------------ | ------------------- | ------------------ |
-| Output file      | `.mcp.json`  | `.vscode/mcp.json`  | `.cursor/mcp.json` |
-| Wrapper key      | `mcpServers` | `servers`           | `mcpServers`       |
-| `type` field     | Included     | Included            | Omitted            |
-| `inputs` support | —            | Included if present | —                  |
-| Path relative to | Project root | Project root        | Project root       |
-
-</details>
 
 ## Programmatic API
 
