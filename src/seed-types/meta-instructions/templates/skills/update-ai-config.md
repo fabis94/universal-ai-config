@@ -53,6 +53,19 @@ This project may have additional template directories configured via `additional
 2. Search those directories for the relevant template
 3. **IMPORTANT:** Before editing any file outside the main `<%%= config.templatesDir %>/` directory, ask the user for explicit confirmation — these are shared templates that may affect other projects
 
+## Writing Style
+
+Every token in a template costs model attention — ~60% of instruction tokens are typically removable without degrading output quality. When writing or editing any template, apply these rules:
+
+- **Use imperative sentences.** "Use strict mode" not "You should try to ensure that strict mode is used."
+- **Cut filler phrases.** Drop "please note that", "it is important to", "keep in mind that", "remember to always" — just state the rule.
+- **Remove hedging on directives.** "Be accurate" not "You should try to ensure responses are accurate."
+- **Deduplicate.** If two rules express the same constraint in different words, keep only the most specific version. "Be professional" + "Maintain professional tone" + "Always respond professionally" → "Maintain professional tone."
+- **Drop self-referential framing.** "The following rules govern your behavior:" adds nothing — just list the rules.
+- **Strip unnecessary articles in imperatives.** "Write response" not "Write the response."
+- **Flatten verbose conditionals.** "If user asks X, check Y, and if Y then Z" → "X + Y → Z"
+- **Minimize examples.** 1–2 examples covering distinct cases beat 5 illustrating the same pattern. If a rule is clear without examples, omit them — but note that cutting examples carries the most risk since few-shot examples significantly reduce prompt sensitivity.
+
 ## After Changes
 
 Run `uac generate` to regenerate target-specific config files and verify the output.

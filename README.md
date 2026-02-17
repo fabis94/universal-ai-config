@@ -590,15 +590,11 @@ The `meta-instructions` seed creates 12 files in the templates directory:
 | ------------------------------------------- | -------------------------------------------------------------- |
 | `instructions/uac-usage.md`                 | How to use uac CLI commands (always applied)                   |
 | `instructions/uac-template-guide.md`        | Full template authoring guide                                  |
-| `skills/update-ai-config/SKILL.md`          | Dispatcher — analyzes intent and delegates to the right skill  |
-| `skills/update-instruction/SKILL.md`        | Full lifecycle management for instruction templates            |
-| `skills/update-skill/SKILL.md`              | Full lifecycle management for skill templates                  |
-| `skills/update-agent/SKILL.md`              | Full lifecycle management for agent templates                  |
-| `skills/update-hook/SKILL.md`               | Full lifecycle management for hook templates                   |
-| `skills/update-mcp/SKILL.md`                | Full lifecycle management for MCP server templates             |
+| `skills/update-ai-config/SKILL.md`          | Main entry point for creating or updating any template         |
 | `skills/import-existing-ai-config/SKILL.md` | Import existing target-specific configs as universal templates |
 | `skills/ai-config-compress/SKILL.md`        | Compress LLM instructions to reduce token count                |
-|                                             |
+
+`update-ai-config` is the primary skill users should invoke — it analyzes intent and auto-delegates to internal type-specific skills (`update-instruction`, `update-skill`, `update-agent`, `update-hook`, `update-mcp`).
 
 Existing files are overwritten to ensure templates stay up to date.
 
