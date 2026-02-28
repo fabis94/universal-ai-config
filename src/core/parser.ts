@@ -16,13 +16,16 @@ interface RenderContext {
 }
 
 export function parseFrontmatter(content: string): ParsedTemplate {
+  // Normalize CRLF (Windows) and CR (old Mac) to LF for cross-platform compatibility
+  const normalized = content.replace(/\r\n?/g, "\n");
+
   // Match frontmatter delimited by --- at the start of the file
   const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/;
-  const match = content.match(frontmatterRegex);
+  const match = normalized.match(frontmatterRegex);
 
   if (!match) {
     // No frontmatter - return empty data and full content as body
-    return { frontmatter: {} as UniversalFrontmatter, body: content };
+    return { frontmatter: {} as UniversalFrontmatter, body: normalized };
   }
 
   const yamlContent = match[1] ?? "";

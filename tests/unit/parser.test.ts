@@ -32,6 +32,71 @@ Body only.
     expect(result.frontmatter).toEqual({});
     expect(result.body).toContain("Body only.");
   });
+
+  describe("line ending normalization", () => {
+    const makeContent = (sep: string) =>
+      [
+        "---",
+        "description: Storybook rules",
+        "globs:",
+        '  - "src/**/*.stories.ts"',
+        '  - "packages/app/.storybook/**/*"',
+        "---",
+        "Use Storybook best practices.",
+      ].join(sep);
+
+    const expectedGlobs = ["src/**/*.stories.ts", "packages/app/.storybook/**/*"];
+
+    it("handles LF line endings (Unix/macOS)", () => {
+      const result = parseFrontmatter(makeContent("\n"));
+      expect(result.frontmatter.description).toBe("Storybook rules");
+      expect(result.frontmatter.globs).toEqual(expectedGlobs);
+      expect(result.body).toContain("Use Storybook best practices.");
+      expect(result.body).not.toContain("\r");
+    });
+
+    it("handles CRLF line endings (Windows)", () => {
+      const result = parseFrontmatter(makeContent("\r\n"));
+      expect(result.frontmatter.description).toBe("Storybook rules");
+      expect(result.frontmatter.globs).toEqual(expectedGlobs);
+      expect(result.body).toContain("Use Storybook best practices.");
+      expect(result.body).not.toContain("\r");
+    });
+
+    it("handles CR line endings (legacy Mac)", () => {
+      const result = parseFrontmatter(makeContent("\r"));
+      expect(result.frontmatter.description).toBe("Storybook rules");
+      expect(result.frontmatter.globs).toEqual(expectedGlobs);
+      expect(result.body).toContain("Use Storybook best practices.");
+      expect(result.body).not.toContain("\r");
+    });
+
+    it("handles mixed line endings", () => {
+      const content =
+        '---\r\ndescription: Mixed endings\nglobs:\r  - "**/*.ts"\r\n---\nBody content.\r\n';
+      const result = parseFrontmatter(content);
+      expect(result.frontmatter.description).toBe("Mixed endings");
+      expect(result.frontmatter.globs).toEqual(["**/*.ts"]);
+      expect(result.body).toContain("Body content.");
+      expect(result.body).not.toContain("\r");
+    });
+
+    it("handles CRLF content without frontmatter", () => {
+      const content = "Just body content,\r\nno frontmatter.\r\n";
+      const result = parseFrontmatter(content);
+      expect(result.frontmatter).toEqual({});
+      expect(result.body).toContain("Just body content,\nno frontmatter.");
+      expect(result.body).not.toContain("\r");
+    });
+
+    it("handles CRLF with empty frontmatter", () => {
+      const content = "---\r\n---\r\nBody only.\r\n";
+      const result = parseFrontmatter(content);
+      expect(result.frontmatter).toEqual({});
+      expect(result.body).toContain("Body only.");
+      expect(result.body).not.toContain("\r");
+    });
+  });
 });
 
 describe("renderEjs", () => {

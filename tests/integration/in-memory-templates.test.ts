@@ -155,6 +155,41 @@ describe("in-memory templates", () => {
     expect(alwaysRule!.content).not.toContain("SHOULD NOT APPEAR");
   });
 
+  it("handles in-memory templates with CRLF line endings", async () => {
+    const templates: InMemoryTemplate[] = [
+      {
+        name: "crlf-rule",
+        type: "instructions",
+        content: [
+          "---",
+          "description: CRLF test rule",
+          "globs:",
+          '  - "**/*.ts"',
+          '  - "packages/app/.storybook/**/*"',
+          "---",
+          "This template uses Windows line endings.",
+          "Target: <%= target %>",
+        ].join("\r\n"),
+      },
+    ];
+
+    const files = await generate({
+      root: FIXTURES_DIR,
+      targets: ["claude"],
+      types: ["instructions"],
+      templates,
+    });
+
+    const crlfRule = files.find((f) => f.path.includes("crlf-rule"));
+    expect(crlfRule).toBeDefined();
+    expect(crlfRule!.path).toBe(".claude/rules/crlf-rule.md");
+    expectYamlField(crlfRule!.content, "description", "CRLF test rule");
+    // EJS should render correctly despite CRLF input
+    expect(crlfRule!.content).toContain("Target: claude");
+    // Output should not contain carriage returns
+    expect(crlfRule!.content).not.toContain("\r");
+  });
+
   it("works with only in-memory templates (no templates dir)", async () => {
     const templates: InMemoryTemplate[] = [
       {
