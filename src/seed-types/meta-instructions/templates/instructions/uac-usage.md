@@ -75,6 +75,22 @@ exclude: {
 }
 ```
 
+## Merging Config Fields
+
+When using an overrides config, array fields like `exclude` are **replaced** entirely by default. To **concatenate** instead, use the `mergeField` helper:
+
+```typescript
+// universal-ai-config.overrides.ts
+import { defineConfig, mergeField } from "universal-ai-config";
+import base from "./universal-ai-config.config";
+
+export default defineConfig({
+  exclude: mergeField(base.exclude, ["additional-pattern/**"]),
+});
+```
+
+`mergeField` handles plain arrays, per-target objects, and mixed combinations. Plain arrays are treated as the `default` value, and target-specific keys fall back to `default` when absent.
+
 ## Further Reading
 
 See `<%%= instructionPath('uac-template-guide') %>` for the full template authoring guide — template types, frontmatter fields, EJS variables, path helpers, per-target overrides, and hook event names.

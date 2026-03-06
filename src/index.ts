@@ -1,4 +1,5 @@
 export { defineConfig } from "./config/schema.js";
+export { mergeField } from "./config/merge-field.js";
 export { loadProjectConfig } from "./config/loader.js";
 export { generate } from "./core/generate.js";
 export { writeGeneratedFiles, cleanTargetFiles } from "./core/writer.js";

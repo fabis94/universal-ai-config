@@ -519,6 +519,20 @@ export default defineConfig({
 - **Objects** (`variables`, `outputDirs`): **deep-merged**
 - **Scalars** (`templatesDir`): overrides **replace**
 
+To **concatenate** array fields (like `exclude`) instead of replacing, use the `mergeField` helper:
+
+```ts
+// universal-ai-config.overrides.ts
+import { defineConfig, mergeField } from "universal-ai-config";
+import base from "./universal-ai-config.config";
+
+export default defineConfig({
+  exclude: mergeField(base.exclude, ["additional-pattern/**"]),
+});
+```
+
+`mergeField` handles all type combinations — plain arrays, per-target objects, and mixed. When mixing types, plain arrays are treated as the `default` value, and target-specific keys fall back to `default` when absent.
+
 ### Resolution Order (later wins)
 
 1. Built-in defaults
