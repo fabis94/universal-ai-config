@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "keep-server": {
+      "command": "npx",
+      "args": ["keep-mcp"]
+    }
+  }
+}

@@ -113,6 +113,36 @@ describe("exclude config", () => {
     });
   });
 
+  describe("mcp", () => {
+    it("claude: excludes mcp/skip.json, only keep.json servers present", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["mcp"],
+      });
+
+      const mcp = files.find((f) => f.type === "mcp" && f.target === "claude");
+      expect(mcp).toBeDefined();
+      const parsed = JSON.parse(mcp!.content);
+      expect(parsed.mcpServers).toHaveProperty("keep-server");
+      expect(parsed.mcpServers).not.toHaveProperty("skip-server");
+    });
+
+    it("copilot: does not exclude mcp — both servers present", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["copilot"],
+        types: ["mcp"],
+      });
+
+      const mcp = files.find((f) => f.type === "mcp" && f.target === "copilot");
+      expect(mcp).toBeDefined();
+      const parsed = JSON.parse(mcp!.content);
+      expect(parsed.servers).toHaveProperty("keep-server");
+      expect(parsed.servers).toHaveProperty("skip-server");
+    });
+  });
+
   describe("skills", () => {
     it("no target excludes skills — all targets generate skills", async () => {
       const files = await generate({
