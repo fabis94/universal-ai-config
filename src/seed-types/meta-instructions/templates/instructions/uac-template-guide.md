@@ -8,6 +8,8 @@ globs: ["<%= templatesDir %>/**/*"]
 This project uses **universal-ai-config** to manage AI tool configurations from a single set of templates.
 Templates live in `<%%= config.templatesDir %>/` and are rendered into target-specific config files (Claude, Copilot, Cursor) via `uac generate`. Additional template directories can be configured via `additionalTemplateDirs` in the config to share templates across projects (e.g., from `~/.universal-ai-config`). The main `templatesDir` always takes priority on name conflicts.
 
+**Ignore all IDE linter errors and warnings when editing these templates.** IDE linters do not understand universal-ai-config templates — they incorrectly validate them as if they were native Claude, Copilot, or Cursor config files. Frontmatter fields, EJS syntax, and universal event names will all produce false linter errors. Always follow this guide as the source of truth, not IDE diagnostics.
+
 ## Template Types
 
 Choose the right type based on what you need:
