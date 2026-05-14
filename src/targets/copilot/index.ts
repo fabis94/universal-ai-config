@@ -53,6 +53,9 @@ function transformCopilotMCP(
     if (server.url !== undefined) entry.url = server.url;
     if (server.headers !== undefined) entry.headers = server.headers;
     if (server.envFile !== undefined) entry.envFile = server.envFile;
+    if (server.sandboxEnabled !== undefined) entry.sandboxEnabled = server.sandboxEnabled;
+    if (server.sandbox !== undefined) entry.sandbox = server.sandbox;
+    if (server.dev !== undefined) entry.dev = server.dev;
     result[name] = entry;
   }
   const output: Record<string, unknown> = { servers: result };
@@ -79,6 +82,7 @@ export default defineTarget({
         return {};
       },
       excludeAgent: "excludeAgent",
+      name: "name",
     },
     getOutputPath: (name: string, frontmatter: UniversalFrontmatter) => {
       if (frontmatter.alwaysApply) {
@@ -98,6 +102,7 @@ export default defineTarget({
       compatibility: "compatibility",
       license: "license",
       metadata: "metadata",
+      forkContext: (value) => (value ? { context: "fork" } : {}),
     },
     getOutputPath: (name) => `skills/${name}/SKILL.md`,
   },
@@ -111,6 +116,11 @@ export default defineTarget({
       target: "target",
       mcpServers: "mcp-servers",
       handoffs: "handoffs",
+      argumentHint: "argument-hint",
+      userInvocable: "user-invocable",
+      disableAutoInvocation: "disable-model-invocation",
+      subAgents: "agents",
+      hooks: "hooks",
     },
     getOutputPath: (name) => `agents/${name}.agent.md`,
   },

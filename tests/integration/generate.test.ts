@@ -252,7 +252,7 @@ describe("generate", () => {
       expect(parsed.servers.github.command).toBe("npx");
     });
 
-    it("generates cursor MCP at .cursor/mcp.json without type field", async () => {
+    it("generates cursor MCP at .cursor/mcp.json with type field passed through", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["cursor"],
@@ -265,8 +265,8 @@ describe("generate", () => {
 
       const parsed = JSON.parse(mcp!.content);
       expect(parsed.mcpServers).toHaveProperty("github");
-      // Cursor omits the type field
-      expect(parsed.mcpServers.github).not.toHaveProperty("type");
+      // Cursor passes through type when present
+      expect(parsed.mcpServers.github.type).toBe("stdio");
       expect(parsed.mcpServers.github.command).toBe("npx");
     });
   });

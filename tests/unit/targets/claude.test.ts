@@ -142,5 +142,130 @@ describe("claude target", () => {
       expect(result.hooks).toHaveProperty("PreToolUse");
       expect(result.hooks).not.toHaveProperty("errorOccurred");
     });
+
+    it("maps new hook events to PascalCase", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        setup: [{ command: "setup.sh" }],
+        postCompact: [{ command: "compact.sh" }],
+        taskCreated: [{ command: "task.sh" }],
+        worktreeCreate: [{ command: "wt.sh" }],
+        elicitation: [{ command: "elicit.sh" }],
+      };
+      const result = config.transform(hooks) as { hooks: Record<string, unknown> };
+      expect(result.hooks).toHaveProperty("Setup");
+      expect(result.hooks).toHaveProperty("PostCompact");
+      expect(result.hooks).toHaveProperty("TaskCreated");
+      expect(result.hooks).toHaveProperty("WorktreeCreate");
+      expect(result.hooks).toHaveProperty("Elicitation");
+    });
+
+    it("passes through handler type and type-specific fields", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        preToolUse: [
+          { type: "http", url: "https://example.com/hook", allowedEnvVars: ["TOKEN"] },
+          { type: "mcp_tool", server: "my-server", tool: "run", input: { key: "val" } },
+          { type: "prompt", prompt: "Summarize the change", model: "claude-opus-4-7" },
+          {
+            command: "check.sh",
+            async: true,
+            asyncRewake: false,
+            shell: "bash",
+            if: "Bash(git *)",
+            statusMessage: "checking…",
+            once: true,
+          },
+        ],
+      };
+      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const groups = result.hooks.PreToolUse as Array<{ hooks: unknown[] }>;
+      const entries = groups[0]!.hooks as Record<string, unknown>[];
+
+      expect(entries[0]).toEqual({
+        type: "http",
+        url: "https://example.com/hook",
+        allowedEnvVars: ["TOKEN"],
+      });
+      expect(entries[1]).toEqual({
+        type: "mcp_tool",
+        server: "my-server",
+        tool: "run",
+        input: { key: "val" },
+      });
+      expect(entries[2]).toEqual({
+        type: "prompt",
+        prompt: "Summarize the change",
+        model: "claude-opus-4-7",
+      });
+      expect(entries[3]).toMatchObject({
+        type: "command",
+        command: "check.sh",
+        async: true,
+        asyncRewake: false,
+        shell: "bash",
+        if: "Bash(git *)",
+        statusMessage: "checking…",
+        once: true,
+      });
+      // only explicitly set fields are present — description not set, so absent
+      expect(entries[3]).not.toHaveProperty("description");
+    });
+  });
+
+  describe("skills (new fields)", () => {
+    const config = claude.skills!;
+
+    it("maps whenToUse to when_to_use", () => {
+      expect(config.frontmatterMap.whenToUse).toBe("when_to_use");
+    });
+
+    it("maps arguments, effort, skillShell", () => {
+      expect(config.frontmatterMap.arguments).toBe("arguments");
+      expect(config.frontmatterMap.effort).toBe("effort");
+      expect(config.frontmatterMap.skillShell).toBe("shell");
+    });
+
+    it("maps skillPaths to paths", () => {
+      expect(config.frontmatterMap.skillPaths).toBe("paths");
+    });
+  });
+
+  describe("agents (new fields)", () => {
+    const config = claude.agents!;
+
+    it("maps maxTurns, background, effort, isolation, color, initialPrompt", () => {
+      expect(config.frontmatterMap.maxTurns).toBe("maxTurns");
+      expect(config.frontmatterMap.background).toBe("background");
+      expect(config.frontmatterMap.effort).toBe("effort");
+      expect(config.frontmatterMap.isolation).toBe("isolation");
+      expect(config.frontmatterMap.color).toBe("color");
+      expect(config.frontmatterMap.initialPrompt).toBe("initialPrompt");
+    });
+
+    it("maps mcpServers for agents", () => {
+      expect(config.frontmatterMap.mcpServers).toBe("mcpServers");
+    });
+  });
+
+  describe("mcp (new fields)", () => {
+    const config = claude.mcp!;
+
+    it("passes through alwaysLoad, headersHelper, oauth", () => {
+      const servers = {
+        "my-server": {
+          type: "http",
+          url: "https://mcp.example.com",
+          alwaysLoad: true,
+          headersHelper: "./gen-headers.sh",
+          oauth: { clientId: "abc", scopes: ["read"] },
+        },
+      };
+      const result = config.transform(servers) as {
+        mcpServers: Record<string, Record<string, unknown>>;
+      };
+      const s = result.mcpServers["my-server"]!;
+      expect(s.alwaysLoad).toBe(true);
+      expect(s.headersHelper).toBe("./gen-headers.sh");
+      expect(s.oauth).toEqual({ clientId: "abc", scopes: ["read"] });
+    });
   });
 });

@@ -120,5 +120,72 @@ describe("cursor target", () => {
       expect(result.hooks).not.toHaveProperty("permissionRequest");
       expect(result.hooks).not.toHaveProperty("errorOccurred");
     });
+
+    it("passes through workspaceOpen event", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        workspaceOpen: [{ command: "init.sh" }],
+      };
+      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      expect(result.hooks).toHaveProperty("workspaceOpen");
+    });
+
+    it("passes through handler type and maps loopLimit / failClosed", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        preToolUse: [
+          {
+            type: "prompt",
+            prompt: "Review this change",
+            loopLimit: 3,
+            failClosed: true,
+          },
+          {
+            command: "check.sh",
+            loopLimit: null,
+          },
+        ],
+      };
+      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const handlers = result.hooks.preToolUse as Record<string, unknown>[];
+      expect(handlers[0]).toEqual({
+        type: "prompt",
+        prompt: "Review this change",
+        loop_limit: 3,
+        failClosed: true,
+      });
+      expect(handlers[1]).toMatchObject({ type: "command", command: "check.sh", loop_limit: null });
+    });
+  });
+
+  describe("mcp (new fields)", () => {
+    const config = cursor.mcp!;
+
+    it("passes through type, envFile, auth", () => {
+      const servers = {
+        "my-server": {
+          type: "stdio",
+          command: "npx",
+          args: ["-y", "@my/server"],
+          envFile: ".env.local",
+          auth: { CLIENT_ID: "id", scopes: ["read"] },
+        },
+      };
+      const result = config.transform(servers) as {
+        mcpServers: Record<string, Record<string, unknown>>;
+      };
+      const s = result.mcpServers["my-server"]!;
+      expect(s.type).toBe("stdio");
+      expect(s.envFile).toBe(".env.local");
+      expect(s.auth).toEqual({ CLIENT_ID: "id", scopes: ["read"] });
+    });
+
+    it("omits type when not provided", () => {
+      const servers = {
+        "my-server": { command: "npx" },
+      };
+      const result = config.transform(servers) as {
+        mcpServers: Record<string, Record<string, unknown>>;
+      };
+      expect(result.mcpServers["my-server"]).not.toHaveProperty("type");
+    });
   });
 });

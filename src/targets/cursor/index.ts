@@ -15,6 +15,7 @@ const EVENT_NAME_MAP: Record<string, string> = {
   subagentStop: "subagentStop",
   preCompact: "preCompact",
   // Cursor-specific events pass through as-is
+  workspaceOpen: "workspaceOpen",
   beforeShellExecution: "beforeShellExecution",
   afterShellExecution: "afterShellExecution",
   beforeMCPExecution: "beforeMCPExecution",
@@ -37,12 +38,15 @@ function transformCursorHooks(
     if (!cursorEvent) continue;
 
     result[cursorEvent] = handlers.map((h) => {
-      const entry: Record<string, unknown> = {
-        type: "command",
-        command: h.command,
-      };
+      const handlerType = h.type ?? "command";
+      const entry: Record<string, unknown> = { type: handlerType };
+      if (h.command !== undefined) entry.command = h.command;
+      if (h.prompt !== undefined) entry.prompt = h.prompt;
+      if (h.model !== undefined) entry.model = h.model;
       if (h.matcher) entry.matcher = h.matcher;
       if (h.timeout !== undefined) entry.timeout = h.timeout;
+      if (h.loopLimit !== undefined) entry.loop_limit = h.loopLimit;
+      if (h.failClosed !== undefined) entry.failClosed = h.failClosed;
       return entry;
     });
   }
@@ -54,12 +58,14 @@ function transformCursorMCP(servers: Record<string, UniversalMCPServer>): Record
   const mcpServers: Record<string, unknown> = {};
   for (const [name, server] of Object.entries(servers)) {
     const entry: Record<string, unknown> = {};
-    // Cursor omits type — infers from command vs url
+    if (server.type !== undefined) entry.type = server.type;
     if (server.command !== undefined) entry.command = server.command;
     if (server.args !== undefined) entry.args = server.args;
     if (server.env !== undefined) entry.env = server.env;
     if (server.url !== undefined) entry.url = server.url;
     if (server.headers !== undefined) entry.headers = server.headers;
+    if (server.envFile !== undefined) entry.envFile = server.envFile;
+    if (server.auth !== undefined) entry.auth = server.auth;
     mcpServers[name] = entry;
   }
   return { mcpServers };

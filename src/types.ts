@@ -35,10 +35,35 @@ export interface GeneratedFile {
 }
 
 export interface UniversalHookHandler {
-  command: string;
+  // Handler type: "command" (default), "http", "mcp_tool", "prompt", "agent"
+  type?: string;
+  // command handler
+  command?: string;
+  args?: string[];
+  async?: boolean;
+  asyncRewake?: boolean;
+  shell?: string;
+  if?: string;
+  statusMessage?: string;
+  once?: boolean;
+  // http handler
+  url?: string;
+  headers?: Record<string, string>;
+  allowedEnvVars?: string[];
+  // mcp_tool handler
+  server?: string;
+  tool?: string;
+  input?: unknown;
+  // prompt / agent handler
+  prompt?: string;
+  model?: string;
+  // common fields
   matcher?: string;
   timeout?: number;
   description?: string;
+  // Cursor-specific
+  loopLimit?: number | null;
+  failClosed?: boolean;
 }
 
 export interface UniversalMCPServer {
@@ -48,6 +73,17 @@ export interface UniversalMCPServer {
   env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
+  // Claude-specific
+  alwaysLoad?: boolean;
+  headersHelper?: string;
+  oauth?: Record<string, unknown>;
+  // Copilot-specific
+  sandboxEnabled?: boolean;
+  sandbox?: Record<string, unknown>;
+  dev?: { watch?: string; debug?: boolean };
+  // Cursor-specific
+  envFile?: string;
+  auth?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -102,7 +138,7 @@ export interface UniversalFrontmatter {
   disableAutoInvocation?: boolean;
   userInvocable?: boolean | string;
   allowedTools?: string[];
-  model?: string;
+  model?: string | string[];
   subagentType?: string;
   forkContext?: boolean;
   argumentHint?: string;
@@ -110,6 +146,12 @@ export interface UniversalFrontmatter {
   compatibility?: string;
   metadata?: Record<string, unknown>;
   hooks?: Record<string, unknown>;
+  // Claude-only skill fields
+  whenToUse?: string;
+  arguments?: string | string[];
+  effort?: string;
+  skillPaths?: string[];
+  skillShell?: string;
 
   // Agents
   tools?: string[];
@@ -120,4 +162,11 @@ export interface UniversalFrontmatter {
   target?: string;
   mcpServers?: Record<string, unknown>;
   handoffs?: string[];
+  subAgents?: string[];
+  // Claude-only agent fields
+  maxTurns?: number;
+  background?: boolean;
+  isolation?: string;
+  color?: string;
+  initialPrompt?: string;
 }
