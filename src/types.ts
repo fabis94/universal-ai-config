@@ -11,6 +11,15 @@ export interface UserConfig {
   types?: TemplateType[];
   variables?: Record<string, unknown>;
   outputDirs?: Partial<Record<Target, string>>;
+  /**
+   * Glob patterns matched against template **input** paths (relative to `templatesDir`,
+   * e.g. `"hooks/debug.json"`, `"agents/internal.md"`) — not output paths.
+   *
+   * For instructions/skills/agents one input maps to one output, so exclusion is 1:1.
+   * For hooks and MCP, multiple input files merge into a single output file: excluding
+   * an input drops every handler/server it declared, and there is no way to exclude an
+   * individual handler or named server — only the whole input file containing it.
+   */
   exclude?: PerTargetValue<string[]>;
 }
 
@@ -32,6 +41,11 @@ export interface GeneratedFile {
   sourcePath: string;
   /** If set, merge content into this key of the existing file instead of overwriting */
   mergeKey?: string;
+  /**
+   * For merged types (hooks, mcp) — the number of input template files that contributed
+   * to this output. Undefined for 1:1 template types (instructions, skills, agents).
+   */
+  inputCount?: number;
 }
 
 export interface UniversalHookHandler {

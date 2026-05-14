@@ -176,6 +176,7 @@ Exported from `src/index.ts`:
   - `complete-project` — exercises all frontmatter fields
   - `complete-complex-project` — per-target overrides on all field types
 - When adding features, prefer extending an existing fixture or creating a new one over modifying `basic-project`
+- When making any kind of change evaluate if tests need modifying/adding. Generally speaking we want full coverage for everything.
 - Run **`pnpm check`** (lint + format + knip + test) before considering work complete
 
 ## Documentation

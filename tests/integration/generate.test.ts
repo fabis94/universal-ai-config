@@ -252,6 +252,32 @@ describe("generate", () => {
       expect(parsed.servers.github.command).toBe("npx");
     });
 
+    it("sets inputCount on merged types (mcp, hooks) but not 1:1 types", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["mcp", "hooks"],
+      });
+
+      const mcp = files.find((f) => f.type === "mcp" && f.target === "claude");
+      expect(mcp).toBeDefined();
+      // basic-project has 1 input file under .universal-ai-config/mcp
+      expect(mcp!.inputCount).toBe(1);
+
+      const hooks = files.find((f) => f.type === "hooks" && f.target === "claude");
+      expect(hooks).toBeDefined();
+      // basic-project has 1 input file under .universal-ai-config/hooks
+      expect(hooks!.inputCount).toBe(1);
+
+      // 1:1 template types should not set inputCount
+      const instructionFiles = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["instructions"],
+      });
+      expect(instructionFiles[0]!.inputCount).toBeUndefined();
+    });
+
     it("generates cursor MCP at .cursor/mcp.json with type field passed through", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
