@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["github-mcp"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["playwright-mcp"]
+    }
+  }
+}

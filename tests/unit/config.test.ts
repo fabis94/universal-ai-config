@@ -73,6 +73,46 @@ describe("userConfigSchema", () => {
   it("rejects additionalTemplateDirs with non-string items", () => {
     expect(() => userConfigSchema.parse({ additionalTemplateDirs: [123] })).toThrow();
   });
+
+  it("validates mcp config with flat arrays and booleans", () => {
+    const result = userConfigSchema.parse({
+      mcp: { forceOptIn: true, mcpServers: ["github", "playwright"] },
+    });
+    expect(result.mcp).toEqual({ forceOptIn: true, mcpServers: ["github", "playwright"] });
+  });
+
+  it("validates mcp config with per-target shapes", () => {
+    const result = userConfigSchema.parse({
+      mcp: {
+        forceOptIn: { claude: true, default: false },
+        mcpServers: { claude: ["github"], copilot: ["playwright"], default: [] },
+      },
+    });
+    expect(result.mcp?.forceOptIn).toEqual({ claude: true, default: false });
+    expect(result.mcp?.mcpServers).toEqual({
+      claude: ["github"],
+      copilot: ["playwright"],
+      default: [],
+    });
+  });
+
+  it("allows omitting mcp", () => {
+    const result = userConfigSchema.parse({});
+    expect(result.mcp).toBeUndefined();
+  });
+
+  it("allows partial mcp config (forceOptIn only)", () => {
+    const result = userConfigSchema.parse({ mcp: { forceOptIn: true } });
+    expect(result.mcp).toEqual({ forceOptIn: true });
+  });
+
+  it("rejects mcp.mcpServers with non-string items", () => {
+    expect(() => userConfigSchema.parse({ mcp: { mcpServers: [123] } })).toThrow();
+  });
+
+  it("rejects mcp.forceOptIn as non-boolean", () => {
+    expect(() => userConfigSchema.parse({ mcp: { forceOptIn: "yes" } })).toThrow();
+  });
 });
 
 describe("defineConfig", () => {
@@ -140,6 +180,43 @@ describe("loadProjectConfig with inline overrides", () => {
         inlineOverrides: { targets: ["invalid" as "claude"] },
       }),
     ).rejects.toThrow();
+  });
+
+  it("merges mcp config field-by-field (overrides replace per-field)", async () => {
+    const config = await loadProjectConfig({
+      root: BASIC_FIXTURES_DIR,
+      inlineOverrides: {
+        mcp: { forceOptIn: true, mcpServers: [] },
+      },
+    });
+    expect(config.mcp.forceOptIn).toBe(true);
+    expect(config.mcp.mcpServers).toEqual([]);
+  });
+
+  it("partial mcp overrides preserve fields set by base config", async () => {
+    // Simulates: base sets forceOptIn=true with empty list,
+    // overrides bring in a per-target list and forceOptIn stays from base.
+    let config = await loadProjectConfig({
+      root: BASIC_FIXTURES_DIR,
+      inlineOverrides: { mcp: { forceOptIn: true, mcpServers: [] } },
+    });
+    expect(config.mcp).toEqual({ forceOptIn: true, mcpServers: [] });
+
+    config = await loadProjectConfig({
+      root: BASIC_FIXTURES_DIR,
+      inlineOverrides: {
+        mcp: {
+          forceOptIn: true,
+          mcpServers: { claude: ["github"], copilot: ["playwright"], default: [] },
+        },
+      },
+    });
+    expect(config.mcp.forceOptIn).toBe(true);
+    expect(config.mcp.mcpServers).toEqual({
+      claude: ["github"],
+      copilot: ["playwright"],
+      default: [],
+    });
   });
 
   it("ignores empty inline overrides", async () => {

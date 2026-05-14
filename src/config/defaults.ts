@@ -12,4 +12,5 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     cursor: ".cursor",
   },
   exclude: [],
+  mcp: {},
 };

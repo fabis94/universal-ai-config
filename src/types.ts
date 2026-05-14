@@ -5,11 +5,23 @@ export type TemplateType = "instructions" | "skills" | "agents" | "hooks" | "mcp
 export type PerTargetValue<T> = T | (Partial<Record<Target, T>> & { default?: T });
 
 export interface UserConfig {
+  /** Directory where universal templates live, relative to project root. Default: `.universal-ai-config`. */
   templatesDir?: string;
+  /**
+   * Extra directories to discover templates from (e.g. `~/.universal-ai-config` for shared templates).
+   * Supports absolute paths, relative paths, and `~`. Main `templatesDir` wins on name conflicts.
+   */
   additionalTemplateDirs?: string[];
+  /** Which targets to generate config for. Default: all (`["claude", "copilot", "cursor"]`). */
   targets?: Target[];
+  /** Which template types to generate. Default: all (`["instructions", "skills", "agents", "hooks", "mcp"]`). */
   types?: TemplateType[];
+  /**
+   * Custom variables exposed to templates — EJS in markdown bodies, `{{varName}}` in hook/MCP JSON.
+   * Exact-match `"{{var}}"` placeholders resolve to the raw typed value (arrays, objects, etc.).
+   */
   variables?: Record<string, unknown>;
+  /** Override the default output directory for each target. */
   outputDirs?: Partial<Record<Target, string>>;
   /**
    * Glob patterns matched against template **input** paths (relative to `templatesDir`,
@@ -21,6 +33,20 @@ export interface UserConfig {
    * individual handler or named server — only the whole input file containing it.
    */
   exclude?: PerTargetValue<string[]>;
+  /**
+   * Server-name-level filtering for MCP. Operates one layer deeper than `exclude`
+   * (which is file-level): when `forceOptIn` is true for a target, only servers whose
+   * names appear in `mcpServers` are emitted, regardless of how many input files
+   * declared them.
+   */
+  mcp?: MCPConfig;
+}
+
+export interface MCPConfig {
+  /** When true for a target, only servers listed in `mcpServers` are emitted. Default: false (all servers). */
+  forceOptIn?: PerTargetValue<boolean>;
+  /** Allow-list of server names used when `forceOptIn` is true. Names not matching any discovered server emit a warning. */
+  mcpServers?: PerTargetValue<string[]>;
 }
 
 export interface ResolvedConfig {
@@ -31,6 +57,7 @@ export interface ResolvedConfig {
   variables: Record<string, unknown>;
   outputDirs: Record<Target, string>;
   exclude: PerTargetValue<string[]>;
+  mcp: MCPConfig;
 }
 
 export interface GeneratedFile {

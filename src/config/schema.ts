@@ -4,15 +4,23 @@ import type { UserConfig } from "../types.js";
 const targetSchema = z.enum(["claude", "copilot", "cursor"]);
 const templateTypeSchema = z.enum(["instructions", "skills", "agents", "hooks", "mcp"]);
 
-const excludeSchema = z.union([
-  z.array(z.string()),
-  z.object({
-    claude: z.array(z.string()).optional(),
-    copilot: z.array(z.string()).optional(),
-    cursor: z.array(z.string()).optional(),
-    default: z.array(z.string()).optional(),
-  }),
-]);
+const perTargetSchema = <T extends z.ZodType>(inner: T) =>
+  z.union([
+    inner,
+    z.object({
+      claude: inner.optional(),
+      copilot: inner.optional(),
+      cursor: inner.optional(),
+      default: inner.optional(),
+    }),
+  ]);
+
+const excludeSchema = perTargetSchema(z.array(z.string()));
+
+const mcpConfigSchema = z.object({
+  forceOptIn: perTargetSchema(z.boolean()).optional(),
+  mcpServers: perTargetSchema(z.array(z.string())).optional(),
+});
 
 export const userConfigSchema = z.object({
   templatesDir: z.string().optional(),
@@ -28,6 +36,7 @@ export const userConfigSchema = z.object({
     })
     .optional(),
   exclude: excludeSchema.optional(),
+  mcp: mcpConfigSchema.optional(),
 });
 
 export function defineConfig(config: UserConfig): UserConfig {

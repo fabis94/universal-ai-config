@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "notion": {
+      "command": "npx",
+      "args": ["notion-mcp"]
+    },
+    "confluence": {
+      "command": "npx",
+      "args": ["confluence-mcp"]
+    }
+  }
+}

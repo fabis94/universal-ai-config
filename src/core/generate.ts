@@ -5,6 +5,7 @@ import { consola } from "consola";
 import { stringify as stringifyYAML } from "yaml";
 import { loadProjectConfig } from "../config/loader.js";
 import { createExcludeMatcher } from "./exclude.js";
+import { filterMCPServers } from "./filter-mcp-servers.js";
 import { parseTemplate, renderEjs } from "./parser.js";
 import { resolveJsonVariables } from "./resolve-json-variables.js";
 import { resolveOverrides } from "./resolve-overrides.js";
@@ -455,9 +456,21 @@ async function generateMCPFiles(root: string, config: ResolvedConfig): Promise<G
 
     const mcpConfig = targetDef.mcp;
     const resolvedServers = resolveMCPServers(mergedData.servers, targetName);
-    if (Object.keys(resolvedServers).length === 0) continue;
 
-    const transformed = mcpConfig.transform(resolvedServers, mergedData.inputs);
+    const { servers: finalServers, unknownNames } = filterMCPServers(
+      resolvedServers,
+      config.mcp,
+      targetName,
+    );
+    if (unknownNames.length > 0) {
+      const known = Object.keys(resolvedServers).join(", ") || "(none)";
+      consola.warn(
+        `[uac] ${targetName}: mcp.mcpServers references unknown server name(s): ${unknownNames.join(", ")}. Known: ${known}`,
+      );
+    }
+    if (Object.keys(finalServers).length === 0) continue;
+
+    const transformed = mcpConfig.transform(finalServers, mergedData.inputs);
 
     generatedFiles.push({
       path: mcpConfig.outputPath,

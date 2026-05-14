@@ -410,6 +410,28 @@ The `inputs` array is only included in Copilot output — Claude and Cursor igno
 
 Multiple `.json` files in the `mcp/` directory are merged by server name (last-wins for duplicates). `inputs` arrays are concatenated.
 
+#### Server-Name Opt-In Filtering
+
+MCPs can heavily affect agent performance, so uac supports server-name-level opt-in filtering via the `mcp` config block (in `universal-ai-config.config.ts`):
+
+```typescript
+import { defineConfig } from "universal-ai-config";
+
+export default defineConfig({
+  mcp: {
+    forceOptIn: true,
+    mcpServers: ["github", "playwright"],
+  },
+});
+```
+
+- When `forceOptIn` is `true` for a target, only servers whose names appear in `mcpServers` are emitted. When `false` or unset (default), all discovered servers are emitted (legacy behavior).
+- Both fields accept the standard per-target shape (`{ claude, copilot, cursor, default }`), so you can opt-in selectively per tool.
+- `mcpServers: []` with `forceOptIn: true` → no servers for that target → the MCP output file is **skipped entirely**.
+- Unknown names emit a `[uac]` warning at generate time listing the known names; generation continues with the matched subset.
+- Filtering is **server-level**; the older `exclude` config is **file-level**. They're additive — you can exclude a legacy file and still opt-in to specific servers from the remaining files.
+- Copilot `inputs` (interactive prompts) are **not** filtered — they're declarative and not tied to specific server names.
+
 ## Available Tools
 
 The `tools`, `allowedTools`, and `disallowedTools` frontmatter fields accept arrays of tool name strings. Both built-in tools and MCP server tools can be referenced. Tool names and MCP syntax differ per platform, so use per-target overrides when targeting multiple platforms.

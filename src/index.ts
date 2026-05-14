@@ -17,6 +17,7 @@ export type {
   UniversalHookHandler,
   UniversalMCPServer,
   UniversalMCPInput,
+  MCPConfig,
   PerTargetValue,
 } from "./types.js";
 export type { LoadConfigOptions } from "./config/loader.js";

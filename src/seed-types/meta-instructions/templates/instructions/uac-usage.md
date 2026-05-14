@@ -58,6 +58,7 @@ The config file (`universal-ai-config.config.ts`) supports these options:
 - `variables` — custom variables for templates (EJS in markdown, typed `{{var}}` in JSON — exact-match placeholders resolve to raw values like arrays/objects)
 - `outputDirs` — override default output directories per target
 - `exclude` — glob patterns to skip templates from generation (array or per-target object)
+- `mcp` — server-name-level opt-in filtering for MCP. `mcp.forceOptIn` toggles allow-list mode per target; `mcp.mcpServers` lists which server names are emitted when opt-in is active. See [MCP opt-in filtering](#mcp-opt-in-filtering) below.
 
 ### Template Exclusion
 
@@ -75,7 +76,40 @@ exclude: {
 }
 ```
 
-For instructions/skills/agents one input file maps to one output, so exclusion is 1:1. For **hooks** and **MCP**, multiple input JSON files merge into a single output: excluding `hooks/debug.json` or `mcp/internal.json` drops every handler/server that file declared. There is no built-in way to exclude an individual hook handler or named MCP server — only the whole input file containing it.
+For instructions/skills/agents one input file maps to one output, so exclusion is 1:1. For **hooks** and **MCP**, multiple input JSON files merge into a single output: excluding `hooks/debug.json` or `mcp/internal.json` drops every handler/server that file declared. The `exclude` option does not target individual hook handlers or named MCP servers — only the whole input file containing it. For MCP specifically, see `mcp.forceOptIn` / `mcp.mcpServers` below for server-name-level filtering.
+
+### MCP Opt-In Filtering
+
+MCP servers can heavily affect agent performance — more servers means more tools loaded, more context, and slower decisions. When you only want a subset of the servers declared across your `mcp/*.json` files, use opt-in mode:
+
+```typescript
+mcp: {
+  forceOptIn: true,
+  mcpServers: ["github", "playwright"],
+}
+```
+
+When `forceOptIn` resolves to `true` for a target, **only** servers whose names appear in `mcpServers` are emitted — regardless of how many input files declare them. When `forceOptIn` is `false` or unset (the default), all discovered servers pass through, matching the original behavior.
+
+Both fields accept the standard per-target shape, so you can opt-in selectively:
+
+```typescript
+mcp: {
+  forceOptIn: { claude: true, default: false },
+  mcpServers: {
+    claude: ["github"],
+    copilot: ["github", "playwright"],
+    default: [],
+  },
+}
+```
+
+Notes:
+
+- `mcpServers: []` with `forceOptIn: true` → no servers emitted for that target, MCP output file skipped entirely.
+- Unknown names (typos, renamed servers) emit a `[uac]` warning listing the known names; generation continues with the matched subset.
+- Filtering operates on **server names** (the keys under `mcpServers` inside each `mcp/*.json`). Field-level per-target overrides on individual servers still resolve before filtering.
+- Copilot `inputs` (interactive prompts) are not filtered — they're declarative and not tied to specific server names.
 
 ## Merging Config Fields
 
