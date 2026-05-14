@@ -256,13 +256,20 @@ async function discoverHookFiles(
   return files;
 }
 
+interface MergedHookData {
+  hooks: Record<string, Record<string, unknown>[]>;
+  /** Maps each merged handler object to the templateRelativePath of the file it came from */
+  handlerSources: WeakMap<Record<string, unknown>, string>;
+}
+
 async function mergeHookFiles(
   files: DiscoveredHookFile[],
   variables: Record<string, unknown>,
-): Promise<Record<string, Record<string, unknown>[]> | null> {
+): Promise<MergedHookData | null> {
   if (files.length === 0) return null;
 
   const merged: Record<string, Record<string, unknown>[]> = {};
+  const handlerSources = new WeakMap<Record<string, unknown>, string>();
 
   for (const file of files) {
     const rawContent = await readFile(file.filePath, "utf-8");
@@ -276,23 +283,32 @@ async function mergeHookFiles(
       if (!merged[event]) {
         merged[event] = [];
       }
-      merged[event].push(...handlers);
+      for (const handler of handlers) {
+        merged[event].push(handler);
+        handlerSources.set(handler, file.templateRelativePath);
+      }
     }
   }
 
-  return Object.keys(merged).length > 0 ? merged : null;
+  return Object.keys(merged).length > 0 ? { hooks: merged, handlerSources } : null;
 }
 
 function resolveHookHandlers(
   hooks: Record<string, Record<string, unknown>[]>,
   target: string,
+  handlerSources: WeakMap<Record<string, unknown>, string>,
+  survivingSources: Set<string>,
 ): Record<string, UniversalHookHandler[]> {
   const result: Record<string, UniversalHookHandler[]> = {};
   for (const [event, handlers] of Object.entries(hooks)) {
     const resolved: UniversalHookHandler[] = [];
     for (const handler of handlers) {
       const r = resolveOverrides(handler, target);
-      if (r.command) resolved.push(r as unknown as UniversalHookHandler);
+      if (r.command) {
+        resolved.push(r as unknown as UniversalHookHandler);
+        const src = handlerSources.get(handler);
+        if (src) survivingSources.add(src);
+      }
     }
     if (resolved.length > 0) result[event] = resolved;
   }
@@ -321,7 +337,13 @@ async function generateHooksFiles(root: string, config: ResolvedConfig): Promise
     if (!mergedHooks) continue;
 
     const hooksConfig = targetDef.hooks;
-    const resolvedHooks = resolveHookHandlers(mergedHooks, targetName);
+    const survivingSources = new Set<string>();
+    const resolvedHooks = resolveHookHandlers(
+      mergedHooks.hooks,
+      targetName,
+      mergedHooks.handlerSources,
+      survivingSources,
+    );
     const transformed = hooksConfig.transform(resolvedHooks);
     const outputDir = config.outputDirs[targetName as Target] ?? targetDef.outputDir;
     const fullOutputPath = join(outputDir, hooksConfig.outputPath);
@@ -333,7 +355,7 @@ async function generateHooksFiles(root: string, config: ResolvedConfig): Promise
       type: "hooks",
       sourcePath: hooksRelativePath,
       mergeKey: hooksConfig.mergeKey,
-      inputCount: filteredFiles.length,
+      inputCount: survivingSources.size,
     });
   }
 
@@ -387,6 +409,10 @@ async function discoverMCPFiles(
 interface MergedMCPData {
   servers: Record<string, Record<string, unknown>>;
   inputs: UniversalMCPInput[];
+  /** server name → templateRelativePath of the file whose declaration won (last-wins) */
+  serverSources: Map<string, string>;
+  /** templateRelativePaths of files that contributed at least one entry to `inputs` */
+  inputSources: Set<string>;
 }
 
 async function mergeMCPFiles(
@@ -397,6 +423,8 @@ async function mergeMCPFiles(
 
   const servers: Record<string, Record<string, unknown>> = {};
   const inputs: UniversalMCPInput[] = [];
+  const serverSources = new Map<string, string>();
+  const inputSources = new Set<string>();
 
   for (const file of files) {
     const rawContent = await readFile(file.filePath, "utf-8");
@@ -409,15 +437,17 @@ async function mergeMCPFiles(
     if (parsed.mcpServers) {
       for (const [name, serverConfig] of Object.entries(parsed.mcpServers)) {
         servers[name] = serverConfig;
+        serverSources.set(name, file.templateRelativePath);
       }
     }
 
-    if (parsed.inputs) {
+    if (parsed.inputs && parsed.inputs.length > 0) {
       inputs.push(...parsed.inputs);
+      inputSources.add(file.templateRelativePath);
     }
   }
 
-  return Object.keys(servers).length > 0 ? { servers, inputs } : null;
+  return Object.keys(servers).length > 0 ? { servers, inputs, serverSources, inputSources } : null;
 }
 
 function resolveMCPServers(
@@ -472,13 +502,24 @@ async function generateMCPFiles(root: string, config: ResolvedConfig): Promise<G
 
     const transformed = mcpConfig.transform(finalServers, mergedData.inputs);
 
+    const survivingSources = new Set<string>();
+    for (const name of Object.keys(finalServers)) {
+      const src = mergedData.serverSources.get(name);
+      if (src) survivingSources.add(src);
+    }
+    // Files contributing only Copilot `inputs` count only when the transform actually emits them
+    const emittedInputs = (transformed as { inputs?: unknown[] }).inputs;
+    if (Array.isArray(emittedInputs) && emittedInputs.length > 0) {
+      for (const src of mergedData.inputSources) survivingSources.add(src);
+    }
+
     generatedFiles.push({
       path: mcpConfig.outputPath,
       content: JSON.stringify(transformed, null, 2) + "\n",
       target: targetName as Target,
       type: "mcp",
       sourcePath: mcpRelativePath,
-      inputCount: filteredFiles.length,
+      inputCount: survivingSources.size,
     });
   }
 

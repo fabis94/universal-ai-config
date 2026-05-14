@@ -1,0 +1,10 @@
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "api-token",
+      "description": "API token",
+      "password": true
+    }
+  ]
+}

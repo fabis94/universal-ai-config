@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": {
+          "copilot": ".hooks/copilot-check.sh"
+        },
+        "matcher": "Bash"
+      }
+    ]
+  }
+}
