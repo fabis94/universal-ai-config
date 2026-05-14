@@ -45,6 +45,14 @@ After the user approves the research findings, **enter plan mode** to design the
    - **Config schema**: any changes needed in `src/config/schema.ts` or `src/config/defaults.ts`
    - **Tests**: which fixture(s) to use or create, and what assertions to write
    - **Docs**: any updates needed to README, meta-instruction templates, or seed files
+   - **Upstream validation reference**: add a new `2.X <Tool Name>` section to [.universal-ai-config/skills/report-feature-changes/upstream-validation-reference.md](../report-feature-changes/upstream-validation-reference.md) following the template in Part 4 of that file. At minimum, capture:
+     - At least one **Tier 1** authoritative reference URL (docs home, full reference, source repo if open).
+     - At least one **Tier 2** changelog / release-notes / blog URL so future drift can be dated.
+     - Tier 3 community/adjacent resources if any are notable.
+     - Per-feature index rows for **every** feature category from Part 1 that the target supports (file locations, frontmatter per template type, hooks, MCP, tool system, permission modes, memory scopes, model identifiers). Leave a row blank with a `—` note for categories the target doesn't support.
+     - Any known beta/preview features or documentation quirks worth pinning in Part 5.
+
+     This step is mandatory — without it, the `report-feature-changes` skill won't know how to validate the new target against upstream docs and the target will silently drift.
 
    Reference the `defineTarget()` pattern:
 
@@ -89,4 +97,6 @@ Once the plan is approved, execute it:
 
 9. **Add tests** — create integration tests using existing fixtures that generate for the new target, verifying output paths and content
 
-10. **Run `pnpm check`** to verify everything passes
+10. **Update the upstream validation reference** — add the new tool's section to [.universal-ai-config/skills/report-feature-changes/upstream-validation-reference.md](../report-feature-changes/upstream-validation-reference.md) as planned in Phase 2 (Tier 1/2/3 URLs + per-feature index). Use the doc URLs you gathered in Phase 1 — don't invent new ones. After editing, skim Part 1 of that file and confirm every feature category your target supports has a corresponding row in the new per-feature index.
+
+11. **Run `pnpm check`** to verify everything passes
