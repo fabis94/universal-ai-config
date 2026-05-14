@@ -4,22 +4,31 @@ import { generate } from "../core/generate.js";
 import { writeGeneratedFiles, cleanTargetFiles } from "../core/writer.js";
 import type { GeneratedFile, Target, TemplateType } from "../types.js";
 
+interface TypeStats {
+  count: number;
+  inputs: number;
+}
+
 function formatTargetSummary(files: GeneratedFile[]): string[] {
-  const byTarget = new Map<string, Map<string, number>>();
+  const byTarget = new Map<string, Map<string, TypeStats>>();
   for (const file of files) {
     let types = byTarget.get(file.target);
     if (!types) {
-      types = new Map<string, number>();
+      types = new Map<string, TypeStats>();
       byTarget.set(file.target, types);
     }
-    types.set(file.type, (types.get(file.type) ?? 0) + 1);
+    const stats = types.get(file.type) ?? { count: 0, inputs: 0 };
+    stats.count += 1;
+    if (file.inputCount !== undefined) stats.inputs += file.inputCount;
+    types.set(file.type, stats);
   }
 
   const lines: string[] = [];
   for (const [target, types] of byTarget) {
-    const parts = [...types.entries()].map(
-      ([type, count]) => `${count} ${count === 1 ? type.replace(/s$/, "") : type}`,
-    );
+    const parts = [...types.entries()].map(([type, { count, inputs }]) => {
+      const label = `${count} ${count === 1 ? type.replace(/s$/, "") : type}`;
+      return inputs > 0 ? `${label} (${inputs} input${inputs === 1 ? "" : "s"})` : label;
+    });
     lines.push(`${target} — ${parts.join(", ")}`);
   }
   return lines;
@@ -97,7 +106,11 @@ export default defineCommand({
       if (args.verbose) {
         consola.info(`Would generate ${files.length} file(s):\n`);
         for (const file of files) {
-          consola.log(`  ${file.path} (${file.target}/${file.type} ← ${file.sourcePath})`);
+          const inputs =
+            file.inputCount !== undefined
+              ? `, ${file.inputCount} input${file.inputCount === 1 ? "" : "s"}`
+              : "";
+          consola.log(`  ${file.path} (${file.target}/${file.type} ← ${file.sourcePath}${inputs})`);
         }
       } else {
         for (const line of formatTargetSummary(files)) {

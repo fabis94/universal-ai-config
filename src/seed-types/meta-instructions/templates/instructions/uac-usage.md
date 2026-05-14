@@ -61,7 +61,7 @@ The config file (`universal-ai-config.config.ts`) supports these options:
 
 ### Template Exclusion
 
-The `exclude` option accepts glob patterns matching paths relative to `templatesDir`:
+The `exclude` option accepts glob patterns matching **input template paths** relative to `templatesDir` (not output paths):
 
 ```typescript
 // Same exclusions for all targets
@@ -74,6 +74,8 @@ exclude: {
   default: [],
 }
 ```
+
+For instructions/skills/agents one input file maps to one output, so exclusion is 1:1. For **hooks** and **MCP**, multiple input JSON files merge into a single output: excluding `hooks/debug.json` or `mcp/internal.json` drops every handler/server that file declared. There is no built-in way to exclude an individual hook handler or named MCP server — only the whole input file containing it.
 
 ## Merging Config Fields
 

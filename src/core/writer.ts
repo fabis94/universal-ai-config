@@ -51,7 +51,11 @@ export async function writeGeneratedFiles(
     }
 
     if (options?.verbose) {
-      consola.success(`Generated ${file.path}`);
+      const inputs =
+        file.inputCount !== undefined
+          ? ` (from ${file.inputCount} input${file.inputCount === 1 ? "" : "s"})`
+          : "";
+      consola.success(`Generated ${file.path}${inputs}`);
     }
   }
 }

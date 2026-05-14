@@ -472,7 +472,9 @@ export default defineConfig({
 
 ### Template Exclusion
 
-The `exclude` option accepts glob patterns to skip specific templates during generation. Patterns match against paths relative to the templates directory (e.g., `instructions/my-rule.md`, `skills/deploy-helper/SKILL.md`, `hooks/debug.json`, `mcp/internal.json`).
+The `exclude` option accepts glob patterns to skip specific templates during generation. Patterns match against **input** template paths relative to the templates directory (e.g., `instructions/my-rule.md`, `skills/deploy-helper/SKILL.md`, `hooks/debug.json`, `mcp/internal.json`) — not output paths.
+
+For instructions/skills/agents one input file maps to one output, so exclusion is 1:1. For **hooks** and **MCP**, multiple input JSON files merge into a single output file per target: excluding `hooks/debug.json` or `mcp/internal.json` drops every handler/server that file declared. There is no built-in way to exclude an individual hook handler or named MCP server — only the whole input file containing it.
 
 **Array form** — same exclusions for all targets:
 

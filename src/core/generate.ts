@@ -332,6 +332,7 @@ async function generateHooksFiles(root: string, config: ResolvedConfig): Promise
       type: "hooks",
       sourcePath: hooksRelativePath,
       mergeKey: hooksConfig.mergeKey,
+      inputCount: filteredFiles.length,
     });
   }
 
@@ -464,6 +465,7 @@ async function generateMCPFiles(root: string, config: ResolvedConfig): Promise<G
       target: targetName as Target,
       type: "mcp",
       sourcePath: mcpRelativePath,
+      inputCount: filteredFiles.length,
     });
   }
 
