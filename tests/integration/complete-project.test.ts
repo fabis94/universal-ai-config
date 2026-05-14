@@ -131,10 +131,12 @@ describe("complete-project (all frontmatter fields)", () => {
       expectYamlField(c, "compatibility", ">=1.0.0");
       expect(c).toContain("metadata:");
 
+      // Copilot now maps forkContext as context: "fork"
+      expect(c).toContain('context: "fork"');
+
       // Copilot doesn't map claude-specific fields
       expect(c).not.toContain("allowed-tools");
       expect(c).not.toContain("agent:");
-      expect(c).not.toContain("context:");
       expect(c).not.toContain("hooks:");
     });
 
@@ -217,11 +219,13 @@ describe("complete-project (all frontmatter fields)", () => {
       expect(c).toContain("mcp-servers:");
       expect(c).toContain("handoffs:");
 
+      // Copilot now maps hooks for agents
+      expect(c).toContain("hooks:");
+
       // Copilot doesn't map claude-specific fields
       expect(c).not.toContain("disallowedTools:");
       expect(c).not.toContain("permissionMode:");
       expect(c).not.toContain("skills:");
-      expect(c).not.toContain("hooks:");
       expect(c).not.toContain("memory:");
     });
 

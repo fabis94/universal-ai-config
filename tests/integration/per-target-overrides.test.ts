@@ -210,8 +210,8 @@ describe("per-target overrides", () => {
 
       expect(parsed.mcpServers["my-api"].command).toBe("node");
       expect(parsed.mcpServers["my-api"].args).toEqual(["./mcp-server.js"]);
-      // Cursor omits type
-      expect(parsed.mcpServers["my-api"]).not.toHaveProperty("type");
+      // Cursor passes through type when present
+      expect(parsed.mcpServers["my-api"].type).toBe("stdio");
       // claude-only has no command for cursor -> dropped
       expect(parsed.mcpServers).not.toHaveProperty("claude-only");
     });

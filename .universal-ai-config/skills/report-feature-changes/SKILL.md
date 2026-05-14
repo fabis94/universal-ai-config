@@ -65,7 +65,7 @@ If WebFetch fails for a URL (network error, 404, rate limit), record the URL as 
 
 ## Step 4: Write the Report
 
-Write the report to `tmp/upstream-validation-report-YYYY-MM-DD.md` (use today's date). Create the `tmp/` directory if it doesn't exist. Do **not** write the report anywhere inside `.universal-ai-config/`, `.claude/`, `.github/`, or `.cursor/` — it is not a template and must not be picked up by `uac generate` or committed accidentally.
+Write the report to the OS temp directory at `/tmp/upstream-validation-report-YYYY-MM-DD.md` (use today's date). Do **not** write the report anywhere inside the repo (especially `.universal-ai-config/`, `.claude/`, `.github/`, `.cursor/`, or a repo-local `tmp/`) — it is not a template and must not be picked up by `uac generate` or committed accidentally.
 
 Use this structure:
 

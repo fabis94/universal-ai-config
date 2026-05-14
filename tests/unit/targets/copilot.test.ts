@@ -63,6 +63,16 @@ describe("copilot target", () => {
     });
   });
 
+  describe("skills (new fields)", () => {
+    const config = copilot.skills!;
+
+    it("maps forkContext to context: fork", () => {
+      const mapper = config.frontmatterMap.forkContext as Function;
+      expect(mapper(true)).toEqual({ context: "fork" });
+      expect(mapper(false)).toEqual({});
+    });
+  });
+
   describe("agents", () => {
     const config = copilot.agents!;
 
@@ -70,9 +80,48 @@ describe("copilot target", () => {
       expect(config.frontmatterMap.mcpServers).toBe("mcp-servers");
     });
 
+    it("maps argumentHint, userInvocable, disableAutoInvocation, subAgents, hooks", () => {
+      expect(config.frontmatterMap.argumentHint).toBe("argument-hint");
+      expect(config.frontmatterMap.userInvocable).toBe("user-invocable");
+      expect(config.frontmatterMap.disableAutoInvocation).toBe("disable-model-invocation");
+      expect(config.frontmatterMap.subAgents).toBe("agents");
+      expect(config.frontmatterMap.hooks).toBe("hooks");
+    });
+
     it("generates correct output path with .agent.md extension", () => {
       const fm: UniversalFrontmatter = {};
       expect(config.getOutputPath("reviewer", fm)).toBe("agents/reviewer.agent.md");
+    });
+  });
+
+  describe("instructions (new fields)", () => {
+    const config = copilot.instructions!;
+
+    it("maps name to name", () => {
+      expect(config.frontmatterMap.name).toBe("name");
+    });
+  });
+
+  describe("mcp (new fields)", () => {
+    const config = copilot.mcp!;
+
+    it("passes through sandboxEnabled, sandbox, dev", () => {
+      const servers = {
+        "my-server": {
+          type: "stdio",
+          command: "npx",
+          sandboxEnabled: true,
+          sandbox: { "filesystem.allowWrite": ["/tmp"] },
+          dev: { watch: "src/**", debug: true },
+        },
+      };
+      const result = config.transform(servers) as {
+        servers: Record<string, Record<string, unknown>>;
+      };
+      const s = result.servers["my-server"]!;
+      expect(s.sandboxEnabled).toBe(true);
+      expect(s.sandbox).toEqual({ "filesystem.allowWrite": ["/tmp"] });
+      expect(s.dev).toEqual({ watch: "src/**", debug: true });
     });
   });
 

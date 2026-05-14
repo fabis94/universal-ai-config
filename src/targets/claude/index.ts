@@ -16,6 +16,23 @@ const EVENT_NAME_MAP: Record<string, string> = {
   preCompact: "PreCompact",
   permissionRequest: "PermissionRequest",
   notification: "Notification",
+  setup: "Setup",
+  userPromptExpansion: "UserPromptExpansion",
+  permissionDenied: "PermissionDenied",
+  postToolBatch: "PostToolBatch",
+  stopFailure: "StopFailure",
+  teammateIdle: "TeammateIdle",
+  instructionsLoaded: "InstructionsLoaded",
+  configChange: "ConfigChange",
+  cwdChanged: "CwdChanged",
+  fileChanged: "FileChanged",
+  worktreeCreate: "WorktreeCreate",
+  worktreeRemove: "WorktreeRemove",
+  postCompact: "PostCompact",
+  elicitation: "Elicitation",
+  elicitationResult: "ElicitationResult",
+  taskCreated: "TaskCreated",
+  taskCompleted: "TaskCompleted",
 };
 
 function transformClaudeHooks(
@@ -42,10 +59,24 @@ function transformClaudeHooks(
     const matcherGroups = [];
     for (const [matcher, groupHandlers] of groups) {
       const hookEntries = groupHandlers.map((h) => {
-        const entry: Record<string, unknown> = {
-          type: "command",
-          command: h.command,
-        };
+        const handlerType = h.type ?? "command";
+        const entry: Record<string, unknown> = { type: handlerType };
+        if (h.command !== undefined) entry.command = h.command;
+        if (h.args !== undefined) entry.args = h.args;
+        if (h.url !== undefined) entry.url = h.url;
+        if (h.headers !== undefined) entry.headers = h.headers;
+        if (h.allowedEnvVars !== undefined) entry.allowedEnvVars = h.allowedEnvVars;
+        if (h.server !== undefined) entry.server = h.server;
+        if (h.tool !== undefined) entry.tool = h.tool;
+        if (h.input !== undefined) entry.input = h.input;
+        if (h.prompt !== undefined) entry.prompt = h.prompt;
+        if (h.model !== undefined) entry.model = h.model;
+        if (h.async !== undefined) entry.async = h.async;
+        if (h.asyncRewake !== undefined) entry.asyncRewake = h.asyncRewake;
+        if (h.shell !== undefined) entry.shell = h.shell;
+        if (h.if !== undefined) entry.if = h.if;
+        if (h.statusMessage !== undefined) entry.statusMessage = h.statusMessage;
+        if (h.once !== undefined) entry.once = h.once;
         if (h.timeout !== undefined) entry.timeout = h.timeout;
         return entry;
       });
@@ -71,6 +102,9 @@ function transformClaudeMCP(servers: Record<string, UniversalMCPServer>): Record
     if (server.env !== undefined) entry.env = server.env;
     if (server.url !== undefined) entry.url = server.url;
     if (server.headers !== undefined) entry.headers = server.headers;
+    if (server.alwaysLoad !== undefined) entry.alwaysLoad = server.alwaysLoad;
+    if (server.headersHelper !== undefined) entry.headersHelper = server.headersHelper;
+    if (server.oauth !== undefined) entry.oauth = server.oauth;
     mcpServers[name] = entry;
   }
   return { mcpServers };
@@ -112,6 +146,11 @@ export default defineTarget({
       forkContext: (value) => (value ? { context: "fork" } : {}),
       argumentHint: "argument-hint",
       hooks: "hooks",
+      whenToUse: "when_to_use",
+      arguments: "arguments",
+      effort: "effort",
+      skillPaths: "paths",
+      skillShell: "shell",
     },
     getOutputPath: (name) => `skills/${name}/SKILL.md`,
   },
@@ -127,6 +166,13 @@ export default defineTarget({
       skills: "skills",
       hooks: "hooks",
       memory: "memory",
+      maxTurns: "maxTurns",
+      mcpServers: "mcpServers",
+      background: "background",
+      effort: "effort",
+      isolation: "isolation",
+      color: "color",
+      initialPrompt: "initialPrompt",
     },
     getOutputPath: (name) => `agents/${name}.md`,
   },
