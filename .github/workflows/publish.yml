@@ -13,6 +13,7 @@ jobs:
   publish:
     name: Publish to npm
     runs-on: ubuntu-latest
+    environment: npm
     permissions:
       contents: read
       id-token: write
@@ -25,7 +26,6 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile
 
@@ -33,4 +33,4 @@ jobs:
 
       - run: pnpm build
 
-      - run: NODE_AUTH_TOKEN="" npm publish --provenance --access public
+      - run: npm publish --provenance --access public
