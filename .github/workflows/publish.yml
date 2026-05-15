@@ -33,4 +33,4 @@ jobs:
 
       - run: pnpm build
 
-      - run: npm publish --provenance --access public
+      - run: npx --yes npm@latest publish --provenance --access public
