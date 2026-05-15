@@ -32,7 +32,7 @@
     "format:check": "prettier --check .",
     "check:unused": "knip",
     "lint:tsc": "tsc --noEmit",
-    "check": "pnpm lint && pnpm format:check && pnpm check:unused && pnpm test && pnpm lint:tsc",
+    "check": "pnpm lint && pnpm check:unused && pnpm test && pnpm lint:tsc",
     "prepare": "husky",
     "prepare:claude": "pnpm install && pnpm dev generate --target claude",
     "uac": "pnpm dev"

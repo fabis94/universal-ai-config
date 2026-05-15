@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "shared-server": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@my/mcp-server"],
+      "env": { "TOKEN": "${API_TOKEN}" },
+      "alwaysLoad": true,
+      "headersHelper": "./gen-headers.sh",
+      "oauth": { "clientId": "abc123", "scopes": ["read"] },
+      "sandboxEnabled": true,
+      "sandbox": { "filesystem": { "allowWrite": ["/tmp"] } },
+      "dev": { "watch": "./src" },
+      "envFile": ".env.local",
+      "auth": { "CLIENT_ID": "id", "CLIENT_SECRET": "sec", "scopes": ["read"] }
+    }
+  }
+}
