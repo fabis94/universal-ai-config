@@ -417,6 +417,22 @@ Templates have access to path helper functions. All `name` parameters are option
 | `hookTemplatePath(name?)`        | Template source path (or directory) for a hook         |
 | `mcpTemplatePath(name?)`         | Template source path (or directory) for an MCP config  |
 
+**MCP reference helpers** — produce the target-appropriate syntax for referencing an MCP server tool. Use in instruction/skill bodies so the AI knows the right reference string for its platform without writing `<% if (target...) %>` conditionals:
+
+| Function                   | Returns                                          |
+| -------------------------- | ------------------------------------------------ |
+| `mcpToolRef(server, tool)` | Fully-qualified reference to a specific MCP tool |
+| `mcpToolRef(server)`       | Wildcard reference to all tools on a server      |
+
+Per-target output for `mcpToolRef('github', 'list_issues')` / `mcpToolRef('github')`:
+
+| Target  | Specific tool (`mcpToolRef('github', 'list_issues')`) | Wildcard (`mcpToolRef('github')`)                                    |
+| ------- | ----------------------------------------------------- | -------------------------------------------------------------------- |
+| Claude  | `mcp__github__list_issues`                            | `mcp__github__*`                                                     |
+| Codex   | `mcp__github__list_issues`                            | `mcp__github__.*` (regex pattern for hook matchers)                  |
+| Copilot | `github/list_issues`                                  | `github/*`                                                           |
+| Cursor  | `MCP:list_issues`                                     | `MCP:.*` (no server qualifier — Cursor hooks don't filter by server) |
+
 For example, `<%= instructionPath('coding-style') %>` renders to:
 
 | Target  | Output                                                       |
