@@ -13,6 +13,7 @@ Create a new target implementation for universal-ai-config. A target maps univer
    - File locations and naming conventions (e.g., `.cursor/rules/*.mdc`, `.github/instructions/*.md`)
    - Frontmatter format for each file type
    - Hook configuration format (JSON structure, event names)
+   - **MCP tool reference syntax** — how the target references MCP tools in hook matchers, agent `tools:` frontmatter, and any allow/deny lists. Find the exact string format (e.g. `mcp__server__tool`, `server/tool`, `MCP:tool`) and the wildcard convention for "all tools on a server"
 
    Look through docs for all supported configuration types:
    - Instructions/rules/"system prompt"
@@ -44,14 +45,16 @@ After the user approves the research findings, **enter plan mode** to design the
    - **Config schema**: any changes needed in `src/config/schema.ts` or `src/config/defaults.ts`
    - **Tests**: which fixture(s) to use or create, and what assertions to write
    - **Docs**: any updates needed to README, meta-instruction templates, or seed files
-   - **Upstream validation reference**: add a new `2.X <Tool Name>` section to [.universal-ai-config/skills/report-feature-changes/upstream-validation-reference.md](../report-feature-changes/upstream-validation-reference.md) following the template in Part 4 of that file. At minimum, capture:
+   - **Upstream validation reference**: draft the full content of a new `2.X <Tool Name>` section for [.universal-ai-config/skills/report-feature-changes/upstream-validation-reference.md](../report-feature-changes/upstream-validation-reference.md) (following the Part 4 template in that file) **as part of the plan** — include it inline so the user can review and correct the URLs and per-feature mappings before anything is written. The draft must cover:
      - At least one **Tier 1** authoritative reference URL (docs home, full reference, source repo if open).
      - At least one **Tier 2** changelog / release-notes / blog URL so future drift can be dated.
      - Tier 3 community/adjacent resources if any are notable.
      - Per-feature index rows for **every** feature category from Part 1 that the target supports (file locations, frontmatter per template type, hooks, MCP, tool system, permission modes, memory scopes, model identifiers). Leave a row blank with a `—` note for categories the target doesn't support.
      - Any known beta/preview features or documentation quirks worth pinning in Part 5.
+     - If the target has structural differences from other targets (e.g. a different config format, a many-to-one instruction model, files outside the normal output directory), include an "architectural notes" block before the section (see the Codex section for an example).
+     - If any features exist that users can hand-author but uac doesn't manage, list them in a "Deferred uac coverage" subsection.
 
-     This step is mandatory — without it, the `report-feature-changes` skill won't know how to validate the new target against upstream docs and the target will silently drift.
+     This is mandatory — without it the `report-feature-changes` skill has no reference URLs and the target will silently drift.
 
    Reference the `defineTarget()` pattern:
 
@@ -79,8 +82,12 @@ After the user approves the research findings, **enter plan mode** to design the
    Key decisions to address in the plan:
    - `frontmatterMap`: maps universal keys → target keys. Use a string for direct rename, or a function `(value, fm) => Record<string, unknown>` for transforms
    - `getOutputPath`: determines output file path from template name and frontmatter
+   - `consolidate`: if the target maps multiple templates of a type into one or more output files (e.g., many instructions → one `AGENTS.md`), use the `consolidate` function on `TemplateTypeConfig` instead of `getOutputPath`. Consolidate-based types can also emit files at root-relative paths outside `outputDir`. See the Codex target for a reference implementation.
    - Hook `transform`: converts universal event names and handler format to target format
    - Hook `mergeKey`: if the target's hook config is nested inside a larger settings file (like Claude's `settings.json` which has a `hooks` key)
+   - **`mcpToolRef` update**: add a `case "<target>"` branch to `mcpToolRef()` in `src/core/parser.ts` with both the specific-tool form (e.g. `server/tool`) and the wildcard form (e.g. `server/*`). Derive these from the MCP tool reference syntax you found in Phase 1.
+   - **New universal fields**: audit whether the target needs new fields in `UniversalFrontmatter`, `UniversalMCPServer`, or `UniversalHookHandler` for lossless round-trip fidelity. If so, plan additions to `src/types.ts` and the meta-instruction `uac-template-guide.md` field tables. Common triggers: target-specific auth options, timeout knobs, per-server tool allow/denylists, agent sandbox modes.
+   - **Pipeline extensions**: if the target needs a non-JSON output format (e.g., TOML for hooks/MCP) or a new writer primitive for merging into a shared user-managed file, plan those explicitly. Examples: `format: "toml"` on `HooksTypeConfig`/`MCPTypeConfig`, a `mergeTomlKey` writer primitive analogous to the existing `mergeJsonKey`.
 
 5. **Get plan approval** — present the plan to the user for review. **Do not start implementing until the plan is approved.**
 
@@ -94,8 +101,12 @@ Once the plan is approved, execute it:
 
 8. **Register the target** — add to `src/targets/index.ts` and the `Target` type in `src/types.ts`
 
-9. **Add tests** — create integration tests using existing fixtures that generate for the new target, verifying output paths and content
+9. **Add `mcpToolRef` case** — add the new `case "<target>"` branch to `mcpToolRef()` in `src/core/parser.ts`. Add corresponding test cases to `tests/unit/parser.test.ts` (specific-tool and wildcard forms for the new target).
 
-10. **Update the upstream validation reference** — add the new tool's section to [.universal-ai-config/skills/report-feature-changes/upstream-validation-reference.md](../report-feature-changes/upstream-validation-reference.md) as planned in Phase 2 (Tier 1/2/3 URLs + per-feature index). Use the doc URLs you gathered in Phase 1 — don't invent new ones. After editing, skim Part 1 of that file and confirm every feature category your target supports has a corresponding row in the new per-feature index.
+10. **Add new universal type fields** — if the plan identified new fields for `UniversalFrontmatter`, `UniversalMCPServer`, or `UniversalHookHandler`, add them to `src/types.ts` now. Also update the `uac-template-guide.md` field tables to document the new fields with their per-target support annotations.
 
-11. **Run `pnpm check`** to verify everything passes
+11. **Add tests** — create integration tests using existing fixtures that generate for the new target, verifying output paths and content
+
+12. **Update the upstream validation reference** — copy the draft section from the approved plan into [.universal-ai-config/skills/report-feature-changes/upstream-validation-reference.md](../report-feature-changes/upstream-validation-reference.md), applying any corrections the user made during plan review. After inserting, skim Part 1 of that file and confirm every feature category your target supports has a corresponding row in the per-feature index.
+
+13. **Run `pnpm check`** to verify everything passes

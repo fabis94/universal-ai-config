@@ -77,6 +77,18 @@ function buildPathHelpers(target: Target, templatesDir: string) {
       name ? join(templatesDir, `hooks/${name}.json`) : join(templatesDir, "hooks"),
     mcpTemplatePath: (name?: string) =>
       name ? join(templatesDir, `mcp/${name}.json`) : join(templatesDir, "mcp"),
+    mcpToolRef: (server: string, tool?: string): string => {
+      switch (target) {
+        case "claude":
+          return tool ? `mcp__${server}__${tool}` : `mcp__${server}__*`;
+        case "codex":
+          return tool ? `mcp__${server}__${tool}` : `mcp__${server}__.*`;
+        case "copilot":
+          return tool ? `${server}/${tool}` : `${server}/*`;
+        case "cursor":
+          return tool ? `MCP:${tool}` : `MCP:.*`;
+      }
+    },
   };
 }
 

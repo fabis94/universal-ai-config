@@ -270,6 +270,47 @@ describe("renderEjs", () => {
     );
     expect(renderEjs("<%= hookTemplatePath() %>", ctx)).toBe("custom-ai/hooks");
   });
+
+  describe("mcpToolRef helper", () => {
+    const render = (target: "claude" | "copilot" | "cursor" | "codex", expr: string) =>
+      renderEjs(`<%= ${expr} %>`, { target, type: "instructions", config: DEFAULT_CONFIG });
+
+    it("returns double-underscore syntax for claude (specific tool)", () => {
+      expect(render("claude", "mcpToolRef('github', 'list_issues')")).toBe(
+        "mcp__github__list_issues",
+      );
+    });
+
+    it("returns double-underscore wildcard for claude (no tool)", () => {
+      expect(render("claude", "mcpToolRef('github')")).toBe("mcp__github__*");
+    });
+
+    it("returns double-underscore syntax for codex (specific tool)", () => {
+      expect(render("codex", "mcpToolRef('github', 'list_issues')")).toBe(
+        "mcp__github__list_issues",
+      );
+    });
+
+    it("returns regex wildcard for codex (no tool)", () => {
+      expect(render("codex", "mcpToolRef('github')")).toBe("mcp__github__.*");
+    });
+
+    it("returns slash syntax for copilot (specific tool)", () => {
+      expect(render("copilot", "mcpToolRef('github', 'list_issues')")).toBe("github/list_issues");
+    });
+
+    it("returns slash wildcard for copilot (no tool)", () => {
+      expect(render("copilot", "mcpToolRef('github')")).toBe("github/*");
+    });
+
+    it("returns MCP-colon syntax for cursor (specific tool)", () => {
+      expect(render("cursor", "mcpToolRef('github', 'list_issues')")).toBe("MCP:list_issues");
+    });
+
+    it("returns MCP regex wildcard for cursor (no tool)", () => {
+      expect(render("cursor", "mcpToolRef('github')")).toBe("MCP:.*");
+    });
+  });
 });
 
 describe("parseTemplate", () => {

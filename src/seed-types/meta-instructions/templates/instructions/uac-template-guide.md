@@ -104,6 +104,18 @@ Template bodies support EJS for conditional content.
 - `<%%= mcpTemplatePath('name') %>` — template path for an MCP config
 - `<%%= instructionTemplatePath() %>` — template directory for instructions
 
+**MCP reference helpers** — produce the target-appropriate syntax for an MCP tool reference. Use this in instruction bodies instead of writing target-conditional blocks manually:
+
+- `<%%= mcpToolRef('server', 'tool') %>` — specific tool reference:
+  - Claude/Codex: `mcp__server__tool`
+  - Copilot: `server/tool`
+  - Cursor: `MCP:tool`
+- `<%%= mcpToolRef('server') %>` — wildcard (all tools on server):
+  - Claude: `mcp__server__*`
+  - Codex: `mcp__server__.*` (regex, for hook matchers)
+  - Copilot: `server/*`
+  - Cursor: `MCP:.*` (no server qualifier in Cursor — hooks don't filter by server)
+
 For example, `<%%= skillPath('deploy') %>` renders to:
 
 - Claude: `.claude/skills/deploy/SKILL.md`
