@@ -10,11 +10,13 @@ import { parseTemplate, renderEjs } from "./parser.js";
 import { resolveJsonVariables } from "./resolve-json-variables.js";
 import { resolveOverrides } from "./resolve-overrides.js";
 import { safePath } from "./safe-path.js";
+import { stringifyToml } from "./toml.js";
 import { targets } from "../targets/index.js";
-import type { TemplateTypeConfig } from "../targets/define-target.js";
+import type { ConsolidateInput, TemplateTypeConfig } from "../targets/define-target.js";
 import type {
   GeneratedFile,
   GenerateOptions,
+  InMemoryExtraFile,
   ResolvedConfig,
   Target,
   TemplateType,
@@ -348,13 +350,20 @@ async function generateHooksFiles(root: string, config: ResolvedConfig): Promise
     const outputDir = config.outputDirs[targetName as Target] ?? targetDef.outputDir;
     const fullOutputPath = join(outputDir, hooksConfig.outputPath);
 
+    const hooksFormat = hooksConfig.format ?? "json";
+    const content =
+      hooksFormat === "toml"
+        ? stringifyToml(transformed) + "\n"
+        : JSON.stringify(transformed, null, 2) + "\n";
+
     generatedFiles.push({
       path: fullOutputPath,
-      content: JSON.stringify(transformed, null, 2) + "\n",
+      content,
       target: targetName as Target,
       type: "hooks",
       sourcePath: hooksRelativePath,
       mergeKey: hooksConfig.mergeKey,
+      mergeFormat: hooksFormat === "toml" ? "toml" : undefined,
       inputCount: survivingSources.size,
     });
   }
@@ -513,12 +522,20 @@ async function generateMCPFiles(root: string, config: ResolvedConfig): Promise<G
       for (const src of mergedData.inputSources) survivingSources.add(src);
     }
 
+    const mcpFormat = mcpConfig.format ?? "json";
+    const content =
+      mcpFormat === "toml"
+        ? stringifyToml(transformed) + "\n"
+        : JSON.stringify(transformed, null, 2) + "\n";
+
     generatedFiles.push({
       path: mcpConfig.outputPath,
-      content: JSON.stringify(transformed, null, 2) + "\n",
+      content,
       target: targetName as Target,
       type: "mcp",
       sourcePath: mcpRelativePath,
+      mergeKey: mcpConfig.mergeKey,
+      mergeFormat: mcpFormat === "toml" ? "toml" : undefined,
       inputCount: survivingSources.size,
     });
   }
@@ -584,6 +601,18 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
     excludeMatchers.set(targetName, createExcludeMatcher(config.exclude, targetName));
   }
 
+  // Buffers for `consolidate` API — collected during the per-template loop and
+  // emitted in a single call to `typeConfig.consolidate(...)` after the loop.
+  // Keyed by `${target}:${type}`.
+  interface ConsolidateBuffer {
+    targetName: Target;
+    type: TemplateType;
+    outputDir: string;
+    consolidateFn: NonNullable<TemplateTypeConfig["consolidate"]>;
+    templates: ConsolidateInput["templates"];
+  }
+  const consolidateBuffers = new Map<string, ConsolidateBuffer>();
+
   for (const template of templates) {
     const content = template.content ?? (await readFile(template.filePath, "utf-8"));
 
@@ -616,9 +645,56 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
         parsed.frontmatter as Record<string, unknown>,
         targetName,
       ) as UniversalFrontmatter;
+      const outputDir = config.outputDirs[targetName as Target] ?? targetDef.outputDir;
+
+      // If the target's type config uses `consolidate`, buffer the parsed
+      // template (plus any rendered extra files) for a single batched call
+      // after the loop. The consolidate function owns all path/content emission.
+      if (typeConfig.consolidate) {
+        let extraFiles: InMemoryExtraFile[] | undefined;
+        if (template.extraFiles && template.extraFiles.length > 0) {
+          extraFiles = [];
+          for (const extra of template.extraFiles) {
+            const extraContent = extra.content ?? (await readFile(extra.filePath, "utf-8"));
+            const processedContent = extra.relativePath.endsWith(".md")
+              ? renderEjs(extraContent, {
+                  target: targetName as Target,
+                  type: template.type,
+                  config,
+                })
+              : extraContent;
+            extraFiles.push({
+              relativePath: extra.relativePath,
+              content: processedContent,
+            });
+          }
+        }
+
+        const key = `${targetName}:${template.type}`;
+        let buf = consolidateBuffers.get(key);
+        if (!buf) {
+          buf = {
+            targetName: targetName as Target,
+            type: template.type,
+            outputDir,
+            consolidateFn: typeConfig.consolidate,
+            templates: [],
+          };
+          consolidateBuffers.set(key, buf);
+        }
+        buf.templates.push({
+          name: template.name,
+          sourcePath: template.relativePath,
+          frontmatter: resolvedFm,
+          body: parsed.body,
+          extraFiles,
+        });
+        continue;
+      }
+
+      // Default 1:1 emit path (claude/copilot/cursor).
       const mappedFrontmatter = mapFrontmatter(resolvedFm, typeConfig);
       const outputPath = typeConfig.getOutputPath(template.name, resolvedFm);
-      const outputDir = config.outputDirs[targetName as Target] ?? targetDef.outputDir;
       const fullOutputPath = join(outputDir, outputPath);
 
       const fileContent = generateFileContent(mappedFrontmatter, parsed.body);
@@ -657,6 +733,18 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
         }
       }
     }
+  }
+
+  // Invoke consolidate functions with the buffered template lists. Each
+  // function returns root-relative `GeneratedFile`s for its (target, type).
+  for (const buf of consolidateBuffers.values()) {
+    const consolidateInput: ConsolidateInput = {
+      templates: buf.templates,
+      outputDir: buf.outputDir,
+      root,
+    };
+    const files = await buf.consolidateFn(consolidateInput);
+    generatedFiles.push(...files);
   }
 
   // Generate hooks files (separate pipeline — JSON, not markdown)

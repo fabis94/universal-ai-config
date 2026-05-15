@@ -3,7 +3,6 @@ name: create-target
 description: Scaffold a new target type (e.g., Zed, Windsurf) for universal-ai-config
 userInvocable: true
 argumentHint: "<target-name>"
-allowedTools: ["Read", "Write", "Glob", "Grep", "Bash"]
 ---
 
 Create a new target implementation for universal-ai-config. A target maps universal template frontmatter and hooks to a specific AI coding assistant's configuration format.

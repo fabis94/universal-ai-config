@@ -5,7 +5,7 @@ description: Create, update, or manage AI configuration templates. Analyzes what
 
 # Manage AI Config Templates
 
-**IMPORTANT:** This project uses universal-ai-config (`uac`). All AI configuration lives in the `<%%= config.templatesDir %>/` directory as universal templates. NEVER edit generated target-specific files (e.g. `.claude/`, `.github/copilot-instructions.md`, `.cursor/`) directly — those are overwritten on every `uac generate` run. Always modify the source templates in `<%%= config.templatesDir %>/`.
+**IMPORTANT:** This project uses universal-ai-config (`uac`). All AI configuration lives in the `<%%= config.templatesDir %>/` directory as universal templates. NEVER edit generated target-specific files (e.g. `.claude/`, `.github/copilot-instructions.md`, `.cursor/`, `.codex/`, `AGENTS.md` at root, `.agents/skills/`) directly — those are overwritten on every `uac generate` run. Always modify the source templates in `<%%= config.templatesDir %>/`.
 
 When the user wants to add or change AI configuration for this project, follow these steps:
 
@@ -43,7 +43,7 @@ Read the detailed guide for the chosen template type and follow its instructions
 - **Hooks** → `<%%= skillPath('update-hook') %>`
 - **MCP** → `<%%= skillPath('update-mcp') %>`
 
-These skills primarily create or modify files inside `<%%= config.templatesDir %>/`. They may also modify files in directories listed under `additionalTemplateDirs` in the config — but only with explicit user confirmation, since those are shared templates that may affect other projects. Never edit generated output files in `.claude/`, `.cursor/`, `.github/`, or similar target-specific directories — those are regenerated from templates and any direct changes will be lost.
+These skills primarily create or modify files inside `<%%= config.templatesDir %>/`. They may also modify files in directories listed under `additionalTemplateDirs` in the config — but only with explicit user confirmation, since those are shared templates that may affect other projects. Never edit generated output files in `.claude/`, `.cursor/`, `.github/`, `.codex/`, `AGENTS.md` at root, `.agents/skills/`, or similar target-specific directories — those are regenerated from templates and any direct changes will be lost.
 
 ## Additional Template Directories
 

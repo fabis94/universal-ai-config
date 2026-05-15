@@ -78,6 +78,7 @@ function transformClaudeHooks(
         if (h.statusMessage !== undefined) entry.statusMessage = h.statusMessage;
         if (h.once !== undefined) entry.once = h.once;
         if (h.timeout !== undefined) entry.timeout = h.timeout;
+        if (h.description !== undefined) entry.description = h.description;
         return entry;
       });
 

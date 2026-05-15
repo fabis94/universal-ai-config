@@ -45,9 +45,13 @@ List files in `<%%= hookTemplatePath() %>/` to discover existing hook templates 
 
 ### Events, Handler Fields, and Per-Target Overrides
 
-See the **Hooks** section in `<%%= instructionPath('uac-template-guide') %>` for the complete reference: all 13 universal event names, handler fields (`command`, `matcher`, `timeout`, `description`), event name mappings per target, and per-target override syntax.
+See the **Hooks** section in `<%%= instructionPath('uac-template-guide') %>` for the complete reference: all universal event names with the per-target mapping table (Claude/Copilot/Cursor/Codex columns), handler fields (`command`, `matcher`, `timeout`, `description`, `statusMessage`), and per-target override syntax.
 
 Use camelCase event names (e.g. `sessionStart`, `preToolUse`, `postToolUse`). The CLI maps them to each target's format and silently drops unsupported events.
+
+### Codex notes
+
+Codex supports a strict subset of 6 events (`sessionStart`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `permissionRequest`, `stop`) — all other universal events drop silently for Codex. Codex only reliably supports `type: "command"` handlers; `http`, `mcp_tool`, `prompt`, and `agent` handler types are dropped with a warning. Codex `command` is a single shell string, so any `args` array is flattened with POSIX shell escaping when emitting for Codex.
 
 ### Example
 

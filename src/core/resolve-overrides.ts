@@ -1,4 +1,4 @@
-const OVERRIDE_KEYS = new Set(["claude", "copilot", "cursor", "default"]);
+const OVERRIDE_KEYS = new Set(["claude", "copilot", "cursor", "codex", "default"]);
 
 function isPerTargetOverride(value: unknown): boolean {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;

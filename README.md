@@ -1,6 +1,6 @@
 # universal-ai-config
 
-Generate tool-specific AI config files from shared templates. Write your AI instructions, skills, agents, hooks, and MCP server configs once — generate config for Claude Code, GitHub Copilot, and Cursor automatically.
+Generate tool-specific AI config files from shared templates. Write your AI instructions, skills, agents, hooks, and MCP server configs once — generate config for Claude Code, GitHub Copilot, Cursor, and OpenAI Codex automatically.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ Generate tool-specific AI config files from shared templates. Write your AI inst
 
 ## Why
 
-AI coding tools each have their own config formats stored in `.claude/`, `.github/`, `.cursor/`. Teams want shared AI config but each developer may use a different tool. This CLI generates target-specific config files from shared templates in `.universal-ai-config/`, so the tool-specific folders can be gitignored and each dev generates only what they need.
+AI coding tools each have their own config formats stored in `.claude/`, `.github/`, `.cursor/`, `.codex/` (plus root `AGENTS.md` and `.agents/skills/` for Codex). Teams want shared AI config but each developer may use a different tool. This CLI generates target-specific config files from shared templates in `.universal-ai-config/`, so the tool-specific folders can be gitignored and each dev generates only what they need.
 
 ## Install & Run
 
@@ -52,6 +52,9 @@ uac generate
 
 # Generate for specific targets
 uac generate -t claude,cursor
+
+# Or generate just Codex
+uac generate -t codex
 
 # Preview without writing files
 uac generate --dry-run
@@ -121,6 +124,8 @@ Check existing patterns before creating new code.
 | `alwaysApply`  | `boolean`            | Apply to all files regardless of context                         |
 | `excludeAgent` | `string`             | Copilot-only: exclude from specific agent (e.g. `"code-review"`) |
 
+> **Codex routing:** Codex consolidates instructions. `alwaysApply: true` (or templates with no globs / leading-wildcard globs) → concatenated into root `AGENTS.md`. Resolvable-prefix globs like `packages/frontend/**` → `<dir>/AGENTS.override.md`. See the [UAC Template Guide](src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md) for full Codex caveats.
+
 ### Skills
 
 Skills live in subdirectories with a `SKILL.md` file:
@@ -138,21 +143,24 @@ Generate comprehensive tests using vitest for the given code.
 
 #### Frontmatter Fields
 
-| Field                   | Type                | Description                            |
-| ----------------------- | ------------------- | -------------------------------------- |
-| `name`                  | `string`            | Skill identifier                       |
-| `description`           | `string`            | What this skill does                   |
-| `disableAutoInvocation` | `boolean`           | Prevent automatic triggering           |
-| `userInvocable`         | `boolean \| string` | Slash command trigger (Claude/Copilot) |
-| `allowedTools`          | `string[]`          | Tools this skill can use (Claude only) |
-| `model`                 | `string`            | Model to use (Claude only)             |
-| `subagentType`          | `string`            | Agent type (Claude only)               |
-| `forkContext`           | `boolean`           | Fork context (Claude only)             |
-| `argumentHint`          | `string`            | Hint for arguments (Claude/Copilot)    |
-| `license`               | `string`            | License info (Copilot/Cursor)          |
-| `compatibility`         | `string`            | Compatibility info (Copilot/Cursor)    |
-| `metadata`              | `object`            | Extra metadata (Copilot/Cursor)        |
-| `hooks`                 | `object`            | Hook definitions (Claude only)         |
+| Field                   | Type                | Description                                                                                                         |
+| ----------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `name`                  | `string`            | Skill identifier                                                                                                    |
+| `description`           | `string`            | What this skill does                                                                                                |
+| `disableAutoInvocation` | `boolean`           | Prevent automatic triggering                                                                                        |
+| `userInvocable`         | `boolean \| string` | Slash command trigger (Claude/Copilot)                                                                              |
+| `allowedTools`          | `string[]`          | Tools this skill can use (Claude only)                                                                              |
+| `model`                 | `string`            | Model to use (Claude only)                                                                                          |
+| `subagentType`          | `string`            | Agent type (Claude only)                                                                                            |
+| `forkContext`           | `boolean`           | Fork context (Claude only)                                                                                          |
+| `argumentHint`          | `string`            | Hint for arguments (Claude/Copilot)                                                                                 |
+| `license`               | `string`            | License info (Copilot/Cursor/Codex)                                                                                 |
+| `compatibility`         | `string`            | Compatibility info (Copilot/Cursor/Codex)                                                                           |
+| `metadata`              | `object`            | Extra metadata (Copilot/Cursor/Codex)                                                                               |
+| `hooks`                 | `object`            | Hook definitions (Claude only)                                                                                      |
+| `version`               | `string`            | Semver-style version (Codex SKILL.md spec; passthrough on others)                                                   |
+| `author`                | `string`            | Skill author attribution (Codex SKILL.md spec; passthrough on others)                                               |
+| `codex`                 | `object`            | Codex-only nested UI/policy/dependency metadata — drives `agents/openai.yaml` sidecar emission (see template guide) |
 
 ### Agents
 
@@ -169,22 +177,24 @@ You are a code reviewer. Check for bugs and best practice violations.
 
 #### Frontmatter Fields
 
-| Field             | Type       | Description                       |
-| ----------------- | ---------- | --------------------------------- |
-| `name`            | `string`   | Agent identifier                  |
-| `description`     | `string`   | What this agent does              |
-| `model`           | `string`   | Model to use                      |
-| `tools`           | `string[]` | Available tools                   |
-| `disallowedTools` | `string[]` | Blocked tools (Claude only)       |
-| `permissionMode`  | `string`   | Permission mode (Claude only)     |
-| `skills`          | `string[]` | Available skills (Claude only)    |
-| `hooks`           | `object`   | Hook definitions (Claude only)    |
-| `memory`          | `string`   | Memory scope (Claude only)        |
-| `target`          | `string`   | Target description (Copilot only) |
-| `mcpServers`      | `object`   | MCP server config (Copilot only)  |
-| `handoffs`        | `string[]` | Handoff targets (Copilot only)    |
+| Field                | Type       | Description                                                                               |
+| -------------------- | ---------- | ----------------------------------------------------------------------------------------- |
+| `name`               | `string`   | Agent identifier                                                                          |
+| `description`        | `string`   | What this agent does                                                                      |
+| `model`              | `string`   | Model to use                                                                              |
+| `tools`              | `string[]` | Available tools                                                                           |
+| `disallowedTools`    | `string[]` | Blocked tools (Claude only)                                                               |
+| `permissionMode`     | `string`   | Permission mode (Claude only)                                                             |
+| `skills`             | `string[]` | Available skills (Claude only)                                                            |
+| `hooks`              | `object`   | Hook definitions (Claude only)                                                            |
+| `memory`             | `string`   | Memory scope (Claude only)                                                                |
+| `target`             | `string`   | Target description (Copilot only)                                                         |
+| `mcpServers`         | `object`   | MCP server config (Claude/Copilot/Codex)                                                  |
+| `handoffs`           | `string[]` | Handoff targets (Copilot only)                                                            |
+| `nicknameCandidates` | `string[]` | Display nickname pool for spawned worker copies (Codex only)                              |
+| `sandboxMode`        | `string`   | Sandbox mode for Codex: `read-only`, `workspace-write`, `danger-full-access` (Codex only) |
 
-> **Note:** Cursor does not support agents. The CLI will warn and skip agent generation for the `cursor` target.
+> **Note:** Cursor does not support agents. The CLI will warn and skip agent generation for the `cursor` target. Codex emits each agent as a standalone `.codex/agents/<name>.toml` file (body becomes `developer_instructions`). For Codex, the existing `effort` field auto-maps to `model_reasoning_effort` when its value is in `{minimal, low, medium, high, xhigh}`; `max` drops with a warning.
 
 ### Hooks
 
@@ -212,32 +222,36 @@ Hooks are JSON files that define automated scripts running at lifecycle events (
 
 #### Handler Fields
 
-| Field         | Type     | Required | Description                             |
-| ------------- | -------- | -------- | --------------------------------------- |
-| `command`     | `string` | yes      | Shell command or script path            |
-| `matcher`     | `string` | no       | Regex pattern to filter when hook fires |
-| `timeout`     | `number` | no       | Timeout in seconds                      |
-| `description` | `string` | no       | Human-readable description              |
+| Field           | Type       | Required | Description                                                                                           |
+| --------------- | ---------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `command`       | `string`   | yes      | Shell command or script path                                                                          |
+| `args`          | `string[]` | no       | Argument list (Claude/Codex). **Codex** flattens `command + args` into a single shell-escaped string. |
+| `matcher`       | `string`   | no       | Regex pattern to filter when hook fires                                                               |
+| `timeout`       | `number`   | no       | Timeout in seconds                                                                                    |
+| `statusMessage` | `string`   | no       | Status message displayed while hook runs (Claude/Codex)                                               |
+| `description`   | `string`   | no       | Human-readable description                                                                            |
+
+> **Codex:** supports only `type: "command"` handlers. Other handler types (`http`, `mcp_tool`, `prompt`, `agent`) drop with a warning. Codex hook events are a strict PascalCase subset of Claude's (see the event table below).
 
 #### Universal Event Names
 
 Use camelCase event names. The CLI maps them to each target's format and silently drops unsupported events.
 
-| Universal            | Claude               | Cursor               | Copilot               |
-| -------------------- | -------------------- | -------------------- | --------------------- |
-| `sessionStart`       | `SessionStart`       | `sessionStart`       | `sessionStart`        |
-| `sessionEnd`         | `SessionEnd`         | `sessionEnd`         | `sessionEnd`          |
-| `userPromptSubmit`   | `UserPromptSubmit`   | `beforeSubmitPrompt` | `userPromptSubmitted` |
-| `preToolUse`         | `PreToolUse`         | `preToolUse`         | `preToolUse`          |
-| `postToolUse`        | `PostToolUse`        | `postToolUse`        | `postToolUse`         |
-| `postToolUseFailure` | `PostToolUseFailure` | `postToolUseFailure` | —                     |
-| `stop`               | `Stop`               | `stop`               | —                     |
-| `subagentStart`      | `SubagentStart`      | `subagentStart`      | —                     |
-| `subagentStop`       | `SubagentStop`       | `subagentStop`       | —                     |
-| `preCompact`         | `PreCompact`         | `preCompact`         | —                     |
-| `permissionRequest`  | `PermissionRequest`  | —                    | —                     |
-| `notification`       | `Notification`       | —                    | —                     |
-| `errorOccurred`      | —                    | —                    | `errorOccurred`       |
+| Universal            | Claude               | Cursor               | Copilot               | Codex               |
+| -------------------- | -------------------- | -------------------- | --------------------- | ------------------- |
+| `sessionStart`       | `SessionStart`       | `sessionStart`       | `sessionStart`        | `SessionStart`      |
+| `sessionEnd`         | `SessionEnd`         | `sessionEnd`         | `sessionEnd`          | —                   |
+| `userPromptSubmit`   | `UserPromptSubmit`   | `beforeSubmitPrompt` | `userPromptSubmitted` | `UserPromptSubmit`  |
+| `preToolUse`         | `PreToolUse`         | `preToolUse`         | `preToolUse`          | `PreToolUse`        |
+| `postToolUse`        | `PostToolUse`        | `postToolUse`        | `postToolUse`         | `PostToolUse`       |
+| `postToolUseFailure` | `PostToolUseFailure` | `postToolUseFailure` | —                     | —                   |
+| `stop`               | `Stop`               | `stop`               | —                     | `Stop`              |
+| `subagentStart`      | `SubagentStart`      | `subagentStart`      | —                     | —                   |
+| `subagentStop`       | `SubagentStop`       | `subagentStop`       | —                     | —                   |
+| `preCompact`         | `PreCompact`         | `preCompact`         | —                     | —                   |
+| `permissionRequest`  | `PermissionRequest`  | —                    | —                     | `PermissionRequest` |
+| `notification`       | `Notification`       | —                    | —                     | —                   |
+| `errorOccurred`      | —                    | —                    | `errorOccurred`       | —                   |
 
 Cursor-specific events (`beforeShellExecution`, `afterFileEdit`, etc.) can be used directly — they pass through to Cursor and are dropped for other targets.
 
@@ -262,16 +276,18 @@ MCP server configs define external tool servers available to AI assistants. Like
 
 #### Server Fields
 
-| Field     | Type                     | Required | Description                           |
-| --------- | ------------------------ | -------- | ------------------------------------- |
-| `command` | `string`                 | yes\*    | Command to launch the server (stdio)  |
-| `args`    | `string[]`               | no       | Arguments for the command             |
-| `type`    | `string`                 | no       | Transport type (`"stdio"` or `"sse"`) |
-| `env`     | `Record<string, string>` | no       | Environment variables                 |
-| `url`     | `string`                 | yes\*    | Server URL (SSE/HTTP transport)       |
-| `headers` | `Record<string, string>` | no       | HTTP headers (SSE/HTTP transport)     |
+| Field     | Type                     | Required | Description                                                                                            |
+| --------- | ------------------------ | -------- | ------------------------------------------------------------------------------------------------------ |
+| `command` | `string`                 | yes\*    | Command to launch the server (stdio)                                                                   |
+| `args`    | `string[]`               | no       | Arguments for the command                                                                              |
+| `type`    | `string`                 | no       | Transport type (`"stdio"` or `"sse"`). **Codex: dropped** — transport inferred from `command` vs `url` |
+| `env`     | `Record<string, string>` | no       | Environment variables                                                                                  |
+| `url`     | `string`                 | yes\*    | Server URL (SSE/HTTP transport)                                                                        |
+| `headers` | `Record<string, string>` | no       | HTTP headers (SSE/HTTP transport). **Codex:** renamed to `http_headers` in TOML output                 |
 
 \*A server must have either `command` or `url`. If neither is present after per-target override resolution, the server is dropped for that target.
+
+**Codex-specific MCP fields** (universal camelCase → snake_case in TOML): `cwd`, `envVars`, `enabledTools`, `disabledTools`, `bearerTokenEnvVar`, `envHttpHeaders`, `startupTimeoutSec`, `startupTimeoutMs`, `toolTimeoutSec`, `enabled`, `required`, `oauthResource`, `scopes`, `experimentalEnvironment`. See the [UAC Template Guide](src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md) for the full field reference. Codex's authentication uses `bearerTokenEnvVar` + `oauthResource` + `scopes` — Claude's `oauth` and Cursor's `auth` fields drop with a warning when emitting for Codex.
 
 Server fields support per-target overrides (same syntax as hooks):
 
@@ -309,6 +325,7 @@ description:
   claude: Use Claude Code conventions
   copilot: Use Copilot conventions
   cursor: Use Cursor conventions
+  codex: Use Codex conventions
 tools:
   default: ["read", "grep", "glob"]
   claude: ["Read", "Grep", "Glob"]
@@ -316,12 +333,15 @@ model:
   default: sonnet
   claude: opus
   copilot: gpt-4o
+  codex: gpt-5.4
 permissionMode:
   claude: acceptEdits
+sandboxMode:
+  codex: workspace-write
 ---
 ```
 
-When generating for Claude: `tools: ["Read", "Grep", "Glob"]`, `model: opus`, `permissionMode: acceptEdits`. For Copilot: `tools: ["read", "grep", "glob"]` (default), `model: gpt-4o`, `permissionMode` omitted. For Cursor: `tools: ["read", "grep", "glob"]` (default), `model: sonnet` (default), `permissionMode` omitted.
+When generating for Claude: `tools: ["Read", "Grep", "Glob"]`, `model: opus`, `permissionMode: acceptEdits`. For Copilot: `tools: ["read", "grep", "glob"]` (default), `model: gpt-4o`, `permissionMode` omitted. For Cursor: `tools: ["read", "grep", "glob"]` (default), `model: sonnet` (default), `permissionMode` omitted. For Codex: `model: gpt-5.4`, `sandboxMode: workspace-write`, `permissionMode` dropped (Codex-incompatible), `tools` dropped (Codex uses per-MCP-server `enabledTools` instead).
 
 You can mix per-target and plain values freely — plain values apply to all targets:
 
@@ -368,12 +388,12 @@ If `command` resolves to `undefined` for a target (i.e. that target isn't listed
 
 All templates have access to these variables:
 
-| Variable              | Type                                     | Description                                            |
-| --------------------- | ---------------------------------------- | ------------------------------------------------------ |
-| `target`              | `'claude' \| 'copilot' \| 'cursor'`      | Current output target                                  |
-| `type`                | `'instructions' \| 'skills' \| 'agents'` | Template type being rendered (hooks/MCP don't use EJS) |
-| `config`              | `ResolvedConfig`                         | Full resolved config object                            |
-| `...config.variables` | `Record<string, unknown>`                | Custom user variables spread into scope                |
+| Variable              | Type                                           | Description                                            |
+| --------------------- | ---------------------------------------------- | ------------------------------------------------------ |
+| `target`              | `'claude' \| 'copilot' \| 'cursor' \| 'codex'` | Current output target                                  |
+| `type`                | `'instructions' \| 'skills' \| 'agents'`       | Template type being rendered (hooks/MCP don't use EJS) |
+| `config`              | `ResolvedConfig`                               | Full resolved config object                            |
+| `...config.variables` | `Record<string, unknown>`                      | Custom user variables spread into scope                |
 
 ### Path Helpers
 
@@ -399,11 +419,12 @@ Templates have access to path helper functions. All `name` parameters are option
 
 For example, `<%= instructionPath('coding-style') %>` renders to:
 
-| Target  | Output                                              |
-| ------- | --------------------------------------------------- |
-| Claude  | `.claude/rules/coding-style.md`                     |
-| Copilot | `.github/instructions/coding-style.instructions.md` |
-| Cursor  | `.cursor/rules/coding-style.mdc`                    |
+| Target  | Output                                                       |
+| ------- | ------------------------------------------------------------ |
+| Claude  | `.claude/rules/coding-style.md`                              |
+| Copilot | `.github/instructions/coding-style.instructions.md`          |
+| Cursor  | `.cursor/rules/coding-style.mdc`                             |
+| Codex   | depends on `alwaysApply` / `globs` — see Codex caveats below |
 
 And `<%= instructionPath() %>` (no argument) renders to:
 
@@ -412,6 +433,7 @@ And `<%= instructionPath() %>` (no argument) renders to:
 | Claude  | `.claude/rules`        |
 | Copilot | `.github/instructions` |
 | Cursor  | `.cursor/rules`        |
+| Codex   | (root — `AGENTS.md`)   |
 
 Template path helpers are target-independent: `<%= instructionTemplatePath('coding-style') %>` always renders to `.universal-ai-config/instructions/coding-style.md` (or the configured `templatesDir`).
 
@@ -430,8 +452,8 @@ export default defineConfig({
   // Supports absolute paths, relative paths, and ~ for home directory
   additionalTemplateDirs: ["~/.universal-ai-config"],
 
-  // Which targets to generate (default: all three)
-  targets: ["claude", "copilot", "cursor"],
+  // Which targets to generate (default: all four)
+  targets: ["claude", "copilot", "cursor", "codex"],
 
   // Which types to generate (default: all)
   types: ["instructions", "skills", "agents", "hooks", "mcp"],
@@ -447,6 +469,7 @@ export default defineConfig({
     claude: ".claude",
     copilot: ".github",
     cursor: ".cursor",
+    codex: ".codex",
   },
 
   // Exclude templates by glob pattern (optional)
@@ -492,6 +515,7 @@ export default defineConfig({
     claude: ["agents/copilot-reviewer.md"],
     copilot: ["skills/**"],
     cursor: ["hooks/**"],
+    codex: ["agents/codex-incompatible.md"],
     default: [],
   },
 });
@@ -519,10 +543,11 @@ Both fields accept the standard per-target shape:
 ```typescript
 export default defineConfig({
   mcp: {
-    forceOptIn: { claude: true, default: false },
+    forceOptIn: { claude: true, codex: true, default: false },
     mcpServers: {
       claude: ["github"],
       copilot: ["github", "playwright"],
+      codex: ["github", "playwright"],
       default: [],
     },
   },
@@ -681,6 +706,33 @@ Existing files are overwritten to ensure templates stay up to date.
 | Hooks        | `.cursor/hooks.json`             |
 | MCP          | `.cursor/mcp.json`               |
 
+### Codex (`.codex/` + root + `.agents/`)
+
+Codex emits files in **multiple locations** outside `outputDir` to align with Codex's auto-discovery conventions:
+
+| Type         | Output Path                                                           | Notes                                                                                                          |
+| ------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Instructions | `AGENTS.md` (root) + `<dir>/AGENTS.override.md`                       | Multiple instructions consolidate into a single root file or per-directory override files                      |
+| Skills       | `.agents/skills/<name>/SKILL.md` (+ `agents/openai.yaml` when needed) | Root-relative, per the open Agent Skills standard. Sidecar `agents/openai.yaml` emitted for `codex.*` metadata |
+| Agents       | `.codex/agents/<name>.toml`                                           | Standalone TOML files (body becomes `developer_instructions`)                                                  |
+| Hooks        | `.codex/hooks.json`                                                   | JSON, wholly uac-managed                                                                                       |
+| MCP          | `.codex/config.toml`                                                  | TOML — `[mcp_servers.*]` table is uac-owned, other top-level keys preserved                                    |
+
+#### File ownership for Codex
+
+- **`.codex/config.toml` is shared with user content.** uac only writes the `[mcp_servers.*]` table. Users can hand-author `[profiles.*]`, `[model_providers.*]`, `[permissions.*]`, `personality`, `[memories]`, `[tui]`, OTel config, etc. directly in this file and uac preserves those sections across regenerates. `uac clean --target codex` only removes the `mcp_servers` key from this file.
+- All other Codex output files (`AGENTS.md`, `AGENTS.override.md`, `.codex/agents/*.toml`, `.codex/hooks.json`, `.agents/skills/`) are wholly uac-managed — plain overwrite on each regenerate, same as `.claude/rules/`, `.cursor/rules/`, etc.
+
+#### Codex caveats
+
+- **Instructions consolidate.** `alwaysApply: true` (or templates with no globs / leading-wildcard globs like `**/*.ts`) → concatenated into root `AGENTS.md`. Templates with resolvable-prefix globs like `packages/frontend/**` → `<dir>/AGENTS.override.md`. Templates targeting the same dir get alpha-sorted and concatenated.
+- **Agents are TOML.** Each agent template → `.codex/agents/<name>.toml` with body content in `developer_instructions`. Codex auto-discovers these files; no `[agents.*]` registration in `config.toml` is needed.
+- **Per-target overrides are required** for `model` (Claude vs Codex model IDs), `permissionMode` → `sandboxMode` (different vocabularies), and `tools` (Codex has no agent-level tool restriction — use per-MCP `enabledTools` instead). uac warns when these mismatches are detected.
+- **`effort` auto-maps** to Codex's `model_reasoning_effort` when the value is in `{minimal, low, medium, high, xhigh}`. Claude-only `max` drops with a warning.
+- **`disableAutoInvocation` auto-maps** to `agents/openai.yaml` `policy.allow_implicit_invocation: !disableAutoInvocation`.
+
+See the [UAC Template Guide](src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md) for the complete reference.
+
 ## Complete Template Reference
 
 For the most up-to-date reference on all frontmatter fields, available tools per platform (Claude, Copilot, Cursor), MCP tool syntax, hook matcher patterns, and per-target overrides, see the [UAC Template Guide](src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md). This guide is also seeded into your project via `uac seed meta-instructions` and made available to your AI tools as a rule/instruction.
@@ -765,7 +817,7 @@ Then add one line to [src/targets/index.ts](src/targets/index.ts):
 
 ```typescript
 import zed from "./zed/index.js";
-export const targets = { claude, copilot, cursor, zed };
+export const targets = { claude, copilot, cursor, codex, zed };
 ```
 
 ## License

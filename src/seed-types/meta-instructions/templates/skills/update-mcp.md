@@ -45,16 +45,26 @@ List files in `<%%= mcpTemplatePath() %>/` to discover existing MCP templates (`
 
 ### Server Fields
 
-| Field     | Type                     | Description                                        |
-| --------- | ------------------------ | -------------------------------------------------- |
-| `type`    | `string`                 | Transport type (`"stdio"` or `"sse"`)              |
-| `command` | `string`                 | Command to launch the server (for stdio transport) |
-| `args`    | `string[]`               | Arguments for the command                          |
-| `env`     | `Record<string, string>` | Environment variables                              |
-| `url`     | `string`                 | Server URL (for SSE/HTTP transport)                |
-| `headers` | `Record<string, string>` | HTTP headers (for SSE/HTTP transport)              |
+See the **MCP Servers → Server Fields** section in `<%%= instructionPath('uac-template-guide') %>` for the complete reference, including all 13 Codex-specific fields (`cwd`, `envVars`, `enabledTools`, `disabledTools`, `bearerTokenEnvVar`, `envHttpHeaders`, `startupTimeoutSec`, `startupTimeoutMs`, `toolTimeoutSec`, `enabled`, `required`, `oauthResource`, `scopes`, `experimentalEnvironment`).
 
-A server must have either `command` (stdio) or `url` (SSE/HTTP). If neither is present after per-target override resolution, the server is dropped for that target.
+Key cross-target fields:
+
+| Field     | Type                     | Description                                                           |
+| --------- | ------------------------ | --------------------------------------------------------------------- |
+| `command` | `string`                 | Command to launch the server (stdio transport)                        |
+| `args`    | `string[]`               | Arguments for the command                                             |
+| `env`     | `Record<string, string>` | Environment variables                                                 |
+| `url`     | `string`                 | Server URL (HTTP transport)                                           |
+| `headers` | `Record<string, string>` | HTTP headers. **Codex:** renames to `http_headers`                    |
+| `type`    | `string`                 | Transport type. **Codex:** dropped — inferred from `command` vs `url` |
+
+A server must have either `command` (stdio) or `url` (HTTP). If neither is present after per-target override resolution, the server is dropped for that target.
+
+### Codex notes
+
+- Codex output emits **TOML** (`.codex/config.toml`) merged into the `[mcp_servers.*]` table. Other top-level keys in `config.toml` (`[profiles.*]`, `[model_providers.*]`, `[permissions.*]`, `personality`, etc.) are preserved across regenerates — uac only owns `[mcp_servers.*]`.
+- Auth model differs: Codex uses `bearerTokenEnvVar` + `oauthResource` + `scopes` instead of Claude's `oauth` object or Cursor's `auth` object. Claude/Cursor auth fields are dropped with a warning when emitting for Codex; use per-target overrides for Codex-specific auth.
+- Per-server tool restriction lives at the MCP server level via `enabledTools` (allowlist) and `disabledTools` (denylist) — agent-level `tools` fields are not applicable for Codex.
 
 ### Variable Interpolation
 

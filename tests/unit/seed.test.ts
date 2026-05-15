@@ -171,6 +171,11 @@ describe("seed gitignore", () => {
     expect(gitignore).toContain(".claude/rules/");
     expect(gitignore).toContain(".github/instructions/");
     expect(gitignore).toContain(".cursor/rules/");
+    // Codex outputs
+    expect(gitignore).toContain(".codex/");
+    expect(gitignore).toContain(".agents/skills/");
+    expect(gitignore).toContain("AGENTS.md");
+    expect(gitignore).toContain("**/AGENTS.override.md");
   });
 
   it("appends block to existing .gitignore", async () => {

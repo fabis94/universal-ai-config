@@ -70,6 +70,29 @@ describe("resolveForTarget", () => {
   it("does not treat null as an override", () => {
     expect(resolveForTarget(null, "claude")).toBeNull();
   });
+
+  it("resolves per-target object for codex target", () => {
+    const value = { claude: "Claude", codex: "Codex", default: "Other" };
+    expect(resolveForTarget(value, "codex")).toBe("Codex");
+    expect(resolveForTarget(value, "claude")).toBe("Claude");
+    expect(resolveForTarget(value, "copilot")).toBe("Other");
+  });
+
+  it("returns undefined when codex isn't listed and no default", () => {
+    const value = { claude: "Claude" };
+    expect(resolveForTarget(value, "codex")).toBeUndefined();
+  });
+
+  it("falls back to default for codex when codex key missing", () => {
+    const value = { default: "fallback", claude: "Claude" };
+    expect(resolveForTarget(value, "codex")).toBe("fallback");
+  });
+
+  it("treats codex-only override as a valid per-target shape", () => {
+    const value = { codex: "Codex only" };
+    expect(resolveForTarget(value, "codex")).toBe("Codex only");
+    expect(resolveForTarget(value, "claude")).toBeUndefined();
+  });
 });
 
 describe("resolveOverrides", () => {

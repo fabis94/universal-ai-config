@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Universal AI Config (uac)
 
-This project uses **universal-ai-config** (`uac`) to manage AI tool configurations from a single set of templates. Instead of maintaining separate config files for Claude, Copilot, and Cursor, templates in `<%%= config.templatesDir %>/` are the source of truth — run `uac generate` to produce target-specific files.
+This project uses **universal-ai-config** (`uac`) to manage AI tool configurations from a single set of templates. Instead of maintaining separate config files for Claude, Copilot, Cursor, and Codex, templates in `<%%= config.templatesDir %>/` are the source of truth — run `uac generate` to produce target-specific files.
 
 **Do not edit generated config files directly** — changes will be overwritten. Always edit the source templates in `<%%= config.templatesDir %>/`.
 
@@ -28,7 +28,7 @@ If `uac` is not a local dependency (e.g. non-JS projects): `npx universal-ai-con
 
 Generate target-specific config files from templates.
 
-- `--target, -t <targets>` — comma-separated targets: `claude`, `copilot`, `cursor`
+- `--target, -t <targets>` — comma-separated targets: `claude`, `copilot`, `cursor`, `codex`
 - `--type <types>` — comma-separated types: `instructions`, `skills`, `agents`, `hooks`, `mcp`
 - `--dry-run, -d` — preview what would be generated without writing files
 - `--clean` — remove existing generated files before generating
@@ -127,6 +127,19 @@ export default defineConfig({
 
 `mergeField` handles plain arrays, per-target objects, and mixed combinations. Plain arrays are treated as the `default` value, and target-specific keys fall back to `default` when absent.
 
+## Codex output paths
+
+Unlike the other three targets, Codex emits files in **multiple locations** outside its `outputDir`. This is intentional — Codex auto-discovers these standard locations:
+
+- **`AGENTS.md` at project root** — concatenation of all `alwaysApply: true` instructions (plus templates with leading-wildcard or no globs)
+- **`<dir>/AGENTS.override.md`** — per-directory instruction files derived from `globs` prefixes
+- **`.agents/skills/<name>/SKILL.md`** — root-relative, per Codex's auto-discovery convention; sidecar `agents/openai.yaml` emitted next to SKILL.md when relevant
+- **`.codex/agents/<name>.toml`** — standalone agent files (auto-discovered by Codex)
+- **`.codex/hooks.json`** — JSON hooks file
+- **`.codex/config.toml`** — only the `[mcp_servers.*]` table is uac-owned; users can hand-author other top-level keys (profiles, providers, permissions, personality, etc.) and uac preserves them
+
+All of these are gitignored by `uac seed gitignore` so each developer regenerates locally.
+
 ## Further Reading
 
-See `<%%= instructionPath('uac-template-guide') %>` for the full template authoring guide — template types, frontmatter fields, EJS variables, path helpers, per-target overrides, and hook event names.
+See `<%%= instructionPath('uac-template-guide') %>` for the full template authoring guide — template types, frontmatter fields, EJS variables, path helpers, per-target overrides, hook event names, and Codex caveats.

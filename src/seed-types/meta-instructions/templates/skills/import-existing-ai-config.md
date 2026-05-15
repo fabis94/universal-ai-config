@@ -1,7 +1,7 @@
 ---
 name: import-existing-ai-config
-description: Import existing AI tool configurations (from Claude, Copilot, or Cursor) into universal-ai-config templates. Converts target-specific files into universal templates.
-argumentHint: "[target: claude|copilot|cursor]"
+description: Import existing AI tool configurations (from Claude, Copilot, Cursor, or Codex) into universal-ai-config templates. Converts target-specific files into universal templates.
+argumentHint: "[target: claude|copilot|cursor|codex]"
 ---
 
 # Import Existing AI Config
@@ -10,7 +10,7 @@ Convert existing target-specific AI configuration files into universal-ai-config
 
 ## Usage
 
-The user should specify the source target: `claude`, `copilot`, or `cursor`.
+The user should specify the source target: `claude`, `copilot`, `cursor`, or `codex`.
 
 ## Import Process
 
@@ -43,49 +43,64 @@ Scan the target's config directory for existing configuration files:
 - MCP: `.cursor/mcp.json` — JSON with `mcpServers` wrapper, omits `type` field (Cursor infers transport from `command` vs `url`)
 - Note: Cursor does not have agents
 
+**Codex** (mix of root + `.codex/` + `.agents/`):
+
+- Instructions: `AGENTS.md` at project root (free-form markdown, no frontmatter — concatenation of always-on guidance) and `<dir>/AGENTS.override.md` at nested directories (per-directory override files). Split into separate universal instructions: H2-section split for the root file (one universal instruction per `## heading` block), one universal instruction per AGENTS.override.md file with `globs: ["<dir>/**"]`.
+- Skills: `.agents/skills/*/SKILL.md` (root-relative, the open Agent Skills standard location) — minimal frontmatter (`name`, `description`, `version`, `author`, `license`, `compatibility`, `metadata`). Sidecar `agents/openai.yaml` next to SKILL.md contains UI metadata (`interface.display_name`, etc.), invocation policy (`policy.allow_implicit_invocation`), and MCP dependencies (`dependencies.tools[]`).
+- Agents: `.codex/agents/*.toml` — standalone TOML files with fields `name`, `description`, `developer_instructions` (body), `model`, `model_reasoning_effort`, `sandbox_mode`, `nickname_candidates`, `mcp_servers`, `skills.config`.
+- Hooks: `.codex/hooks.json` — JSON with PascalCase event names (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`). Handler fields: `type` (only `command`), `command` (single shell string — args inline), `matcher`, `timeout`, `statusMessage`.
+- MCP: `.codex/config.toml` `[mcp_servers.<name>]` tables — TOML format with fields `command`, `args`, `env`, `url`, `cwd`, `env_vars`, `http_headers`, `bearer_token_env_var`, `env_http_headers`, `enabled`, `required`, `enabled_tools`, `disabled_tools`, `startup_timeout_sec`, `startup_timeout_ms`, `tool_timeout_sec`, `oauth_resource`, `scopes`, `experimental_environment`. Other top-level keys in `config.toml` (`[profiles.*]`, `[model_providers.*]`, `[permissions.*]`, `personality`, etc.) are user content — preserve them or note them separately; don't import as templates.
+
 ### 2. Convert to Universal Format
 
 For each file found, convert it to a universal-ai-config template:
 
 **Frontmatter mapping** (target-specific → universal):
 
-| Claude                     | Copilot                   | Cursor                     | Universal               |
-| -------------------------- | ------------------------- | -------------------------- | ----------------------- |
-| `paths`                    | `applyTo`                 | `globs`                    | `globs`                 |
-| (no paths field)           | (copilot-instructions.md) | `alwaysApply: true`        | `alwaysApply: true`     |
-| `disable-model-invocation` | —                         | `disable-model-invocation` | `disableAutoInvocation` |
-| `user-invocable`           | —                         | —                          | `userInvocable`         |
-| `allowed-tools`            | —                         | —                          | `allowedTools`          |
-| `context: fork`            | —                         | —                          | `forkContext: true`     |
-| `agent`                    | —                         | —                          | `subagentType`          |
-| `argument-hint`            | —                         | —                          | `argumentHint`          |
-| `hooks`                    | —                         | —                          | `hooks`                 |
-| (commands: manual-only)    | —                         | —                          | `disableAutoInvocation` |
-| —                          | `excludeAgent`            | —                          | `excludeAgent`          |
-| —                          | `license`                 | `license`                  | `license`               |
-| —                          | `compatibility`           | `compatibility`            | `compatibility`         |
-| —                          | `metadata`                | `metadata`                 | `metadata`              |
-| —                          | `target`                  | —                          | `target`                |
-| —                          | `mcp-servers`             | —                          | `mcpServers`            |
-| —                          | `handoffs`                | —                          | `handoffs`              |
+| Claude                     | Copilot                   | Cursor                     | Codex                                                                                | Universal                    |
+| -------------------------- | ------------------------- | -------------------------- | ------------------------------------------------------------------------------------ | ---------------------------- |
+| `paths`                    | `applyTo`                 | `globs`                    | (derived from AGENTS.override.md dir)                                                | `globs`                      |
+| (no paths field)           | (copilot-instructions.md) | `alwaysApply: true`        | (root AGENTS.md content)                                                             | `alwaysApply: true`          |
+| `disable-model-invocation` | —                         | `disable-model-invocation` | `policy.allow_implicit_invocation: false` (inverted)                                 | `disableAutoInvocation`      |
+| `user-invocable`           | —                         | —                          | —                                                                                    | `userInvocable`              |
+| `allowed-tools`            | —                         | —                          | —                                                                                    | `allowedTools`               |
+| `context: fork`            | —                         | —                          | —                                                                                    | `forkContext: true`          |
+| `agent`                    | —                         | —                          | —                                                                                    | `subagentType`               |
+| `argument-hint`            | —                         | —                          | —                                                                                    | `argumentHint`               |
+| `hooks`                    | —                         | —                          | —                                                                                    | `hooks`                      |
+| (commands: manual-only)    | —                         | —                          | —                                                                                    | `disableAutoInvocation`      |
+| —                          | `excludeAgent`            | —                          | —                                                                                    | `excludeAgent`               |
+| —                          | `license`                 | `license`                  | `license`                                                                            | `license`                    |
+| —                          | `compatibility`           | `compatibility`            | `compatibility`                                                                      | `compatibility`              |
+| —                          | `metadata`                | `metadata`                 | `metadata`                                                                           | `metadata`                   |
+| —                          | `target`                  | —                          | —                                                                                    | `target`                     |
+| —                          | `mcp-servers`             | —                          | `mcp_servers` (agent TOML)                                                           | `mcpServers`                 |
+| —                          | `handoffs`                | —                          | —                                                                                    | `handoffs`                   |
+| —                          | —                         | —                          | `version` (SKILL.md)                                                                 | `version`                    |
+| —                          | —                         | —                          | `author` (SKILL.md)                                                                  | `author`                     |
+| —                          | —                         | —                          | `interface.*` (openai.yaml)                                                          | `codex.interface.*`          |
+| —                          | —                         | —                          | `dependencies.tools[]` (openai.yaml)                                                 | `codex.dependencies.tools[]` |
+| —                          | —                         | —                          | `nickname_candidates` (agent TOML)                                                   | `nicknameCandidates`         |
+| —                          | —                         | —                          | `sandbox_mode` (agent TOML)                                                          | `sandboxMode`                |
+| `effort`                   | —                         | —                          | `model_reasoning_effort` (agent TOML, when value in {minimal,low,medium,high,xhigh}) | `effort`                     |
 
 **Hook event mapping** (target-specific → universal):
 
-| Claude               | Copilot               | Cursor               | Universal            |
-| -------------------- | --------------------- | -------------------- | -------------------- |
-| `SessionStart`       | `sessionStart`        | `sessionStart`       | `sessionStart`       |
-| `SessionEnd`         | `sessionEnd`          | `sessionEnd`         | `sessionEnd`         |
-| `UserPromptSubmit`   | `userPromptSubmitted` | `beforeSubmitPrompt` | `userPromptSubmit`   |
-| `PreToolUse`         | `preToolUse`          | `preToolUse`         | `preToolUse`         |
-| `PostToolUse`        | `postToolUse`         | `postToolUse`        | `postToolUse`        |
-| `PostToolUseFailure` | —                     | `postToolUseFailure` | `postToolUseFailure` |
-| `Stop`               | —                     | `stop`               | `stop`               |
-| `SubagentStart`      | —                     | `subagentStart`      | `subagentStart`      |
-| `SubagentStop`       | —                     | `subagentStop`       | `subagentStop`       |
-| `PreCompact`         | —                     | `preCompact`         | `preCompact`         |
-| `PermissionRequest`  | —                     | —                    | `permissionRequest`  |
-| `Notification`       | —                     | —                    | `notification`       |
-| —                    | `errorOccurred`       | —                    | `errorOccurred`      |
+| Claude               | Copilot               | Cursor               | Codex               | Universal            |
+| -------------------- | --------------------- | -------------------- | ------------------- | -------------------- |
+| `SessionStart`       | `sessionStart`        | `sessionStart`       | `SessionStart`      | `sessionStart`       |
+| `SessionEnd`         | `sessionEnd`          | `sessionEnd`         | —                   | `sessionEnd`         |
+| `UserPromptSubmit`   | `userPromptSubmitted` | `beforeSubmitPrompt` | `UserPromptSubmit`  | `userPromptSubmit`   |
+| `PreToolUse`         | `preToolUse`          | `preToolUse`         | `PreToolUse`        | `preToolUse`         |
+| `PostToolUse`        | `postToolUse`         | `postToolUse`        | `PostToolUse`       | `postToolUse`        |
+| `PostToolUseFailure` | —                     | `postToolUseFailure` | —                   | `postToolUseFailure` |
+| `Stop`               | —                     | `stop`               | `Stop`              | `stop`               |
+| `SubagentStart`      | —                     | `subagentStart`      | —                   | `subagentStart`      |
+| `SubagentStop`       | —                     | `subagentStop`       | —                   | `subagentStop`       |
+| `PreCompact`         | —                     | `preCompact`         | —                   | `preCompact`         |
+| `PermissionRequest`  | —                     | —                    | `PermissionRequest` | `permissionRequest`  |
+| `Notification`       | —                     | —                    | —                   | `notification`       |
+| —                    | `errorOccurred`       | —                    | —                   | `errorOccurred`      |
 
 Cursor-specific events (e.g. `beforeShellExecution`, `afterFileEdit`) should be preserved as-is — they pass through to Cursor and are dropped for other targets.
 
@@ -99,13 +114,14 @@ Cursor-specific events (e.g. `beforeShellExecution`, `afterFileEdit`) should be 
 
 **MCP server conversion** (target-specific → universal):
 
-The universal MCP format uses `mcpServers` as the wrapper key, with each server having `type`, `command`, `args`, `env`, `url`, and `headers` fields.
+The universal MCP format uses `mcpServers` as the wrapper key, with each server having `type`, `command`, `args`, `env`, `url`, and `headers` fields plus any of the Codex-specific extensions documented in `<%%= instructionPath('uac-template-guide') %>`.
 
-| Source                     | Conversion                                                                          |
-| -------------------------- | ----------------------------------------------------------------------------------- |
-| Claude `.mcp.json`         | Copy `mcpServers` as-is (already matches universal format)                          |
-| Copilot `.vscode/mcp.json` | Rename `servers` → `mcpServers`, add `type` field if missing, copy `inputs`         |
-| Cursor `.cursor/mcp.json`  | Copy `mcpServers`, add `type: "stdio"` for servers with `command` (Cursor omits it) |
+| Source                                       | Conversion                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude `.mcp.json`                           | Copy `mcpServers` as-is (already matches universal format)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Copilot `.vscode/mcp.json`                   | Rename `servers` → `mcpServers`, add `type` field if missing, copy `inputs`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Cursor `.cursor/mcp.json`                    | Copy `mcpServers`, add `type: "stdio"` for servers with `command` (Cursor omits it)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Codex `.codex/config.toml` `[mcp_servers.*]` | Parse TOML, take only the `mcp_servers` table (leave other top-level keys alone — those are user content). Rename snake_case keys to camelCase: `http_headers` → `headers`, `env_vars` → `envVars`, `enabled_tools` → `enabledTools`, `disabled_tools` → `disabledTools`, `bearer_token_env_var` → `bearerTokenEnvVar`, `env_http_headers` → `envHttpHeaders`, `startup_timeout_sec` → `startupTimeoutSec`, `startup_timeout_ms` → `startupTimeoutMs`, `tool_timeout_sec` → `toolTimeoutSec`, `oauth_resource` → `oauthResource`, `experimental_environment` → `experimentalEnvironment`. Drop the universal `type` field (Codex doesn't use it). |
 
 ### 3. Write Universal Templates
 

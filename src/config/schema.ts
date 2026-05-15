@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { UserConfig } from "../types.js";
 
-const targetSchema = z.enum(["claude", "copilot", "cursor"]);
+const targetSchema = z.enum(["claude", "copilot", "cursor", "codex"]);
 const templateTypeSchema = z.enum(["instructions", "skills", "agents", "hooks", "mcp"]);
 
 const perTargetSchema = <T extends z.ZodType>(inner: T) =>
@@ -11,6 +11,7 @@ const perTargetSchema = <T extends z.ZodType>(inner: T) =>
       claude: inner.optional(),
       copilot: inner.optional(),
       cursor: inner.optional(),
+      codex: inner.optional(),
       default: inner.optional(),
     }),
   ]);
@@ -33,6 +34,7 @@ export const userConfigSchema = z.object({
       claude: z.string().optional(),
       copilot: z.string().optional(),
       cursor: z.string().optional(),
+      codex: z.string().optional(),
     })
     .optional(),
   exclude: excludeSchema.optional(),
