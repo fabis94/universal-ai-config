@@ -1,4 +1,4 @@
-export type Target = "claude" | "copilot" | "cursor";
+export type Target = "claude" | "copilot" | "cursor" | "codex";
 export type TemplateType = "instructions" | "skills" | "agents" | "hooks" | "mcp";
 
 /** A value that can be specified globally or per-target (with optional default fallback) */
@@ -69,6 +69,11 @@ export interface GeneratedFile {
   /** If set, merge content into this key of the existing file instead of overwriting */
   mergeKey?: string;
   /**
+   * Serialization format for `mergeKey` operations. Defaults to `"json"`.
+   * Set to `"toml"` for targets that use TOML config files (e.g. Codex `.codex/config.toml`).
+   */
+  mergeFormat?: "json" | "toml";
+  /**
    * For merged types (hooks, mcp) — the number of input template files that contributed
    * to this output. Undefined for 1:1 template types (instructions, skills, agents).
    */
@@ -125,6 +130,35 @@ export interface UniversalMCPServer {
   // Cursor-specific
   envFile?: string;
   auth?: Record<string, unknown>;
+  // Codex-specific (snake_case TOML keys → camelCase universal)
+  /** Codex: working directory for stdio child process */
+  cwd?: string;
+  /** Codex: env-var-name allowlist for forwarding (distinct from `env` value-setter) */
+  envVars?: string[];
+  /** Codex: per-server tool allowlist (canonical Codex name) */
+  enabledTools?: string[];
+  /** Codex: per-server tool denylist (Codex-only) */
+  disabledTools?: string[];
+  /** Codex: env-var name holding bearer token (HTTP transport) */
+  bearerTokenEnvVar?: string;
+  /** Codex: header name → env-var name (header value pulled from env) */
+  envHttpHeaders?: Record<string, string>;
+  /** Codex: startup timeout in seconds */
+  startupTimeoutSec?: number;
+  /** Codex: startup timeout in milliseconds (alternative to startupTimeoutSec) */
+  startupTimeoutMs?: number;
+  /** Codex: per-tool-call timeout in seconds */
+  toolTimeoutSec?: number;
+  /** Codex: toggle individual server */
+  enabled?: boolean;
+  /** Codex: fail session startup if server can't be reached */
+  required?: boolean;
+  /** Codex: RFC 8707 OAuth resource indicator */
+  oauthResource?: string;
+  /** Codex: OAuth scopes to request */
+  scopes?: string[];
+  /** Codex (experimental): `"local"` or `"remote"` — remote-executor flag */
+  experimentalEnvironment?: string;
   [key: string]: unknown;
 }
 
@@ -167,6 +201,33 @@ export interface GenerateOptions {
   templates?: InMemoryTemplate[];
 }
 
+/**
+ * Codex-specific nested skill metadata. Drives emission of the
+ * `agents/openai.yaml` sidecar alongside `SKILL.md`. Fields under this object
+ * have no universal equivalent (UI metadata, Codex-specific MCP dependency
+ * declarations) — they are intentionally namespaced to keep the universal
+ * skill fields minimal.
+ */
+export interface UniversalSkillCodexFields {
+  interface?: {
+    displayName?: string;
+    shortDescription?: string;
+    iconSmall?: string;
+    iconLarge?: string;
+    brandColor?: string;
+    defaultPrompt?: string;
+  };
+  dependencies?: {
+    tools?: Array<{
+      type?: string;
+      value?: string;
+      description?: string;
+      transport?: string;
+      url?: string;
+    }>;
+  };
+}
+
 export interface UniversalFrontmatter {
   // Instructions
   description?: string;
@@ -187,6 +248,13 @@ export interface UniversalFrontmatter {
   compatibility?: string;
   metadata?: Record<string, unknown>;
   hooks?: Record<string, unknown>;
+  // Codex-compatible skill fields (also accepted by other targets via SKILL.md frontmatter passthrough)
+  /** Semver-style version string (Codex SKILL.md spec) */
+  version?: string;
+  /** Skill author attribution (Codex SKILL.md spec) */
+  author?: string;
+  /** Codex-only nested skill metadata — drives `agents/openai.yaml` sidecar emission */
+  codex?: UniversalSkillCodexFields;
   // Claude-only skill fields
   whenToUse?: string;
   arguments?: string | string[];
@@ -210,4 +278,9 @@ export interface UniversalFrontmatter {
   isolation?: string;
   color?: string;
   initialPrompt?: string;
+  // Codex-only agent fields
+  /** Codex agent: display nickname pool for spawned worker copies */
+  nicknameCandidates?: string[];
+  /** Codex agent: sandbox mode (`read-only` / `workspace-write` / `danger-full-access`) */
+  sandboxMode?: string;
 }

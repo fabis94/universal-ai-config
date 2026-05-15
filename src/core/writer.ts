@@ -3,12 +3,14 @@ import { dirname, join } from "node:path";
 import { consola } from "consola";
 import { targets } from "../targets/index.js";
 import { safePath } from "./safe-path.js";
+import { parseToml, stringifyToml } from "./toml.js";
 import type { GeneratedFile, Target } from "../types.js";
 
 const CLEAN_PATHS: Record<string, string[]> = {
   claude: ["rules", "skills", "agents"],
   copilot: ["copilot-instructions.md", "instructions", "agents", "skills", "hooks"],
   cursor: ["rules", "skills", "hooks.json"],
+  codex: ["agents", "hooks.json"],
 };
 
 /** Root-relative MCP output paths per target (not inside outputDir) */
@@ -16,6 +18,16 @@ const CLEAN_MCP_PATHS: Record<string, string[]> = {
   claude: [".mcp.json"],
   copilot: [".vscode/mcp.json"],
   cursor: [".cursor/mcp.json"],
+};
+
+/**
+ * Root-relative output paths emitted *outside* a target's `outputDir`.
+ * Distinct from `CLEAN_MCP_PATHS` because these aren't MCP-specific.
+ * Codex emits `AGENTS.md` at the project root and `.agents/skills/` (the
+ * open Agent Skills standard location) per the canonical Codex convention.
+ */
+const CLEAN_ROOT_PATHS: Record<string, string[]> = {
+  codex: [".agents/skills", "AGENTS.md"],
 };
 
 async function mergeJsonKey(fullPath: string, content: string, mergeKey: string): Promise<string> {
@@ -34,6 +46,28 @@ async function mergeJsonKey(fullPath: string, content: string, mergeKey: string)
   return JSON.stringify(existing, null, 2) + "\n";
 }
 
+/**
+ * TOML twin of `mergeJsonKey`. Replaces only `mergeKey` of the existing TOML
+ * file at `fullPath`, leaving all other top-level keys untouched. Used by
+ * Codex to write the `mcp_servers` table into `.codex/config.toml` while
+ * preserving any user-authored `[profiles.*]`, `personality`, etc.
+ */
+async function mergeTomlKey(fullPath: string, content: string, mergeKey: string): Promise<string> {
+  const newData = parseToml(content);
+  const mergeValue = newData[mergeKey];
+
+  let existing: Record<string, unknown> = {};
+  try {
+    const existingContent = await readFile(fullPath, "utf-8");
+    existing = parseToml(existingContent);
+  } catch {
+    // File doesn't exist yet, start fresh
+  }
+
+  existing[mergeKey] = mergeValue;
+  return stringifyToml(existing) + "\n";
+}
+
 export async function writeGeneratedFiles(
   files: GeneratedFile[],
   root: string,
@@ -44,7 +78,10 @@ export async function writeGeneratedFiles(
     await mkdir(dirname(fullPath), { recursive: true });
 
     if (file.mergeKey) {
-      const merged = await mergeJsonKey(fullPath, file.content, file.mergeKey);
+      const merged =
+        file.mergeFormat === "toml"
+          ? await mergeTomlKey(fullPath, file.content, file.mergeKey)
+          : await mergeJsonKey(fullPath, file.content, file.mergeKey);
       await writeFile(fullPath, merged, "utf-8");
     } else {
       await writeFile(fullPath, file.content, "utf-8");
@@ -73,6 +110,32 @@ async function cleanClaudeHooks(root: string, outputDir: string): Promise<string
         await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
       }
       return join(outputDir, "settings.json");
+    }
+  } catch {
+    // File doesn't exist, nothing to clean
+  }
+  return undefined;
+}
+
+/**
+ * Partial-key cleanup for Codex's shared `.codex/config.toml`. Deletes only
+ * the `mcp_servers` table (uac-owned in v1), preserving any other top-level
+ * sections (`[profiles.*]`, `personality`, etc.) the user has hand-authored.
+ * Removes the file entirely if no other keys remain.
+ */
+async function cleanCodexConfig(root: string, outputDir: string): Promise<string | undefined> {
+  const configPath = join(root, outputDir, "config.toml");
+  try {
+    const content = await readFile(configPath, "utf-8");
+    const data = parseToml(content);
+    if ("mcp_servers" in data) {
+      delete data.mcp_servers;
+      if (Object.keys(data).length === 0) {
+        await rm(configPath, { force: true });
+      } else {
+        await writeFile(configPath, stringifyToml(data) + "\n", "utf-8");
+      }
+      return join(outputDir, "config.toml");
     }
   } catch {
     // File doesn't exist, nothing to clean
@@ -122,6 +185,18 @@ export async function cleanTargetFiles(
       }
     }
 
+    // Codex shares `.codex/config.toml` with user content — partial cleanup
+    // removes only the `mcp_servers` table, preserving any other top-level keys.
+    if (targetName === "codex") {
+      const configLabel = await cleanCodexConfig(root, outputDir);
+      if (configLabel) {
+        cleaned.push(configLabel);
+        if (options?.verbose) {
+          consola.info(`Cleaned mcp_servers from ${configLabel}`);
+        }
+      }
+    }
+
     // MCP files are root-relative, not inside outputDir
     const mcpPaths = CLEAN_MCP_PATHS[targetName];
     if (mcpPaths) {
@@ -136,6 +211,26 @@ export async function cleanTargetFiles(
         cleaned.push(mcpPath);
         if (options?.verbose) {
           consola.info(`Cleaned ${mcpPath}`);
+        }
+      }
+    }
+
+    // Root-relative output paths outside outputDir (e.g. Codex's root AGENTS.md
+    // and `.agents/skills/`). Glob-derived `AGENTS.override.md` files are
+    // intentionally NOT cleaned — they're gitignored, so orphans are harmless.
+    const rootPaths = CLEAN_ROOT_PATHS[targetName];
+    if (rootPaths) {
+      for (const p of rootPaths) {
+        const fullPath = join(root, p);
+        const exists = await access(fullPath).then(
+          () => true,
+          () => false,
+        );
+        if (!exists) continue;
+        await rm(fullPath, { recursive: true, force: true });
+        cleaned.push(p);
+        if (options?.verbose) {
+          consola.info(`Cleaned ${p}`);
         }
       }
     }

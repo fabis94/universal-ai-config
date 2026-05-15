@@ -25,6 +25,11 @@ const PATTERNS = [
   ".cursor/rules/",
   ".cursor/skills/",
   ".cursor/hooks.json",
+  // Codex (mix of root-relative + .codex/ + .agents/ outputs)
+  ".codex/",
+  ".agents/skills/",
+  "AGENTS.md",
+  "**/AGENTS.override.md",
   // MCP (root-relative output paths)
   ".mcp.json",
   ".vscode/mcp.json",

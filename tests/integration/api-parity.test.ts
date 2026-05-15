@@ -88,4 +88,88 @@ describe("programmatic API parity", () => {
     expect(files.find((f) => f.type === "instructions")).toBeDefined();
     expect(files.find((f) => f.type === "skills")).toBeDefined();
   });
+
+  describe("codex", () => {
+    it("generate + writeGeneratedFiles writes codex files to disk", async () => {
+      const tempDir = await createTempDir();
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["codex"],
+        types: ["instructions", "skills", "agents", "hooks", "mcp"],
+      });
+      expect(files.length).toBeGreaterThan(0);
+
+      await writeGeneratedFiles(files, tempDir);
+
+      // Each file lands at the path declared on the GeneratedFile (root-relative).
+      for (const file of files) {
+        const fullPath = join(tempDir, file.path);
+        await expect(readFile(fullPath, "utf-8")).resolves.toBeTruthy();
+      }
+    });
+
+    it("cleanTargetFiles does not throw when codex has nothing to clean", async () => {
+      const tempDir = await createTempDir();
+      await expect(cleanTargetFiles(tempDir, ["codex"])).resolves.toEqual([]);
+    });
+
+    it("cleanTargetFiles removes codex outputs including .agents/skills/ and root AGENTS.md", async () => {
+      const tempDir = await createTempDir();
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["codex"],
+        types: ["instructions", "skills", "agents", "hooks", "mcp"],
+      });
+      await writeGeneratedFiles(files, tempDir);
+
+      // Sanity: expected outputs exist on disk
+      await expect(readFile(join(tempDir, "AGENTS.md"), "utf-8")).resolves.toBeTruthy();
+      await expect(
+        readFile(join(tempDir, ".agents/skills/test-gen/SKILL.md"), "utf-8"),
+      ).resolves.toBeTruthy();
+      await expect(
+        readFile(join(tempDir, ".codex/agents/reviewer.toml"), "utf-8"),
+      ).resolves.toBeTruthy();
+      await expect(readFile(join(tempDir, ".codex/config.toml"), "utf-8")).resolves.toBeTruthy();
+      await expect(readFile(join(tempDir, ".codex/hooks.json"), "utf-8")).resolves.toBeTruthy();
+
+      await cleanTargetFiles(tempDir, ["codex"]);
+
+      // Wholly-uac-managed files removed
+      await expect(readFile(join(tempDir, "AGENTS.md"), "utf-8")).rejects.toThrow();
+      await expect(
+        readFile(join(tempDir, ".agents/skills/test-gen/SKILL.md"), "utf-8"),
+      ).rejects.toThrow();
+      await expect(
+        readFile(join(tempDir, ".codex/agents/reviewer.toml"), "utf-8"),
+      ).rejects.toThrow();
+      await expect(readFile(join(tempDir, ".codex/hooks.json"), "utf-8")).rejects.toThrow();
+      // config.toml had only mcp_servers (no user keys) so it gets removed too
+      await expect(readFile(join(tempDir, ".codex/config.toml"), "utf-8")).rejects.toThrow();
+    });
+
+    it("partial cleanup: user-added keys in .codex/config.toml are preserved", async () => {
+      const tempDir = await createTempDir();
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["codex"],
+        types: ["mcp"],
+      });
+      await writeGeneratedFiles(files, tempDir);
+
+      // User adds a [profiles.dev] section to config.toml after generate
+      const { writeFile } = await import("node:fs/promises");
+      const configPath = join(tempDir, ".codex/config.toml");
+      const existing = await readFile(configPath, "utf-8");
+      await writeFile(configPath, existing + '\n[profiles.dev]\nmodel = "gpt-5.4"\n', "utf-8");
+
+      await cleanTargetFiles(tempDir, ["codex"]);
+
+      // Config still exists; mcp_servers gone, profiles.dev preserved
+      const after = await readFile(configPath, "utf-8");
+      expect(after).not.toContain("[mcp_servers.");
+      expect(after).toContain("[profiles.dev]");
+      expect(after).toContain('model = "gpt-5.4"');
+    });
+  });
 });

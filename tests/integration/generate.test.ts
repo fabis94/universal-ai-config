@@ -416,4 +416,122 @@ describe("generate", () => {
       });
     });
   });
+
+  describe("codex", () => {
+    it("emits AGENTS.md at root for alwaysApply instructions", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["codex"],
+        types: ["instructions"],
+      });
+
+      const agentsMd = files.find((f) => f.path === "AGENTS.md");
+      expect(agentsMd).toBeDefined();
+      expect(agentsMd!.target).toBe("codex");
+      expect(agentsMd!.type).toBe("instructions");
+      expect(agentsMd!.content).toContain("## Always applied coding standards");
+    });
+
+    it("emits AGENTS.override.md for glob-scoped instructions", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["codex"],
+        types: ["instructions"],
+      });
+
+      // basic-project's glob-rule has globs: ["**/*.ts", "**/*.tsx"] (leading
+      // wildcards) so it routes to root AGENTS.md, NOT a separate override.
+      // Verify it's concatenated into the root file alongside always-rule.
+      const agentsMd = files.find((f) => f.path === "AGENTS.md");
+      expect(agentsMd).toBeDefined();
+      // Both alwaysApply and leading-wildcard contributors are at root
+      expect(agentsMd!.content).toContain("Always applied coding standards");
+      expect(agentsMd!.content).toContain("TypeScript specific rules");
+    });
+
+    it("emits skills at .agents/skills/<name>/SKILL.md (root-relative)", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["codex"],
+        types: ["skills"],
+      });
+
+      const skill = files.find((f) => f.path.endsWith("SKILL.md"));
+      expect(skill).toBeDefined();
+      expect(skill!.path).toBe(".agents/skills/test-gen/SKILL.md");
+      expect(skill!.target).toBe("codex");
+    });
+
+    it("copies skill extra files preserving structure under .agents/skills/", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["codex"],
+        types: ["skills"],
+      });
+
+      const example = files.find((f) => f.path.includes("references/example.md"));
+      const data = files.find((f) => f.path.includes("references/data/sample.txt"));
+      expect(example).toBeDefined();
+      expect(example!.path).toBe(".agents/skills/test-gen/references/example.md");
+      expect(data).toBeDefined();
+      expect(data!.path).toBe(".agents/skills/test-gen/references/data/sample.txt");
+    });
+
+    it("emits agents as standalone .codex/agents/<name>.toml", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["codex"],
+        types: ["agents"],
+      });
+
+      const agent = files.find((f) => f.type === "agents" && f.target === "codex");
+      expect(agent).toBeDefined();
+      expect(agent!.path).toBe(".codex/agents/reviewer.toml");
+      // body becomes developer_instructions; standalone TOML format
+      expect(agent!.content).toContain('name = "reviewer"');
+      expect(agent!.content).toContain("developer_instructions");
+      expect(agent!.content).toContain("code reviewer");
+    });
+
+    it("emits hooks as plain .codex/hooks.json (no mergeKey)", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["codex"],
+        types: ["hooks"],
+      });
+
+      const hooks = files.find((f) => f.type === "hooks" && f.target === "codex");
+      expect(hooks).toBeDefined();
+      expect(hooks!.path).toBe(".codex/hooks.json");
+      expect(hooks!.mergeKey).toBeUndefined();
+
+      const parsed = JSON.parse(hooks!.content);
+      // PascalCase event names (same casing as Claude). basic-project only
+      // has postToolUse defined.
+      expect(parsed.hooks).toHaveProperty("PostToolUse");
+      expect(parsed.hooks.PostToolUse[0].matcher).toBe("Write|Edit");
+      expect(parsed.hooks.PostToolUse[0].hooks[0]).toMatchObject({
+        type: "command",
+        command: ".hooks/lint.sh",
+        timeout: 30,
+      });
+    });
+
+    it("emits MCP as TOML in .codex/config.toml with mergeKey: mcp_servers", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["codex"],
+        types: ["mcp"],
+      });
+
+      const mcp = files.find((f) => f.type === "mcp" && f.target === "codex");
+      expect(mcp).toBeDefined();
+      expect(mcp!.path).toBe(".codex/config.toml");
+      expect(mcp!.mergeKey).toBe("mcp_servers");
+      expect(mcp!.mergeFormat).toBe("toml");
+      // TOML content contains the [mcp_servers.github] table
+      expect(mcp!.content).toContain("[mcp_servers.github]");
+      expect(mcp!.content).toContain('command = "npx"');
+    });
+  });
 });

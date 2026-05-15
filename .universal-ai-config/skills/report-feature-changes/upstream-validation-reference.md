@@ -418,6 +418,111 @@ These open standards are increasingly adopted across vendors. Changes here affec
 
 ---
 
+### Important architectural notes about Codex (before section 2.5)
+
+Codex differs structurally from Claude Code, Copilot, and Cursor in ways that affect how uac maps onto it:
+
+| Structural aspect     | Claude Code / Copilot / Cursor                                      | Codex                                                                                                                                                      |
+| --------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Config file format    | JSON / YAML frontmatter / `.mdc`                                    | **TOML** (`~/.codex/config.toml` and `<project>/.codex/config.toml`)                                                                                       |
+| MCP config location   | Separate file (`.mcp.json`, `.vscode/mcp.json`, etc.)               | **Inside `config.toml`** as `[mcp_servers.<name>]` tables                                                                                                  |
+| Hooks config location | Separate file (`.claude/settings.json`, `.cursor/hooks.json`, etc.) | **`.codex/hooks.json`** (or inline `[hooks]` in `config.toml`)                                                                                             |
+| Instructions format   | Frontmatter + markdown body                                         | **Free-form `AGENTS.md`** — no frontmatter, no structured fields                                                                                           |
+| Rules / exec policy   | No direct equivalent                                                | **Starlark `.rules` files** — Codex-only, pattern-match command prefixes                                                                                   |
+| Skills                | SKILL.md with YAML frontmatter                                      | **SKILL.md** — same Agent Skills open standard, compatible format. UI/policy/dependency metadata lives in a sidecar `agents/openai.yaml` next to SKILL.md. |
+| Subagents             | Per-target files                                                    | **Standalone `.codex/agents/<role>.toml`** files (auto-discovered) or inline `[agents.<role>]` tables in `config.toml`                                     |
+| Hook event casing     | Claude: PascalCase; Copilot/Cursor: camelCase                       | **PascalCase** (same as Claude Code): `SessionStart`, `PreToolUse`, etc. — but a strict subset of Claude's events                                          |
+
+uac's Codex target supports skills (same SKILL.md standard), instructions (consolidated into `AGENTS.md` / `AGENTS.override.md`), agents (standalone TOML files), hooks (dedicated `.codex/hooks.json`), and MCP servers (`[mcp_servers.*]` tables in `.codex/config.toml`, sharing the file with user-managed sections). Codex-only features like Starlark `.rules` and plugins are not implemented but users can hand-author them in `.codex/config.toml` and uac preserves the user-managed sections.
+
+---
+
+## 2.5 OpenAI Codex
+
+### Tier 1 — Authoritative reference docs
+
+- Docs home: https://developers.openai.com/codex
+- Full LLM-readable docs (single-file): https://developers.openai.com/codex/llms-full.txt
+- Config basics: https://developers.openai.com/codex/config-basic
+- Config reference (all keys, types, defaults): https://developers.openai.com/codex/config-reference
+- Advanced config (profiles, providers, sandbox, notifications): https://developers.openai.com/codex/config-advanced
+- Sample config (annotated example): https://developers.openai.com/codex/config-sample
+- Customization overview (AGENTS.md + skills + MCP + subagents — hierarchy explained): https://developers.openai.com/codex/concepts/customization
+- Open-source repo (Rust CLI, issues, discussions): https://github.com/openai/codex
+
+### Tier 2 — Announcements & change history
+
+- Official changelog (dated, monthly sections): https://developers.openai.com/codex/changelog
+- GitHub releases (tagged, release notes per version): https://github.com/openai/codex/releases
+- GitHub discussions (feature requests, community): https://github.com/openai/codex/discussions
+- OpenAI blog (product announcements): https://openai.com/blog
+- OpenAI newsroom: https://openai.com/news
+
+### Tier 3 — Community & adjacent resources
+
+- Official community forum / Discord: links from https://developers.openai.com/codex/open-source navigation
+- GitHub issues (bug reports, feature tracking): https://github.com/openai/codex/issues
+- Codex for Open Source program: https://developers.openai.com/codex/open-source
+
+### Per-feature index
+
+| Feature category (from Part 1)         | Most relevant URL(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File locations & naming                | https://developers.openai.com/codex/config-basic, https://developers.openai.com/codex/config-reference                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Frontmatter — instructions (AGENTS.md) | https://developers.openai.com/codex/guides/agents-md — no frontmatter; scoping via directory placement. Config keys `project_doc_max_bytes`, `project_doc_fallback_filenames`, `model_instructions_file`, `project_root_markers`                                                                                                                                                                                                                                                                           |
+| Frontmatter — skills (SKILL.md)        | https://developers.openai.com/codex/skills + https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview — same Agent Skills open standard. Required: `name`, `description`. Optional: `version`, `author`. Sidecar `agents/openai.yaml` for UI/policy/dependency metadata.                                                                                                                                                                                                                 |
+| Frontmatter — agents/subagents         | https://developers.openai.com/codex/subagents — defined in `[agents.<role>]` TOML tables in `config.toml` OR standalone `.codex/agents/<role>.toml` files. Key fields: `name`, `description`, `developer_instructions`, `model`, `model_reasoning_effort`, `sandbox_mode`, `mcp_servers`, `skills.config`, `nickname_candidates`                                                                                                                                                                           |
+| Hooks (events, fields, matchers)       | https://developers.openai.com/codex/hooks — six events PascalCase (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`). Handler fields: `type` (only `command` runs), `command` (single shell string — not split into args), `matcher`, `timeout`, `statusMessage`.                                                                                                                                                                                              |
+| MCP                                    | https://developers.openai.com/codex/mcp, https://developers.openai.com/codex/config-reference — `[mcp_servers.<name>]` tables inside `config.toml`. Fields: `command`, `args`, `env`, `url`, `cwd`, `env_vars`, `http_headers`, `bearer_token_env_var`, `env_http_headers`, `startup_timeout_sec`, `startup_timeout_ms`, `tool_timeout_sec`, `enabled`, `required`, `enabled_tools`, `disabled_tools`, `oauth_resource`, `scopes`, `experimental_environment`. Transport inferred from `command` vs `url`. |
+| Tool system                            | https://developers.openai.com/codex/agent-approvals-security, https://developers.openai.com/codex/subagents — no agent-level allow/deny list; restriction lives per-MCP-server via `enabled_tools` / `disabled_tools`. No named built-in tool list documented.                                                                                                                                                                                                                                             |
+| Variable interpolation & secrets       | https://developers.openai.com/codex/mcp, https://developers.openai.com/codex/config-reference — env values via `env`; env-var forwarding via `env_vars`; bearer tokens via `bearer_token_env_var`; HTTP headers via `http_headers` (static) and `env_http_headers` (env-pulled). No `${VAR}` template syntax.                                                                                                                                                                                              |
+| Permission & safety / approval         | https://developers.openai.com/codex/agent-approvals-security, https://developers.openai.com/codex/concepts/sandboxing, https://developers.openai.com/codex/config-reference — `approval_policy` (`untrusted` / `on-request` / `never` / granular), `sandbox_mode` (`read-only` / `workspace-write` / `danger-full-access`), `approvals_reviewer` (`user` / `auto_review`). Named profiles: `:read-only`, `:workspace`, `:danger-no-sandbox`.                                                               |
+| Rules (Codex-only feature)             | https://developers.openai.com/codex/rules — `.rules` files using Starlark `prefix_rule()`. Fields: `pattern`, `decision` (`allow`/`prompt`/`forbidden`), `justification`, `match`, `not_match`. **Not implemented in uac** — no universal equivalent.                                                                                                                                                                                                                                                      |
+| Memory & context scoping               | https://developers.openai.com/codex/guides/agents-md, https://developers.openai.com/codex/config-reference — config layers: system → user (`~/.codex/config.toml`) → project (`.codex/config.toml`, trusted only) → worktree. AGENTS.md walks up directory tree. `[memories]` feature off-by-default.                                                                                                                                                                                                      |
+| Model identifiers                      | https://developers.openai.com/codex/cli/slash-commands, https://developers.openai.com/codex/changelog — `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-Codex`, `gpt-4.1`, `gpt-4.1-mini`. Pair with `model_reasoning_effort` (`minimal`/`low`/`medium`/`high`/`xhigh`) and `model_reasoning_summary`.                                                                                                                                                                                                                 |
+| Plugins (Codex-only)                   | https://developers.openai.com/codex/plugins, https://developers.openai.com/codex/plugins/build — bundles skills + MCP + apps. Manifest at `.codex-plugin/plugin.json`. **Not implemented in uac** — no universal equivalent.                                                                                                                                                                                                                                                                               |
+| Versioning, status, beta features      | https://developers.openai.com/codex/changelog, https://developers.openai.com/codex/config-reference — Profiles: experimental in config-advanced but treated stable in main reference. Memories: off-by-default. `features.*` flag table per key.                                                                                                                                                                                                                                                           |
+
+### Additional Codex-specific pages to monitor
+
+These pages don't map cleanly to Part 1 feature categories but are highly change-sensitive:
+
+| Page                                                 | Why to monitor                                                                                                                      |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| https://developers.openai.com/codex/config-reference | The single most change-sensitive page — any new config key, renamed field, or removed option appears here first                     |
+| https://developers.openai.com/codex/hooks            | Hook event additions/removals, new handler fields, matcher semantics changes                                                        |
+| https://developers.openai.com/codex/skills           | SKILL.md spec changes, invocation policy, `agents/openai.yaml` schema                                                               |
+| https://developers.openai.com/codex/plugins/build    | Plugin manifest schema; changes affect future bundling of skills + MCP                                                              |
+| https://developers.openai.com/codex/subagents        | Subagent config schema changes (`[agents.*]` table structure, standalone TOML file fields)                                          |
+| https://developers.openai.com/codex/rules            | Starlark rule format changes, new `decision` values, `execpolicy` preview → stable graduation                                       |
+| https://github.com/openai/codex/releases             | Binary releases; check for deprecation notices in release notes (e.g. `--full-auto` was deprecated in favor of permission profiles) |
+
+### Deferred uac coverage (not implemented, users can hand-author)
+
+The Codex target in uac (v1) doesn't have first-class universal-template plumbing for these Codex-only surfaces. Users can hand-author them directly in `.codex/config.toml` and uac preserves those sections across regenerates (only `[mcp_servers.*]` is uac-owned):
+
+- Profile system (`[profiles.<name>]`)
+- Model providers (`[model_providers.<id>]`)
+- Permissions profiles (`[permissions.<name>]`)
+- Shell environment policy (`shell_environment_policy.*`)
+- Personality / verbosity / reasoning summary (`personality`, `model_verbosity`, `model_reasoning_summary`, `plan_mode_reasoning_effort`, `service_tier`)
+- Memories (`[memories]`)
+- Web search (`web_search`, `tools.web_search`)
+- Feature flags (`features.*`)
+- TUI customization (`[tui]`)
+- History / state (`history.persistence`, `history.max_bytes`, `sqlite_home`)
+- OTel / analytics / feedback (`[otel]`, `analytics.enabled`, `feedback.enabled`)
+- Auto-review (`review_model`, `auto_review.policy`, `approvals_reviewer`)
+- OAuth callback config (`mcp_oauth_callback_port`, `mcp_oauth_callback_url`, `mcp_oauth_credentials_store`)
+- AGENTS.md loader knobs (`project_doc_max_bytes`, `project_doc_fallback_filenames`, `project_root_markers`, `model_instructions_file`)
+- Agents global (`agents.max_threads`, `agents.max_depth`, `agents.job_max_runtime_seconds`)
+- Starlark `.rules` files (Codex-only experimental exec policy)
+- Plugins (`.codex-plugin/plugin.json` bundling format)
+
+A follow-up PR could add a `codex: { ... }` block to the uac config schema for first-class universal-template plumbing of these features — the existing `mergeTomlKey` mechanism handles preserving user-authored content alongside future uac-managed keys.
+
+---
+
 ## Part 3: Validation Workflow
 
 This is the recommended flow for the `validate-upstream` skill. It's structured so a single run can validate one tool end-to-end.

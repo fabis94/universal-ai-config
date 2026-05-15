@@ -8,7 +8,7 @@ userInvocable: false
 
 Agents are specialized AI personas with scoped tools and permissions that run in isolated contexts.
 
-**Important:** Agents are supported by Claude and Copilot only. Cursor does not support agents — consider using a skill with `forkContext: true` as an alternative for Cursor.
+**Important:** Agents are supported by Claude, Copilot, and Codex. Cursor does not support agents — consider using a skill with `forkContext: true` as an alternative for Cursor. Codex emits each agent as a standalone `.codex/agents/<name>.toml` file (body becomes `developer_instructions`); see the "Codex caveats" section in `<%%= instructionPath('uac-template-guide') %>`.
 
 ## Finding Existing Agents
 
@@ -28,7 +28,15 @@ List files in `<%%= agentTemplatePath() %>/` to discover existing agent template
 
 ### Frontmatter Fields
 
-See the **Agents** section in `<%%= instructionPath('uac-template-guide') %>` for the complete field reference and per-target override syntax. Key fields: `name`, `description`, `model`, `tools`, `permissionMode`, `hooks`.
+See the **Agents** section in `<%%= instructionPath('uac-template-guide') %>` for the complete field reference and per-target override syntax. Key fields: `name`, `description`, `model`, `tools`, `permissionMode`, `hooks`, plus Codex-specific `nicknameCandidates` and `sandboxMode`.
+
+### Cross-target gotchas for agents
+
+When targeting Codex alongside Claude/Copilot, three fields require special attention because their vocabularies don't align (see "Cross-target value gotchas" in `<%%= instructionPath('uac-template-guide') %>`):
+
+- **`model`**: Use a per-target override. Claude takes `claude-*` model IDs; Codex takes `gpt-5.4`, `gpt-4.1`, etc.
+- **`permissionMode` vs `sandboxMode`**: `permissionMode` is Claude-specific (`acceptEdits`, `bypassPermissions`, `plan`). For Codex, set `sandboxMode: { codex: "workspace-write" }` (values: `read-only`, `workspace-write`, `danger-full-access`).
+- **`tools`**: Codex has no agent-level tool restriction — configure per-server `enabledTools` on the MCP server config instead. Universal `tools` is dropped for Codex with a warning.
 
 ### Example
 
