@@ -83,47 +83,47 @@ Template bodies support EJS for conditional content.
 
 **Variables:**
 
-- `<%%= target %>` — current target ("claude", "copilot", "cursor")
-- `<%%= type %>` — template type ("instructions", "skills", "agents", "hooks")
-- `<%%= config.templatesDir %>` — templates directory path
+- `<%%%= target %>` — current target ("claude", "copilot", "cursor")
+- `<%%%= type %>` — template type ("instructions", "skills", "agents", "hooks")
+- `<%%%= config.templatesDir %>` — templates directory path
 - Custom variables from config are also available
 
 **Output path helpers** — resolve to the target-specific output path. Omit the name to get the directory:
 
-- `<%%= instructionPath('name') %>` — output path for an instruction
-- `<%%= skillPath('name') %>` — output path for a skill
-- `<%%= agentPath('name') %>` — output path for an agent
-- `<%%= instructionPath() %>` — output directory for instructions (e.g. `.claude/rules`)
+- `<%%%= instructionPath('name') %>` — output path for an instruction
+- `<%%%= skillPath('name') %>` — output path for a skill
+- `<%%%= agentPath('name') %>` — output path for an agent
+- `<%%%= instructionPath() %>` — output directory for instructions (e.g. `.claude/rules`)
 
 **Template path helpers** — resolve to the source template path. Omit the name to get the directory:
 
-- `<%%= instructionTemplatePath('name') %>` — template path for an instruction
-- `<%%= skillTemplatePath('name') %>` — template path for a skill
-- `<%%= agentTemplatePath('name') %>` — template path for an agent
-- `<%%= hookTemplatePath('name') %>` — template path for a hook
-- `<%%= mcpTemplatePath('name') %>` — template path for an MCP config
-- `<%%= instructionTemplatePath() %>` — template directory for instructions
+- `<%%%= instructionTemplatePath('name') %>` — template path for an instruction
+- `<%%%= skillTemplatePath('name') %>` — template path for a skill
+- `<%%%= agentTemplatePath('name') %>` — template path for an agent
+- `<%%%= hookTemplatePath('name') %>` — template path for a hook
+- `<%%%= mcpTemplatePath('name') %>` — template path for an MCP config
+- `<%%%= instructionTemplatePath() %>` — template directory for instructions
 
 **MCP reference helpers** — produce the target-appropriate syntax for an MCP tool reference. Use this in instruction bodies instead of writing target-conditional blocks manually:
 
-- `<%%= mcpToolRef('server', 'tool') %>` — specific tool reference:
+- `<%%%= mcpToolRef('server', 'tool') %>` — specific tool reference:
   - Claude/Codex: `mcp__server__tool`
   - Copilot: `server/tool`
   - Cursor: `MCP:tool`
-- `<%%= mcpToolRef('server') %>` — wildcard (all tools on server):
+- `<%%%= mcpToolRef('server') %>` — wildcard (all tools on server):
   - Claude: `mcp__server__*`
   - Codex: `mcp__server__.*` (regex, for hook matchers)
   - Copilot: `server/*`
   - Cursor: `MCP:.*` (no server qualifier in Cursor — hooks don't filter by server)
 
-For example, `<%%= skillPath('deploy') %>` renders to:
+For example, `<%%%= skillPath('deploy') %>` renders to:
 
 - Claude: `.claude/skills/deploy/SKILL.md`
 - Copilot: `.github/skills/deploy/SKILL.md`
 - Cursor: `.cursor/skills/deploy/SKILL.md`
 - Codex: `.agents/skills/deploy/SKILL.md` (root-relative, per Codex's auto-discovery convention)
 
-And `<%%= instructionPath('coding-style') %>` renders to:
+And `<%%%= instructionPath('coding-style') %>` renders to:
 
 - Claude: `.claude/rules/coding-style.md`
 - Copilot: `.github/instructions/coding-style.instructions.md`

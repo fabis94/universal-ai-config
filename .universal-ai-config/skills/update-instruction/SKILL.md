@@ -64,6 +64,16 @@ See the **Instructions** section in `<%= instructionPath('uac-template-guide') %
 - Use `globs` to scope instructions to specific file types or directories (e.g. `["src/api/**"]` for API-specific rules)
 - If neither is set, the instruction may still be applied by some targets based on relevance
 
+### Codex routing
+
+For Codex, multiple instruction templates consolidate into a single `AGENTS.md` at the project root or per-directory `AGENTS.override.md` files (see the "Codex caveats" section in `<%= instructionPath('uac-template-guide') %>`). Routing rules:
+
+- `alwaysApply: true` → root `AGENTS.md`
+- `globs` with a resolvable directory prefix (e.g. `packages/frontend/**`) → `<dir>/AGENTS.override.md`
+- Leading-wildcard or absent `globs` → root `AGENTS.md`
+
+If you want a template to land at a specific directory in Codex but not affect other targets, use a per-target glob override: `globs: { codex: ["src/api/**"], default: ["**/*.ts"] }`.
+
 ### Example
 
 ```markdown

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { runCommand } from "citty";
 import seedCommand from "../../src/commands/seed.js";
 import { collectSkillTemplates } from "../../src/seed-types/shared.js";
+import { generate } from "../../src/core/generate.js";
 
 describe("seed meta-instructions", () => {
   let tempDir: string;
@@ -137,16 +138,58 @@ describe("seed meta-instructions", () => {
     expect(updateHook).toContain("<%= hookTemplatePath() %>");
   });
 
-  it("renders EJS example tags escaped (not evaluated)", async () => {
+  it("double-escapes EJS doc examples so they survive the generate render", async () => {
     await runCommand(seedCommand, { rawArgs: ["meta-instructions", "--root", tempDir] });
 
     const templatesDir = join(tempDir, ".universal-ai-config");
     const guide = await readFile(join(templatesDir, "instructions/uac-template-guide.md"), "utf-8");
 
-    // EJS examples should appear as literal EJS tags, not be evaluated
-    expect(guide).toContain("<%= target %>");
-    expect(guide).toContain("<%= type %>");
-    expect(guide).toContain("<%= config.templatesDir %>");
+    // The EJS Templating section documents helper syntax. The seeded copy is
+    // rendered AGAIN by `uac generate`, so doc examples that must appear
+    // verbatim in the final output need double-escaping (`<%%=`) here — a single
+    // `<%=` would be evaluated by the generate render.
+    expect(guide).toContain("<%%= target %>");
+    expect(guide).toContain("<%%= type %>");
+    expect(guide).toContain("<%%= skillPath('deploy') %>");
+    expect(guide).toContain("<%%= instructionPath('coding-style') %>");
+    expect(guide).toContain("<%%= mcpToolRef('server', 'tool') %>");
+
+    // Real-value tags OUTSIDE the EJS Templating section stay single-escaped:
+    // they intentionally resolve to real paths in the final output.
+    expect(guide).toContain("Templates live in `<%= config.templatesDir %>/`");
+    expect(guide).toContain("### Instructions (`<%= instructionTemplatePath() %>/*.md`)");
+  });
+
+  it("renders the seeded guide to literal EJS tags after generate (full double-render)", async () => {
+    // Reproduce the real pipeline: seed writes .universal-ai-config/, then
+    // generate renders it into .claude/rules/. The doc examples must end up as
+    // literal helper syntax, not resolved values.
+    await runCommand(seedCommand, { rawArgs: ["meta-instructions", "--root", tempDir] });
+
+    const files = await generate({
+      root: tempDir,
+      targets: ["claude"],
+      types: ["instructions"],
+    });
+
+    const guide = files.find((f) => f.path.includes("uac-template-guide"));
+    expect(guide).toBeDefined();
+    const content = guide!.content;
+
+    // Helper syntax appears verbatim, NOT evaluated.
+    expect(content).toContain("- `<%= target %>` — current target");
+    expect(content).toContain("- `<%= skillPath('name') %>` — output path for a skill");
+    expect(content).toContain("For example, `<%= skillPath('deploy') %>` renders to:");
+    expect(content).toContain("And `<%= instructionPath('coding-style') %>` renders to:");
+    expect(content).toContain("- `<%= mcpToolRef('server', 'tool') %>` — specific tool reference:");
+
+    // The bug we are guarding against: examples evaluated to real values.
+    expect(content).not.toContain("- `claude` — current target");
+    expect(content).not.toContain("For example, `.claude/skills/deploy/SKILL.md` renders to:");
+
+    // Tags outside the EJS Templating section still resolve to real values.
+    expect(content).toContain("Templates live in `.universal-ai-config/`");
+    expect(content).toContain("### Instructions (`.universal-ai-config/instructions/*.md`)");
   });
 });
 
