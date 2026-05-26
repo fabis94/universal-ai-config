@@ -195,6 +195,22 @@ The seed templates in `src/seed-types/meta-instructions/templates/` are detailed
 - **`uac-usage.md`** — CLI command reference and usage patterns. Update when adding commands, flags, or changing CLI behavior.
 - **Management skills** (`update-instruction`, `update-skill`, `update-agent`, `update-hook`, etc.) — step-by-step guides for creating/modifying templates. Update when template conventions or file structure change.
 
+### Never edit seeded outputs directly
+
+This repo dogfoods its own seed templates: `pnpm uac init` was used during setup to populate `.universal-ai-config/` from the seeds in `src/seed-types/meta-instructions/templates/`. The following files in `.universal-ai-config/` are **derived artifacts** — they originate from the seed and must never be hand-edited:
+
+- `instructions/uac-template-guide.md`
+- `instructions/uac-usage.md`
+- `skills/update-instruction/`, `skills/update-skill/`, `skills/update-agent/`, `skills/update-hook/`, `skills/update-mcp/`, `skills/update-ai-config/`, `skills/import-existing-ai-config/`, `skills/create-target/`
+
+To change any of these, edit the corresponding source under `src/seed-types/meta-instructions/templates/` and regenerate with:
+
+```
+pnpm uac seed meta-instructions
+```
+
+Then run `pnpm uac generate` to refresh the target outputs (`.claude/`, `.github/`, etc.). Editing the seeded file directly will be overwritten the next time the seed runs.
+
 ### Keeping docs in sync
 
 - When changing how templates work (frontmatter, templating, settings): update `uac-template-guide.md` field tables + the relevant target implementation + mention in `README.md`
