@@ -92,8 +92,8 @@ Template bodies support EJS for conditional content.
 
 - `<%%%= instructionPath('name') %>` — output path for an instruction
 - `<%%%= skillPath('name') %>` — output path for a skill's `SKILL.md` file
-- `<%%%= skillDirPath('name') %>` — output directory of a skill (sibling of `SKILL.md`)
-- `<%%%= skillDirPath('name', 'reference.md') %>` — file inside a skill's directory (use this to link to supporting files like references, scripts, examples)
+- `<%%%= skillDirPath('name') %>` — output directory of a skill (the directory containing `SKILL.md`)
+- `<%%%= skillDirPath('name', 'reference.md') %>` — file inside a skill's directory, sibling of `SKILL.md` (use this to link to supporting files like references, scripts, examples)
 - `<%%%= agentPath('name') %>` — output path for an agent
 - `<%%%= instructionPath() %>` — output directory for instructions (e.g. `.claude/rules`)
 
