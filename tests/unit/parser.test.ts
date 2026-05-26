@@ -262,6 +262,230 @@ describe("renderEjs", () => {
     expect(renderEjs("<%= hookTemplatePath() %>", ctx)).toBe(".universal-ai-config/hooks");
   });
 
+  describe("Codex path helpers — regression tests", () => {
+    // Before the fix, all three helpers returned `.codex/<name>` (junk paths
+    // that don't match where consolidate actually emits files). These tests
+    // pin the helpers to the real emission paths.
+
+    it("skillPath('deploy') for codex returns the .agents/skills path (not .codex/deploy)", () => {
+      const result = renderEjs("<%= skillPath('deploy') %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+      });
+      expect(result).toBe(".agents/skills/deploy/SKILL.md");
+    });
+
+    it("skillPath() for codex returns the .agents/skills directory (not .codex/_)", () => {
+      const result = renderEjs("<%= skillPath() %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+      });
+      expect(result).toBe(".agents/skills");
+    });
+
+    it("agentPath('reviewer') for codex returns .codex/agents/reviewer.toml (not .codex/reviewer)", () => {
+      const result = renderEjs("<%= agentPath('reviewer') %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+      });
+      expect(result).toBe(".codex/agents/reviewer.toml");
+    });
+
+    it("agentPath() for codex returns .codex/agents directory (not .codex/_)", () => {
+      const result = renderEjs("<%= agentPath() %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+      });
+      expect(result).toBe(".codex/agents");
+    });
+
+    it("instructionPath('foo') falls back to AGENTS.md when no templates index is provided", () => {
+      const result = renderEjs("<%= instructionPath('foo') %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+      });
+      expect(result).toBe("AGENTS.md");
+    });
+
+    it("instructionPath('foo') falls back to AGENTS.md when name is not in the index", () => {
+      const result = renderEjs("<%= instructionPath('unknown') %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+        templatesIndex: { instructions: new Map() },
+      });
+      expect(result).toBe("AGENTS.md");
+    });
+
+    it("instructionPath() with no name returns '.' for codex (no canonical dir)", () => {
+      const result = renderEjs("<%= instructionPath() %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+      });
+      expect(result).toBe(".");
+    });
+
+    it("instructionPath routes alwaysApply templates to AGENTS.md", () => {
+      const index = {
+        instructions: new Map([["root-rule", { alwaysApply: true }]]),
+      };
+      const result = renderEjs("<%= instructionPath('root-rule') %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+        templatesIndex: index,
+      });
+      expect(result).toBe("AGENTS.md");
+    });
+
+    it("instructionPath routes no-globs templates to AGENTS.md", () => {
+      const index = {
+        instructions: new Map([["bare", {}]]),
+      };
+      const result = renderEjs("<%= instructionPath('bare') %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+        templatesIndex: index,
+      });
+      expect(result).toBe("AGENTS.md");
+    });
+
+    it("instructionPath routes leading-wildcard globs to AGENTS.md", () => {
+      const index = {
+        instructions: new Map([["ts-rule", { globs: ["**/*.ts"] }]]),
+      };
+      const result = renderEjs("<%= instructionPath('ts-rule') %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+        templatesIndex: index,
+      });
+      expect(result).toBe("AGENTS.md");
+    });
+
+    it("instructionPath routes resolvable-prefix globs to <dir>/AGENTS.override.md", () => {
+      const index = {
+        instructions: new Map([["fe-rule", { globs: ["packages/frontend/**"] }]]),
+      };
+      const result = renderEjs("<%= instructionPath('fe-rule') %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+        templatesIndex: index,
+      });
+      expect(result).toBe("packages/frontend/AGENTS.override.md");
+    });
+
+    it("instructionPath ignores leading-wildcard globs when a resolvable glob exists", () => {
+      const index = {
+        instructions: new Map([["mixed", { globs: ["**/*.ts", "src/api/**"] }]]),
+      };
+      const result = renderEjs("<%= instructionPath('mixed') %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+        templatesIndex: index,
+      });
+      expect(result).toBe("src/api/AGENTS.override.md");
+    });
+
+    it("instructionPath returns the first (alpha-sorted) override path for multi-dir globs", () => {
+      const index = {
+        instructions: new Map([["multi", { globs: ["src/web/**", "src/api/**"] }]]),
+      };
+      const result = renderEjs("<%= instructionPath('multi') %>", {
+        target: "codex",
+        type: "instructions",
+        config: DEFAULT_CONFIG,
+        templatesIndex: index,
+      });
+      expect(result).toBe("src/api/AGENTS.override.md");
+    });
+  });
+
+  describe("skillDirPath helper", () => {
+    it("returns the skill directory across all targets when called with name only", () => {
+      const cases: Array<["claude" | "copilot" | "cursor" | "codex", string]> = [
+        ["claude", ".claude/skills/deploy"],
+        ["copilot", ".github/skills/deploy"],
+        ["cursor", ".cursor/skills/deploy"],
+        ["codex", ".agents/skills/deploy"],
+      ];
+      for (const [target, expected] of cases) {
+        expect(
+          renderEjs("<%= skillDirPath('deploy') %>", {
+            target,
+            type: "skills",
+            config: DEFAULT_CONFIG,
+          }),
+        ).toBe(expected);
+      }
+    });
+
+    it("appends a relative path inside the skill directory", () => {
+      const cases: Array<["claude" | "copilot" | "cursor" | "codex", string]> = [
+        ["claude", ".claude/skills/deploy/reference.md"],
+        ["copilot", ".github/skills/deploy/reference.md"],
+        ["cursor", ".cursor/skills/deploy/reference.md"],
+        ["codex", ".agents/skills/deploy/reference.md"],
+      ];
+      for (const [target, expected] of cases) {
+        expect(
+          renderEjs("<%= skillDirPath('deploy', 'reference.md') %>", {
+            target,
+            type: "skills",
+            config: DEFAULT_CONFIG,
+          }),
+        ).toBe(expected);
+      }
+    });
+
+    it("supports nested relative paths", () => {
+      expect(
+        renderEjs("<%= skillDirPath('deploy', 'examples/foo.md') %>", {
+          target: "claude",
+          type: "skills",
+          config: DEFAULT_CONFIG,
+        }),
+      ).toBe(".claude/skills/deploy/examples/foo.md");
+      expect(
+        renderEjs("<%= skillDirPath('deploy', 'examples/foo.md') %>", {
+          target: "codex",
+          type: "skills",
+          config: DEFAULT_CONFIG,
+        }),
+      ).toBe(".agents/skills/deploy/examples/foo.md");
+    });
+
+    it("ignores config.outputDirs overrides (uses canonical outputDir)", () => {
+      const config = {
+        ...DEFAULT_CONFIG,
+        outputDirs: { ...DEFAULT_CONFIG.outputDirs, claude: "../custom-claude" },
+      };
+      expect(
+        renderEjs("<%= skillDirPath('deploy') %>", {
+          target: "claude",
+          type: "skills",
+          config,
+        }),
+      ).toBe(".claude/skills/deploy");
+      expect(
+        renderEjs("<%= skillDirPath('deploy', 'ref.md') %>", {
+          target: "claude",
+          type: "skills",
+          config,
+        }),
+      ).toBe(".claude/skills/deploy/ref.md");
+    });
+  });
+
   it("template path helpers respect custom templatesDir", () => {
     const config = { ...DEFAULT_CONFIG, templatesDir: "custom-ai" };
     const ctx = { target: "claude" as const, type: "instructions" as const, config };

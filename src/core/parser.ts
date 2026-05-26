@@ -2,6 +2,7 @@ import { parse as parseYAML } from "yaml";
 import ejs from "ejs";
 import { join } from "node:path";
 import { targets } from "../targets/index.js";
+import { getCodexInstructionEmissionPaths } from "../targets/codex/instruction-routing.js";
 import type { ResolvedConfig, Target, TemplateType, UniversalFrontmatter } from "../types.js";
 
 interface ParsedTemplate {
@@ -9,10 +10,15 @@ interface ParsedTemplate {
   body: string;
 }
 
+export interface TemplatesIndex {
+  instructions: Map<string, UniversalFrontmatter>;
+}
+
 interface RenderContext {
   target: Target;
   type: TemplateType;
   config: ResolvedConfig;
+  templatesIndex?: TemplatesIndex;
 }
 
 export function parseFrontmatter(content: string): ParsedTemplate {
@@ -35,7 +41,7 @@ export function parseFrontmatter(content: string): ParsedTemplate {
   return { frontmatter, body };
 }
 
-function buildPathHelpers(target: Target, templatesDir: string) {
+function buildPathHelpers(target: Target, templatesDir: string, templatesIndex?: TemplatesIndex) {
   const targetDef = targets[target];
   const outputDir = targetDef?.outputDir ?? "";
 
@@ -50,18 +56,51 @@ function buildPathHelpers(target: Target, templatesDir: string) {
 
   return {
     instructionPath: (name?: string) => {
+      // Codex consolidates instructions into AGENTS.md or <dir>/AGENTS.override.md
+      // outside outputDir; the per-name routing depends on the template's frontmatter.
+      if (target === "codex") {
+        if (!name) return ".";
+        const fm = templatesIndex?.instructions.get(name);
+        if (!fm) return "AGENTS.md";
+        const paths = getCodexInstructionEmissionPaths(fm);
+        return paths[0] ?? "AGENTS.md";
+      }
       const tc = targetDef?.instructions;
       if (!name) return outputTypeDir(tc, "instructions");
       if (!tc) return join(outputDir, `instructions/${name}.md`);
       return join(outputDir, tc.getOutputPath(name, {} as UniversalFrontmatter));
     },
     skillPath: (name?: string) => {
+      // Codex emits skills at root-relative .agents/skills/<name>/SKILL.md
+      // (outside outputDir, per the open Agent Skills standard).
+      if (target === "codex") {
+        return name ? `.agents/skills/${name}/SKILL.md` : ".agents/skills";
+      }
       const tc = targetDef?.skills;
       if (!name) return outputTypeDir(tc, "skills");
       if (!tc) return join(outputDir, `skills/${name}/SKILL.md`);
       return join(outputDir, tc.getOutputPath(name, {} as UniversalFrontmatter));
     },
+    skillDirPath: (name: string, relativePath?: string) => {
+      let dir: string;
+      if (target === "codex") {
+        dir = `.agents/skills/${name}`;
+      } else {
+        const tc = targetDef?.skills;
+        const skillFile = !tc
+          ? join(outputDir, `skills/${name}/SKILL.md`)
+          : join(outputDir, tc.getOutputPath(name, {} as UniversalFrontmatter));
+        // invariant: every non-codex skills.getOutputPath ends in /SKILL.md
+        dir = skillFile.replace(/\/SKILL\.md$/, "");
+      }
+      return relativePath ? join(dir, relativePath) : dir;
+    },
     agentPath: (name?: string) => {
+      // Codex emits each agent as .codex/agents/<name>.toml (the codex
+      // getOutputPath returns only the bare name as a consolidate sentinel).
+      if (target === "codex") {
+        return name ? `.codex/agents/${name}.toml` : ".codex/agents";
+      }
       const tc = targetDef?.agents;
       if (!name) return outputTypeDir(tc, "agents");
       if (!tc) return join(outputDir, `agents/${name}.md`);
@@ -93,7 +132,11 @@ function buildPathHelpers(target: Target, templatesDir: string) {
 }
 
 export function renderEjs(template: string, context: RenderContext): string {
-  const pathHelpers = buildPathHelpers(context.target, context.config.templatesDir);
+  const pathHelpers = buildPathHelpers(
+    context.target,
+    context.config.templatesDir,
+    context.templatesIndex,
+  );
   return ejs.render(
     template,
     {

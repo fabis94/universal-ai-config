@@ -1,9 +1,11 @@
 import { consola } from "consola";
 import { stringify as stringifyYAML } from "yaml";
 import { defineTarget, type ConsolidateInput } from "../define-target.js";
-import { normalizeGlobs } from "../../core/normalize-globs.js";
 import { stringifyToml } from "../../core/toml.js";
 import type { GeneratedFile, UniversalHookHandler, UniversalMCPServer } from "../../types.js";
+import { getCodexInstructionEmissionPaths } from "./instruction-routing.js";
+
+export { globRootDir } from "./instruction-routing.js";
 
 /** Codex supports a strict subset of Claude's PascalCase hook events. */
 const EVENT_NAME_MAP: Record<string, string> = {
@@ -149,27 +151,6 @@ function transformCodexMCP(servers: Record<string, UniversalMCPServer>): Record<
   return { mcp_servers };
 }
 
-/**
- * Given a glob pattern, return the longest leading directory prefix with no
- * wildcard characters, or `null` if the glob starts with a wildcard segment.
- *
- * Examples:
- *   "packages/frontend/**" → "packages/frontend"
- *   "src/api/**\/*.ts"      → "src/api"
- *   "**\/*.ts"              → null
- *   "*.md"                  → null
- *   "plain.ts"              → null  (no wildcard at all → no directory scope)
- */
-export function globRootDir(glob: string): string | null {
-  const parts = glob.split("/");
-  const wildIdx = parts.findIndex((p) => /[*?[]/.test(p));
-  // No wildcard at all: treat as a single file path with no directory scope.
-  if (wildIdx === -1) return null;
-  // Wildcard in the first segment: no resolvable directory prefix.
-  if (wildIdx === 0) return null;
-  return parts.slice(0, wildIdx).join("/");
-}
-
 /** Render an instruction body with a `## description` H2 header. */
 function renderInstructionSection(
   name: string,
@@ -208,50 +189,16 @@ function consolidateCodexInstructions({ templates }: ConsolidateInput): Generate
       sourcePath: t.sourcePath,
     };
 
-    // alwaysApply wins regardless of globs → root.
-    if (t.frontmatter.alwaysApply) {
-      rootBucket.push(entry);
-      continue;
-    }
-
-    const globs = normalizeGlobs(t.frontmatter.globs);
-    if (globs.length === 0) {
-      // No globs and no alwaysApply → default to broadest scope (root).
-      rootBucket.push(entry);
-      continue;
-    }
-
-    // Determine which directories the globs resolve to. Leading-wildcard
-    // globs (no resolvable directory) route to the root bucket so the
-    // template still applies — uac never silently drops content.
-    const dirs = new Set<string>();
-    let hasLeadingWildcard = false;
-    for (const g of globs) {
-      const dir = globRootDir(g);
-      if (dir === null) {
-        hasLeadingWildcard = true;
+    const paths = getCodexInstructionEmissionPaths(t.frontmatter);
+    for (const p of paths) {
+      if (p === "AGENTS.md") {
+        rootBucket.push(entry);
       } else {
-        dirs.add(dir);
+        const dir = p.replace(/\/AGENTS\.override\.md$/, "");
+        const bucket = overrideBuckets.get(dir) ?? [];
+        bucket.push(entry);
+        overrideBuckets.set(dir, bucket);
       }
-    }
-
-    if (dirs.size === 0) {
-      // All globs were leading-wildcard (or no resolvable dir) → root.
-      rootBucket.push(entry);
-      continue;
-    }
-
-    // Resolvable-dir globs: emit AGENTS.override.md per unique dir.
-    // (If a template has both leading-wildcard AND resolvable-dir globs,
-    // we route to the dir-specific files only — the resolvable dirs are
-    // strictly narrower scope and Codex applies them hierarchically.)
-    if (hasLeadingWildcard) {
-      // No-op; the resolvable dirs take precedence.
-    }
-    for (const dir of dirs) {
-      const bucket = overrideBuckets.get(dir) ?? [];
-      bucket.push(entry);
-      overrideBuckets.set(dir, bucket);
     }
   }
 

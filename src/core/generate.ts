@@ -6,7 +6,7 @@ import { stringify as stringifyYAML } from "yaml";
 import { loadProjectConfig } from "../config/loader.js";
 import { createExcludeMatcher } from "./exclude.js";
 import { filterMCPServers } from "./filter-mcp-servers.js";
-import { parseTemplate, renderEjs } from "./parser.js";
+import { parseFrontmatter, parseTemplate, renderEjs, type TemplatesIndex } from "./parser.js";
 import { resolveJsonVariables } from "./resolve-json-variables.js";
 import { resolveOverrides } from "./resolve-overrides.js";
 import { safePath } from "./safe-path.js";
@@ -601,6 +601,32 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
     excludeMatchers.set(targetName, createExcludeMatcher(config.exclude, targetName));
   }
 
+  // Pre-pass: build a per-target index of instruction template name → resolved
+  // frontmatter. Path helpers like `instructionPath('foo')` need this to compute
+  // the actual emission path for Codex (which routes to AGENTS.md vs
+  // <dir>/AGENTS.override.md based on globs/alwaysApply). Content read here is
+  // cached in `templateContentCache` to avoid double-reading in the main loop.
+  const templateContentCache = new Map<string, string>();
+  const templatesIndexByTarget = new Map<Target, TemplatesIndex>();
+  for (const targetName of config.targets) {
+    templatesIndexByTarget.set(targetName as Target, {
+      instructions: new Map<string, UniversalFrontmatter>(),
+    });
+  }
+  for (const template of templates) {
+    if (template.type !== "instructions") continue;
+    const content = template.content ?? (await readFile(template.filePath, "utf-8"));
+    if (template.filePath) templateContentCache.set(template.filePath, content);
+    const { frontmatter } = parseFrontmatter(content);
+    for (const targetName of config.targets) {
+      const resolved = resolveOverrides(
+        frontmatter as Record<string, unknown>,
+        targetName,
+      ) as UniversalFrontmatter;
+      templatesIndexByTarget.get(targetName as Target)?.instructions.set(template.name, resolved);
+    }
+  }
+
   // Buffers for `consolidate` API — collected during the per-template loop and
   // emitted in a single call to `typeConfig.consolidate(...)` after the loop.
   // Keyed by `${target}:${type}`.
@@ -614,7 +640,10 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
   const consolidateBuffers = new Map<string, ConsolidateBuffer>();
 
   for (const template of templates) {
-    const content = template.content ?? (await readFile(template.filePath, "utf-8"));
+    const content =
+      templateContentCache.get(template.filePath) ??
+      template.content ??
+      (await readFile(template.filePath, "utf-8"));
 
     for (const targetName of config.targets) {
       // Check if template is excluded for this target
@@ -639,6 +668,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
         target: targetName as Target,
         type: template.type,
         config,
+        templatesIndex: templatesIndexByTarget.get(targetName as Target),
       });
 
       const resolvedFm = resolveOverrides(
@@ -661,6 +691,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
                   target: targetName as Target,
                   type: template.type,
                   config,
+                  templatesIndex: templatesIndexByTarget.get(targetName as Target),
                 })
               : extraContent;
             extraFiles.push({
@@ -720,6 +751,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
                 target: targetName as Target,
                 type: template.type,
                 config,
+                templatesIndex: templatesIndexByTarget.get(targetName as Target),
               })
             : extraContent;
 

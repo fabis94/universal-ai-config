@@ -91,7 +91,9 @@ Template bodies support EJS for conditional content.
 **Output path helpers** — resolve to the target-specific output path. Omit the name to get the directory:
 
 - `<%%%= instructionPath('name') %>` — output path for an instruction
-- `<%%%= skillPath('name') %>` — output path for a skill
+- `<%%%= skillPath('name') %>` — output path for a skill's `SKILL.md` file
+- `<%%%= skillDirPath('name') %>` — output directory of a skill (sibling of `SKILL.md`)
+- `<%%%= skillDirPath('name', 'reference.md') %>` — file inside a skill's directory (use this to link to supporting files like references, scripts, examples)
 - `<%%%= agentPath('name') %>` — output path for an agent
 - `<%%%= instructionPath() %>` — output directory for instructions (e.g. `.claude/rules`)
 
@@ -123,12 +125,26 @@ For example, `<%%%= skillPath('deploy') %>` renders to:
 - Cursor: `.cursor/skills/deploy/SKILL.md`
 - Codex: `.agents/skills/deploy/SKILL.md` (root-relative, per Codex's auto-discovery convention)
 
+And `<%%%= skillDirPath('deploy', 'reference.md') %>` renders to:
+
+- Claude: `.claude/skills/deploy/reference.md`
+- Copilot: `.github/skills/deploy/reference.md`
+- Cursor: `.cursor/skills/deploy/reference.md`
+- Codex: `.agents/skills/deploy/reference.md`
+
+And `<%%%= agentPath('reviewer') %>` renders to:
+
+- Claude: `.claude/agents/reviewer.md`
+- Copilot: `.github/agents/reviewer.agent.md`
+- Cursor: not supported (Cursor has no agents)
+- Codex: `.codex/agents/reviewer.toml`
+
 And `<%%%= instructionPath('coding-style') %>` renders to:
 
 - Claude: `.claude/rules/coding-style.md`
 - Copilot: `.github/instructions/coding-style.instructions.md`
 - Cursor: `.cursor/rules/coding-style.mdc`
-- Codex: depends on the template's `alwaysApply` / `globs` — see "Codex caveats" below. Multiple instructions consolidate into a single `AGENTS.md` at the project root or per-directory `AGENTS.override.md` files.
+- Codex: depends on the template's `alwaysApply` / `globs` — `AGENTS.md` for alwaysApply/no-glob/leading-wildcard templates, or the first `<dir>/AGENTS.override.md` (alpha-sorted) for resolvable-prefix templates. If the named template isn't known, falls back to `AGENTS.md`. See "Codex caveats" below.
 
 **Always use path helpers when referencing other templates** — never hardcode target-specific paths.
 

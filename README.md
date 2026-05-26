@@ -401,11 +401,12 @@ Templates have access to path helper functions. All `name` parameters are option
 
 **Output path helpers** — resolve to the target-specific output path:
 
-| Function                 | Returns                                                       |
-| ------------------------ | ------------------------------------------------------------- |
-| `instructionPath(name?)` | Target-specific output path (or directory) for an instruction |
-| `skillPath(name?)`       | Target-specific output path (or directory) for a skill        |
-| `agentPath(name?)`       | Target-specific output path (or directory) for an agent       |
+| Function                   | Returns                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------ |
+| `instructionPath(name?)`   | Target-specific output path (or directory) for an instruction                                    |
+| `skillPath(name?)`         | Target-specific output path (or directory) for a skill's `SKILL.md`                              |
+| `skillDirPath(name, rel?)` | Target-specific path to a skill's directory, or to a file inside it (use for reference/examples) |
+| `agentPath(name?)`         | Target-specific output path (or directory) for an agent                                          |
 
 **Template path helpers** — resolve to the source template path in the templates directory:
 
@@ -444,12 +445,21 @@ For example, `<%= instructionPath('coding-style') %>` renders to:
 
 And `<%= instructionPath() %>` (no argument) renders to:
 
-| Target  | Output                 |
-| ------- | ---------------------- |
-| Claude  | `.claude/rules`        |
-| Copilot | `.github/instructions` |
-| Cursor  | `.cursor/rules`        |
-| Codex   | (root — `AGENTS.md`)   |
+| Target  | Output                                                                              |
+| ------- | ----------------------------------------------------------------------------------- |
+| Claude  | `.claude/rules`                                                                     |
+| Copilot | `.github/instructions`                                                              |
+| Cursor  | `.cursor/rules`                                                                     |
+| Codex   | `.` (root — Codex consolidates into `AGENTS.md`, with no per-instruction directory) |
+
+For skills, `<%= skillDirPath('deploy', 'reference.md') %>` renders to:
+
+| Target  | Output                               |
+| ------- | ------------------------------------ |
+| Claude  | `.claude/skills/deploy/reference.md` |
+| Copilot | `.github/skills/deploy/reference.md` |
+| Cursor  | `.cursor/skills/deploy/reference.md` |
+| Codex   | `.agents/skills/deploy/reference.md` |
 
 Template path helpers are target-independent: `<%= instructionTemplatePath('coding-style') %>` always renders to `.universal-ai-config/instructions/coding-style.md` (or the configured `templatesDir`).
 
