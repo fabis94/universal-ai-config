@@ -1,6 +1,6 @@
 {
   "name": "universal-ai-config",
-  "version": "2.0.1",
+  "version": "2.0.3",
   "description": "Generate tool-specific AI config files from shared templates",
   "type": "module",
   "bin": {
