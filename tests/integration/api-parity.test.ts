@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { join } from "node:path";
-import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { generate } from "../../src/core/generate.js";
 import { writeGeneratedFiles, cleanTargetFiles } from "../../src/core/writer.js";
@@ -89,6 +89,72 @@ describe("programmatic API parity", () => {
     expect(files.find((f) => f.type === "skills")).toBeDefined();
   });
 
+  describe("type-scoped cleaning (--type + --clean)", () => {
+    async function exists(path: string): Promise<boolean> {
+      return access(path).then(
+        () => true,
+        () => false,
+      );
+    }
+
+    it("cleans only the requested type, leaving other types intact", async () => {
+      const tempDir = await createTempDir();
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["instructions", "skills", "agents"],
+      });
+      await writeGeneratedFiles(files, tempDir);
+
+      // Sanity: all three type dirs exist
+      expect(await exists(join(tempDir, ".claude/rules"))).toBe(true);
+      expect(await exists(join(tempDir, ".claude/skills"))).toBe(true);
+      expect(await exists(join(tempDir, ".claude/agents"))).toBe(true);
+
+      await cleanTargetFiles(tempDir, ["claude"], ["skills"]);
+
+      // Only skills removed; instructions + agents untouched
+      expect(await exists(join(tempDir, ".claude/skills"))).toBe(false);
+      expect(await exists(join(tempDir, ".claude/rules"))).toBe(true);
+      expect(await exists(join(tempDir, ".claude/agents"))).toBe(true);
+    });
+
+    it("with no types specified still removes everything (back-compat)", async () => {
+      const tempDir = await createTempDir();
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["instructions", "skills", "agents"],
+      });
+      await writeGeneratedFiles(files, tempDir);
+
+      await cleanTargetFiles(tempDir, ["claude"]);
+
+      expect(await exists(join(tempDir, ".claude/rules"))).toBe(false);
+      expect(await exists(join(tempDir, ".claude/skills"))).toBe(false);
+      expect(await exists(join(tempDir, ".claude/agents"))).toBe(false);
+    });
+
+    it("gates the Claude settings.json hooks special-case on the hooks type", async () => {
+      const tempDir = await createTempDir();
+      const settingsPath = join(tempDir, ".claude/settings.json");
+      const { mkdir } = await import("node:fs/promises");
+      await mkdir(join(tempDir, ".claude"), { recursive: true });
+      const settings = { hooks: { PreToolUse: [] }, otherKey: "keep" };
+      await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
+
+      // Cleaning a different type must not strip hooks
+      await cleanTargetFiles(tempDir, ["claude"], ["skills"]);
+      expect(JSON.parse(await readFile(settingsPath, "utf-8"))).toHaveProperty("hooks");
+
+      // Cleaning hooks strips the hooks key (other keys preserved)
+      await cleanTargetFiles(tempDir, ["claude"], ["hooks"]);
+      const after = JSON.parse(await readFile(settingsPath, "utf-8"));
+      expect(after).not.toHaveProperty("hooks");
+      expect(after).toHaveProperty("otherKey", "keep");
+    });
+  });
+
   describe("codex", () => {
     it("generate + writeGeneratedFiles writes codex files to disk", async () => {
       const tempDir = await createTempDir();
@@ -170,6 +236,26 @@ describe("programmatic API parity", () => {
       expect(after).not.toContain("[mcp_servers.");
       expect(after).toContain("[profiles.dev]");
       expect(after).toContain('model = "gpt-5.4"');
+    });
+
+    it("type-scoped clean gates the config.toml mcp_servers special-case", async () => {
+      const tempDir = await createTempDir();
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["codex"],
+        types: ["mcp"],
+      });
+      await writeGeneratedFiles(files, tempDir);
+      const configPath = join(tempDir, ".codex/config.toml");
+      await expect(readFile(configPath, "utf-8")).resolves.toContain("[mcp_servers.");
+
+      // Cleaning a non-mcp type leaves the mcp_servers table intact
+      await cleanTargetFiles(tempDir, ["codex"], ["skills"]);
+      await expect(readFile(configPath, "utf-8")).resolves.toContain("[mcp_servers.");
+
+      // Cleaning mcp removes it
+      await cleanTargetFiles(tempDir, ["codex"], ["mcp"]);
+      await expect(readFile(configPath, "utf-8")).rejects.toThrow();
     });
   });
 });

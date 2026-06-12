@@ -4,30 +4,49 @@ import { consola } from "consola";
 import { targets } from "../targets/index.js";
 import { safePath } from "./safe-path.js";
 import { parseToml, stringifyToml } from "./toml.js";
-import type { GeneratedFile, Target } from "../types.js";
-
-const CLEAN_PATHS: Record<string, string[]> = {
-  claude: ["rules", "skills", "agents"],
-  copilot: ["copilot-instructions.md", "instructions", "agents", "skills", "hooks"],
-  cursor: ["rules", "skills", "hooks.json"],
-  codex: ["agents", "hooks.json"],
-};
-
-/** Root-relative MCP output paths per target (not inside outputDir) */
-const CLEAN_MCP_PATHS: Record<string, string[]> = {
-  claude: [".mcp.json"],
-  copilot: [".vscode/mcp.json"],
-  cursor: [".cursor/mcp.json"],
-};
+import type { GeneratedFile, Target, TemplateType } from "../types.js";
 
 /**
- * Root-relative output paths emitted *outside* a target's `outputDir`.
- * Distinct from `CLEAN_MCP_PATHS` because these aren't MCP-specific.
- * Codex emits `AGENTS.md` at the project root and `.agents/skills/` (the
- * open Agent Skills standard location) per the canonical Codex convention.
+ * A single removable artifact, tagged with the `TemplateType` it belongs to so
+ * `cleanTargetFiles` can honor a `--type` filter. `location` distinguishes paths
+ * inside the target's `outputDir` (`"output"`) from project-root-relative ones
+ * (`"root"`) — MCP config files and Codex's `AGENTS.md` / `.agents/skills` live
+ * outside `outputDir`. The `hooks`/`mcp` special cases (Claude's `settings.json`
+ * merge, Codex's `config.toml` table) are handled separately in `cleanTargetFiles`.
  */
-const CLEAN_ROOT_PATHS: Record<string, string[]> = {
-  codex: [".agents/skills", "AGENTS.md"],
+interface CleanEntry {
+  type: TemplateType;
+  path: string;
+  location: "output" | "root";
+}
+
+const CLEAN_ENTRIES: Record<string, CleanEntry[]> = {
+  claude: [
+    { type: "instructions", path: "rules", location: "output" },
+    { type: "skills", path: "skills", location: "output" },
+    { type: "agents", path: "agents", location: "output" },
+    { type: "mcp", path: ".mcp.json", location: "root" },
+  ],
+  copilot: [
+    { type: "instructions", path: "copilot-instructions.md", location: "output" },
+    { type: "instructions", path: "instructions", location: "output" },
+    { type: "agents", path: "agents", location: "output" },
+    { type: "skills", path: "skills", location: "output" },
+    { type: "hooks", path: "hooks", location: "output" },
+    { type: "mcp", path: ".vscode/mcp.json", location: "root" },
+  ],
+  cursor: [
+    { type: "instructions", path: "rules", location: "output" },
+    { type: "skills", path: "skills", location: "output" },
+    { type: "hooks", path: "hooks.json", location: "output" },
+    { type: "mcp", path: ".cursor/mcp.json", location: "root" },
+  ],
+  codex: [
+    { type: "agents", path: "agents", location: "output" },
+    { type: "hooks", path: "hooks.json", location: "output" },
+    { type: "instructions", path: "AGENTS.md", location: "root" },
+    { type: "skills", path: ".agents/skills", location: "root" },
+  ],
 };
 
 async function mergeJsonKey(fullPath: string, content: string, mergeKey: string): Promise<string> {
@@ -143,12 +162,23 @@ async function cleanCodexConfig(root: string, outputDir: string): Promise<string
   return undefined;
 }
 
+/**
+ * Remove generated artifacts for the given targets. When `types` is provided,
+ * only artifacts belonging to those template types are removed — so
+ * `generate --type skills --clean` no longer wipes instructions/agents/hooks/mcp.
+ * When `types` is omitted, every type is cleaned (the original behavior).
+ *
+ * Glob-derived `AGENTS.override.md` files are intentionally NOT cleaned — they're
+ * gitignored, so orphans are harmless.
+ */
 export async function cleanTargetFiles(
   root: string,
   targetNames?: Target[],
+  types?: TemplateType[],
   options?: { verbose?: boolean },
 ): Promise<string[]> {
   const targetList = targetNames ?? (Object.keys(targets) as Target[]);
+  const includesType = (t: TemplateType): boolean => !types || types.includes(t);
   const cleaned: string[] = [];
 
   for (const targetName of targetList) {
@@ -156,26 +186,27 @@ export async function cleanTargetFiles(
     if (!targetDef) continue;
 
     const outputDir = targetDef.outputDir;
-    const paths = CLEAN_PATHS[targetName];
-    if (!paths) continue;
+    const entries = CLEAN_ENTRIES[targetName];
+    if (!entries) continue;
 
-    for (const p of paths) {
-      const fullPath = join(root, outputDir, p);
+    for (const entry of entries) {
+      if (!includesType(entry.type)) continue;
+      const rel = entry.location === "root" ? entry.path : join(outputDir, entry.path);
+      const fullPath = join(root, rel);
       const exists = await access(fullPath).then(
         () => true,
         () => false,
       );
       if (!exists) continue;
       await rm(fullPath, { recursive: true, force: true });
-      const label = join(outputDir, p);
-      cleaned.push(label);
+      cleaned.push(rel);
       if (options?.verbose) {
-        consola.info(`Cleaned ${label}`);
+        consola.info(`Cleaned ${rel}`);
       }
     }
 
     // Claude hooks are merged into settings.json — need special handling
-    if (targetName === "claude") {
+    if (targetName === "claude" && includesType("hooks")) {
       const hookLabel = await cleanClaudeHooks(root, outputDir);
       if (hookLabel) {
         cleaned.push(hookLabel);
@@ -187,50 +218,12 @@ export async function cleanTargetFiles(
 
     // Codex shares `.codex/config.toml` with user content — partial cleanup
     // removes only the `mcp_servers` table, preserving any other top-level keys.
-    if (targetName === "codex") {
+    if (targetName === "codex" && includesType("mcp")) {
       const configLabel = await cleanCodexConfig(root, outputDir);
       if (configLabel) {
         cleaned.push(configLabel);
         if (options?.verbose) {
           consola.info(`Cleaned mcp_servers from ${configLabel}`);
-        }
-      }
-    }
-
-    // MCP files are root-relative, not inside outputDir
-    const mcpPaths = CLEAN_MCP_PATHS[targetName];
-    if (mcpPaths) {
-      for (const mcpPath of mcpPaths) {
-        const fullPath = join(root, mcpPath);
-        const exists = await access(fullPath).then(
-          () => true,
-          () => false,
-        );
-        if (!exists) continue;
-        await rm(fullPath, { force: true });
-        cleaned.push(mcpPath);
-        if (options?.verbose) {
-          consola.info(`Cleaned ${mcpPath}`);
-        }
-      }
-    }
-
-    // Root-relative output paths outside outputDir (e.g. Codex's root AGENTS.md
-    // and `.agents/skills/`). Glob-derived `AGENTS.override.md` files are
-    // intentionally NOT cleaned — they're gitignored, so orphans are harmless.
-    const rootPaths = CLEAN_ROOT_PATHS[targetName];
-    if (rootPaths) {
-      for (const p of rootPaths) {
-        const fullPath = join(root, p);
-        const exists = await access(fullPath).then(
-          () => true,
-          () => false,
-        );
-        if (!exists) continue;
-        await rm(fullPath, { recursive: true, force: true });
-        cleaned.push(p);
-        if (options?.verbose) {
-          consola.info(`Cleaned ${p}`);
         }
       }
     }

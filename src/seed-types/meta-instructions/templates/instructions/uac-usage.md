@@ -31,7 +31,7 @@ Generate target-specific config files from templates.
 - `--target, -t <targets>` — comma-separated targets: `claude`, `copilot`, `cursor`, `codex`
 - `--type <types>` — comma-separated types: `instructions`, `skills`, `agents`, `hooks`, `mcp`
 - `--dry-run, -d` — preview what would be generated without writing files
-- `--clean` — remove existing generated files before generating
+- `--clean` — remove existing generated files before generating. Scoped by `--type`: `--clean` alone removes everything, but combined with `--type skills` it only cleans skills artifacts, leaving other types in place.
 
 ### `uac init`
 
@@ -46,6 +46,7 @@ Seed pre-built template sets into the templates directory. Available types: `met
 Remove all generated config directories.
 
 - `--target, -t <targets>` — comma-separated targets to clean
+- `--type <types>` — comma-separated types to clean: `instructions`, `skills`, `agents`, `hooks`, `mcp` (default: all types)
 
 ## Configuration
 

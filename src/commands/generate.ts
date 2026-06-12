@@ -87,7 +87,7 @@ export default defineCommand({
       : undefined;
 
     if (args.clean) {
-      const cleaned = await cleanTargetFiles(root, targets, { verbose: args.verbose });
+      const cleaned = await cleanTargetFiles(root, targets, types, { verbose: args.verbose });
       if (!args.verbose && cleaned.length > 0) {
         consola.info(`Cleaned ${cleaned.length} existing path(s)`);
       }
