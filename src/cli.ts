@@ -4,6 +4,7 @@ import generateCommand from "./commands/generate.js";
 import initCommand from "./commands/init.js";
 import cleanCommand from "./commands/clean.js";
 import seedCommand from "./commands/seed.js";
+import skillCommand from "./commands/skill/index.js";
 
 const main = defineCommand({
   meta: {
@@ -16,6 +17,7 @@ const main = defineCommand({
     init: initCommand,
     clean: cleanCommand,
     seed: seedCommand,
+    skill: skillCommand,
   },
 });
 
