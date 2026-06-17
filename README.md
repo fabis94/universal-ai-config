@@ -630,6 +630,8 @@ export default defineConfig({
 
 ## CLI Reference
 
+When run without `--root`, every command except `uac init` searches **upward** from the current directory for the project root — the nearest ancestor that contains a `universal-ai-config.config.*` file or a `.universal-ai-config/` folder — so you can run uac from inside a package subdirectory of a monorepo and it still finds the root (printing an info line when it does). Passing `--root` disables the search. `uac init` always scaffolds into the current directory.
+
 ### `uac generate`
 
 Generate config files for specified targets.
@@ -639,7 +641,7 @@ Generate config files for specified targets.
 | `--target`  | `-t`  | Comma-separated targets     | All from config |
 | `--type`    |       | Comma-separated types       | All from config |
 | `--config`  | `-c`  | Config file path            | Auto-detected   |
-| `--root`    | `-r`  | Project root                | cwd             |
+| `--root`    | `-r`  | Project root                | Nearest root ↑  |
 | `--dry-run` | `-d`  | Preview without writing     | `false`         |
 | `--clean`   |       | Remove existing files first | `false`         |
 
@@ -655,10 +657,10 @@ Scaffold `.universal-ai-config/` directory with meta-instruction templates and a
 
 Remove all generated config directories.
 
-| Flag       | Short | Description                      | Default |
-| ---------- | ----- | -------------------------------- | ------- |
-| `--target` | `-t`  | Comma-separated targets to clean | All     |
-| `--root`   | `-r`  | Project root                     | cwd     |
+| Flag       | Short | Description                      | Default        |
+| ---------- | ----- | -------------------------------- | -------------- |
+| `--target` | `-t`  | Comma-separated targets to clean | All            |
+| `--root`   | `-r`  | Project root                     | Nearest root ↑ |
 
 ### `uac seed`
 
@@ -682,9 +684,9 @@ uac seed gitignore
 uac seed meta-instructions --root ./my-project
 ```
 
-| Flag     | Short | Description  | Default |
-| -------- | ----- | ------------ | ------- |
-| `--root` | `-r`  | Project root | cwd     |
+| Flag     | Short | Description  | Default        |
+| -------- | ----- | ------------ | -------------- |
+| `--root` | `-r`  | Project root | Nearest root ↑ |
 
 The `meta-instructions` seed creates 12 files in the templates directory:
 
@@ -719,14 +721,14 @@ uac skill add owner/repo@my-skill
 uac skill add ./local/skills-repo --all
 ```
 
-| Flag      | Short | Description                               | Default |
-| --------- | ----- | ----------------------------------------- | ------- |
-| `--skill` | `-s`  | Comma-separated skill names to install    | Prompt  |
-| `--all`   |       | Install every discovered skill            | `false` |
-| `--list`  | `-l`  | List discovered skills without installing | `false` |
-| `--yes`   | `-y`  | Skip confirmation prompts                 | `false` |
-| `--ref`   |       | Branch, tag, or commit to fetch           | Default |
-| `--root`  | `-r`  | Project root                              | cwd     |
+| Flag      | Short | Description                               | Default        |
+| --------- | ----- | ----------------------------------------- | -------------- |
+| `--skill` | `-s`  | Comma-separated skill names to install    | Prompt         |
+| `--all`   |       | Install every discovered skill            | `false`        |
+| `--list`  | `-l`  | List discovered skills without installing | `false`        |
+| `--yes`   | `-y`  | Skip confirmation prompts                 | `false`        |
+| `--ref`   |       | Branch, tag, or commit to fetch           | Default        |
+| `--root`  | `-r`  | Project root                              | Nearest root ↑ |
 
 ## Output Paths
 

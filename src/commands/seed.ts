@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { consola } from "consola";
 import { loadProjectConfig } from "../config/loader.js";
+import { resolveCliRoot } from "./resolve-root.js";
 import type { SeedTemplate } from "../seed-types/shared.js";
 
 const SEED_TYPES = ["meta-instructions", "examples", "gitignore"] as const;
@@ -76,11 +77,11 @@ export default defineCommand({
     root: {
       type: "string",
       alias: "r",
-      description: "Project root (default: cwd)",
+      description: "Project root (default: nearest uac root, searching up from cwd)",
     },
   },
   async run({ args }) {
-    const root = args.root ?? process.cwd();
+    const root = resolveCliRoot(args.root);
     const seedType = args.type as string;
 
     if (!SEED_TYPES.includes(seedType as SeedType)) {
