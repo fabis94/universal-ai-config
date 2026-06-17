@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { loadProjectConfig } from "../../config/loader.js";
 import { fetchSkills, installSkill } from "../../core/add-skill.js";
 import { filterSkillsByName, type DiscoveredSkill } from "../../core/skill-discovery.js";
+import { resolveCliRoot } from "../resolve-root.js";
 
 function parseList(value: string | undefined): string[] {
   if (!value) return [];
@@ -98,11 +99,11 @@ export default defineCommand({
     root: {
       type: "string",
       alias: "r",
-      description: "Project root (default: cwd)",
+      description: "Project root (default: nearest uac root, searching up from cwd)",
     },
   },
   async run({ args }) {
-    const root = args.root ?? process.cwd();
+    const root = resolveCliRoot(args.root);
     const source = args.source as string;
 
     const config = await loadProjectConfig({ root });

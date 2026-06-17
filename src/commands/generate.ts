@@ -2,6 +2,7 @@ import { defineCommand } from "citty";
 import { consola } from "consola";
 import { generate } from "../core/generate.js";
 import { writeGeneratedFiles, cleanTargetFiles } from "../core/writer.js";
+import { resolveCliRoot } from "./resolve-root.js";
 import type { GeneratedFile, Target, TemplateType } from "../types.js";
 
 interface TypeStats {
@@ -57,7 +58,7 @@ export default defineCommand({
     root: {
       type: "string",
       alias: "r",
-      description: "Project root (default: cwd)",
+      description: "Project root (default: nearest uac root, searching up from cwd)",
     },
     "dry-run": {
       type: "boolean",
@@ -78,7 +79,7 @@ export default defineCommand({
     },
   },
   async run({ args }) {
-    const root = args.root ?? process.cwd();
+    const root = resolveCliRoot(args.root);
     const targets = args.target
       ? (args.target.split(",").map((s) => s.trim()) as Target[])
       : undefined;

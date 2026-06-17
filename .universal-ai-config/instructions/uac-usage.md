@@ -22,6 +22,13 @@ Examples for different package managers:
 
 If `uac` is not a local dependency (e.g. non-JS projects): `npx universal-ai-config <command>`
 
+## Project root resolution
+
+When run without `--root`, uac searches **upward** from the current directory for the project root — the nearest ancestor containing a `universal-ai-config.config.*` file or a `<%= config.templatesDir %>/` folder. This means you can run `uac generate` (and the other commands) from inside a package subdirectory of a monorepo and it will still find the root. When a root is found above the current directory, uac prints an info line naming the directory it's using. If no root is found anywhere up the tree, it falls back to the current directory.
+
+- `--root, -r <path>` always wins and disables the upward search — uac uses exactly the path you give.
+- `uac init` is the exception: it never walks up and always scaffolds into the current directory (or `--root`), since its job is to create a new project rather than find an existing one.
+
 ## CLI Commands
 
 ### `uac generate`
@@ -67,7 +74,7 @@ Flags:
 - `--list, -l` — list discovered skills without installing
 - `--yes, -y` — skip confirmation prompts
 - `--ref <ref>` — branch, tag, or commit to fetch (alternative to a `#ref` fragment)
-- `--root, -r <path>` — project root (default: cwd)
+- `--root, -r <path>` — project root (default: nearest uac root, searching up from cwd; see [Project root resolution](#project-root-resolution))
 
 With no `--skill`/`--all`/`--list` and multiple skills found, an interactive multiselect wizard lets you pick which to install. Examples:
 
