@@ -22,6 +22,7 @@ Generate tool-specific AI config files from shared templates. Write your AI inst
   - [`uac init`](#uac-init)
   - [`uac clean`](#uac-clean)
   - [`uac seed`](#uac-seed)
+  - [`uac skill add`](#uac-skill-add)
 - [Output Paths](#output-paths)
 - [Complete Template Reference](#complete-template-reference)
 - [Programmatic API](#programmatic-api)
@@ -698,6 +699,34 @@ The `meta-instructions` seed creates 12 files in the templates directory:
 `update-ai-config` is the primary skill users should invoke — it analyzes intent and auto-delegates to internal type-specific skills (`update-instruction`, `update-skill`, `update-agent`, `update-hook`, `update-mcp`).
 
 Existing files are overwritten to ensure templates stay up to date.
+
+### `uac skill add`
+
+Download skill(s) from a GitHub repo (or a local path) into `.universal-ai-config/skills/<name>/` as new skill templates, then run `uac generate` to produce the per-target outputs. Skills are always **copied** into the current project — no global installs or symlinks. Re-adding an existing skill **overrides** it (stale files are removed).
+
+The positional `source` accepts GitHub shorthand (`owner/repo`, `owner/repo/subpath`, `owner/repo@skill`), a `github:` prefix, github.com URLs (including `/tree/<ref>/<subpath>`), a `#ref` / `#ref@skill` fragment, or a local filesystem path. With no skill selection flag and multiple skills found, an interactive wizard lets you pick which to install.
+
+```bash
+# List available skills without installing
+uac skill add vercel-labs/agent-skills --list
+
+# Pick interactively, or install specific skills non-interactively
+uac skill add vercel-labs/agent-skills
+uac skill add vercel-labs/agent-skills -s vercel-optimize -y
+
+# Install a single named skill, or every skill from a local repo
+uac skill add owner/repo@my-skill
+uac skill add ./local/skills-repo --all
+```
+
+| Flag      | Short | Description                               | Default |
+| --------- | ----- | ----------------------------------------- | ------- |
+| `--skill` | `-s`  | Comma-separated skill names to install    | Prompt  |
+| `--all`   |       | Install every discovered skill            | `false` |
+| `--list`  | `-l`  | List discovered skills without installing | `false` |
+| `--yes`   | `-y`  | Skip confirmation prompts                 | `false` |
+| `--ref`   |       | Branch, tag, or commit to fetch           | Default |
+| `--root`  | `-r`  | Project root                              | cwd     |
 
 ## Output Paths
 

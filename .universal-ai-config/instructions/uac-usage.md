@@ -48,6 +48,37 @@ Remove all generated config directories.
 - `--target, -t <targets>` — comma-separated targets to clean
 - `--type <types>` — comma-separated types to clean: `instructions`, `skills`, `agents`, `hooks`, `mcp` (default: all types)
 
+### `uac skill add <source>`
+
+Download skill(s) from a GitHub repo or local path and write them into `<%= config.templatesDir %>/skills/<name>/` as new skill templates. Each downloaded skill becomes a normal uac skill template — run `uac generate` afterwards to produce the per-target outputs. Skills are always **copied** into the current project (no global installs or symlinks). Re-adding an existing skill **overrides** it (a clean update — stale files are removed).
+
+The `source` accepts:
+
+- GitHub shorthand: `owner/repo`, `owner/repo/subpath`, `owner/repo@skill-name`
+- `github:owner/repo` prefix
+- github.com URLs: `https://github.com/owner/repo[/tree/<ref>[/<subpath>]]`
+- a `#ref` / `#ref@skill` fragment on any git form (selects a branch/tag/commit)
+- a local filesystem path: `./dir`, `../dir`, `/abs/path`
+
+Flags:
+
+- `--skill, -s <names>` — comma-separated skill names to install (otherwise you'll be prompted to select)
+- `--all` — install every discovered skill
+- `--list, -l` — list discovered skills without installing
+- `--yes, -y` — skip confirmation prompts
+- `--ref <ref>` — branch, tag, or commit to fetch (alternative to a `#ref` fragment)
+- `--root, -r <path>` — project root (default: cwd)
+
+With no `--skill`/`--all`/`--list` and multiple skills found, an interactive multiselect wizard lets you pick which to install. Examples:
+
+```bash
+uac skill add vercel-labs/agent-skills --list          # list available skills
+uac skill add vercel-labs/agent-skills                 # pick interactively
+uac skill add vercel-labs/agent-skills -s vercel-optimize -y
+uac skill add owner/repo@my-skill                      # install a single named skill
+uac skill add ./local/skills-repo --all                # copy every skill from a local repo
+```
+
 ## Configuration
 
 The config file (`universal-ai-config.config.ts`) supports these options:
