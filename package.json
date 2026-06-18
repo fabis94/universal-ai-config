@@ -58,6 +58,7 @@
     "citty": "^0.2.0",
     "consola": "^3.4.2",
     "ejs": "^4.0.1",
+    "picocolors": "^1.1.1",
     "picomatch": "^4.0.3",
     "simple-git": "^3.36.0",
     "smol-toml": "^1.6.1",

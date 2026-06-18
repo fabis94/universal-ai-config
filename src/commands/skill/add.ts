@@ -6,6 +6,7 @@ import { loadProjectConfig } from "../../config/loader.js";
 import { fetchSkills, installSkill } from "../../core/add-skill.js";
 import { filterSkillsByName, type DiscoveredSkill } from "../../core/skill-discovery.js";
 import { resolveCliRoot } from "../resolve-root.js";
+import { formatSkillList } from "./list.js";
 import { buildSkillOptions } from "./options.js";
 
 function parseList(value: string | undefined): string[] {
@@ -119,10 +120,8 @@ export default defineCommand({
       }
 
       if (args.list) {
-        consola.log(`Found ${skills.length} skill(s):`);
-        for (const skill of skills) {
-          consola.log(`  • ${skill.name}${skill.description ? ` — ${skill.description}` : ""}`);
-        }
+        // Plain stdout, not consola — the logger prefixes timestamps on each line.
+        process.stdout.write(`${formatSkillList(skills)}\n`);
         return;
       }
 

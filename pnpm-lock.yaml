@@ -23,6 +23,9 @@ importers:
       ejs:
         specifier: ^4.0.1
         version: 4.0.1
+      picocolors:
+        specifier: ^1.1.1
+        version: 1.1.1
       picomatch:
         specifier: ^4.0.3
         version: 4.0.3
