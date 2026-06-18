@@ -157,6 +157,7 @@ Seed templates are EJS-rendered with `config.templatesDir` as a variable. Skills
 - **Identity helpers** — use `defineTarget()`, `defineConfig()` for type-safe object literals
 - **Zod v4** — use `z.record(z.string(), z.unknown())`, never `z.record(z.unknown())` (Zod v4 requires explicit key schema)
 - **No default exports** except for target definitions and the config file
+- **Interactive prompts** — use `@clack/prompts` (`multiselect`/`confirm`/`select` + `isCancel`); never `consola.prompt`. consola bundles a stale, frozen fork of pre-1.0 clack that mis-renders wrapped/multiline options (ghost rows, duplicates). consola is for logging only.
 - **TypeScript strict mode** — `strict`, `noUncheckedIndexedAccess`, `noUnusedLocals`, `noUnusedParameters`
 - **Build** — tsdown (configured in `tsdown.config.ts`), outputs `dist/cli.mjs` + `dist/index.mjs`
 

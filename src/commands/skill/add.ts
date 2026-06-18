@@ -1,3 +1,4 @@
+import { confirm, isCancel, multiselect } from "@clack/prompts";
 import { defineCommand } from "citty";
 import { consola } from "consola";
 import { join } from "node:path";
@@ -5,6 +6,8 @@ import { loadProjectConfig } from "../../config/loader.js";
 import { fetchSkills, installSkill } from "../../core/add-skill.js";
 import { filterSkillsByName, type DiscoveredSkill } from "../../core/skill-discovery.js";
 import { resolveCliRoot } from "../resolve-root.js";
+import { formatSkillList } from "./list.js";
+import { buildSkillOptions } from "./options.js";
 
 function parseList(value: string | undefined): string[] {
   if (!value) return [];
@@ -43,18 +46,16 @@ async function selectSkills(
     return skills;
   }
 
-  const chosen = await consola.prompt("Select skills to install", {
-    type: "multiselect",
+  const chosen = await multiselect<string>({
+    message: "Select skills to install",
+    options: buildSkillOptions(skills),
     required: false,
-    options: skills.map((skill) => ({
-      value: skill.name,
-      label: skill.name,
-      ...(skill.description ? { hint: skill.description } : {}),
-    })),
   });
 
-  // consola's multiselect resolves to the array of selected option values.
-  const chosenNames = new Set(Array.isArray(chosen) ? (chosen as unknown as string[]) : []);
+  // Ctrl+C / Esc resolves to a cancel symbol — treat it as "nothing selected".
+  if (isCancel(chosen)) return [];
+
+  const chosenNames = new Set(chosen);
   return skills.filter((skill) => chosenNames.has(skill.name));
 }
 
@@ -119,10 +120,8 @@ export default defineCommand({
       }
 
       if (args.list) {
-        consola.log(`Found ${skills.length} skill(s):`);
-        for (const skill of skills) {
-          consola.log(`  • ${skill.name}${skill.description ? ` — ${skill.description}` : ""}`);
-        }
+        // Plain stdout, not consola — the logger prefixes timestamps on each line.
+        process.stdout.write(`${formatSkillList(skills)}\n`);
         return;
       }
 
@@ -142,11 +141,10 @@ export default defineCommand({
 
       if (canPrompt && !args.all) {
         const summary = selected.map((skill) => `  • ${skill.name}`).join("\n");
-        const confirmed = await consola.prompt(
-          `Install ${selected.length} skill(s) into ${config.templatesDir}/skills?\n${summary}`,
-          { type: "confirm" },
-        );
-        if (confirmed !== true) {
+        const confirmed = await confirm({
+          message: `Install ${selected.length} skill(s) into ${config.templatesDir}/skills?\n${summary}`,
+        });
+        if (isCancel(confirmed) || confirmed !== true) {
           consola.info("Aborted.");
           return;
         }
