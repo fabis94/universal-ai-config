@@ -3,7 +3,12 @@ import { formatSkillList } from "../../src/commands/skill/list.js";
 import type { DiscoveredSkill } from "../../src/core/skill-discovery.js";
 
 function skill(name: string, description = ""): DiscoveredSkill {
-  return { name, description, dir: `/tmp/${name}` };
+  return {
+    name,
+    description,
+    dir: `/tmp/${name}`,
+    relPath: `.universal-ai-config/skills/${name}`,
+  };
 }
 
 // picocolors emits ANSI when color is supported (e.g. CI sets the CI env var),
@@ -30,6 +35,11 @@ describe("formatSkillList", () => {
     const out = plain(formatSkillList([skill("my-skill")]));
     expect(out).toContain("my-skill");
     expect(out).not.toContain("\n      ");
+  });
+
+  it("shows the source path next to the name", () => {
+    const out = plain(formatSkillList([skill("my-skill", "Does a thing")]));
+    expect(out).toContain(".universal-ai-config/skills/my-skill");
   });
 
   it("does not emit logger-style timestamps", () => {

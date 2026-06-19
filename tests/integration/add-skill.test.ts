@@ -103,4 +103,30 @@ describe("fetchSkills + installSkill (local source)", () => {
   it("throws a clear error for a missing local source", async () => {
     await expect(fetchSkills(join(FIXTURE, "does-not-exist"))).rejects.toThrow(/not found/);
   });
+
+  it("installs the .universal-ai-config source, not a generated .claude copy", async () => {
+    // A repo that contains both the authored source and a generated output copy
+    // of the same skill — discovery must prefer the source.
+    const repo = await mkdtemp(join(tmpdir(), "uac-dup-repo-"));
+    tempDirs.push(repo);
+
+    const sourceMd = "---\nname: dup\ndescription: source copy\n---\nThree backends\n";
+    const generatedMd = '---\nname: "dup"\ndescription: "generated copy"\n---\nTwo backends\n';
+    await mkdir(join(repo, ".universal-ai-config/skills/dup"), { recursive: true });
+    await writeFile(join(repo, ".universal-ai-config/skills/dup/SKILL.md"), sourceMd);
+    await mkdir(join(repo, ".claude/skills/dup"), { recursive: true });
+    await writeFile(join(repo, ".claude/skills/dup/SKILL.md"), generatedMd);
+
+    const skillsDir = await createSkillsDir();
+    const { skills, cleanup } = await fetchSkills(repo);
+    try {
+      const dup = skills.find((s) => s.name === "dup")!;
+      await installSkill(dup, skillsDir);
+
+      const installed = await readFile(join(skillsDir, "dup/SKILL.md"), "utf-8");
+      expect(installed).toBe(sourceMd);
+    } finally {
+      await cleanup();
+    }
+  });
 });

@@ -140,7 +140,7 @@ export default defineCommand({
       }
 
       if (canPrompt && !args.all) {
-        const summary = selected.map((skill) => `  • ${skill.name}`).join("\n");
+        const summary = selected.map((skill) => `  • ${skill.name} (${skill.relPath})`).join("\n");
         const confirmed = await confirm({
           message: `Install ${selected.length} skill(s) into ${config.templatesDir}/skills?\n${summary}`,
         });
@@ -156,10 +156,10 @@ export default defineCommand({
         const result = await installSkill(skill, skillsDir);
         if (result.updated) {
           updated += 1;
-          consola.success(`Updated skill ${result.name}`);
+          consola.success(`Updated skill ${result.name} (from ${skill.relPath})`);
         } else {
           added += 1;
-          consola.success(`Added skill ${result.name}`);
+          consola.success(`Added skill ${result.name} (from ${skill.relPath})`);
         }
       }
 

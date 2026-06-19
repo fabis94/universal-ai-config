@@ -10,7 +10,7 @@ import type { DiscoveredSkill } from "../../core/skill-discovery.js";
 export function formatSkillList(skills: DiscoveredSkill[]): string {
   const header = `Found ${skills.length} skill${skills.length === 1 ? "" : "s"}:`;
   const entries = skills.map((skill) => {
-    const name = `  ${pc.bold(pc.cyan(skill.name))}`;
+    const name = `  ${pc.bold(pc.cyan(skill.name))} ${pc.dim(skill.relPath)}`;
     return skill.description ? `${name}\n      ${pc.dim(skill.description)}` : name;
   });
   return [header, "", ...entries].join("\n");

@@ -88,6 +88,52 @@ describe("discoverSkills", () => {
     const skills = await discoverSkills(root);
     expect(skills).toEqual([]);
   });
+
+  it("populates relPath relative to the discovery root", async () => {
+    const skills = await discoverSkills(FIXTURE);
+    const alpha = skills.find((s) => s.name === "alpha-skill");
+    expect(alpha?.relPath).toBe(join("skills", "alpha-skill"));
+  });
+
+  it("prefers the .universal-ai-config source over a generated .claude copy", async () => {
+    const root = await createTempDir();
+    // Generated output copy (would win under old first-found-wins traversal).
+    await mkdir(join(root, ".claude/skills/dup"), { recursive: true });
+    await writeFile(
+      join(root, ".claude/skills/dup/SKILL.md"),
+      "---\nname: dup\ndescription: generated copy\n---\nbody\n",
+    );
+    // Canonical template source.
+    await mkdir(join(root, ".universal-ai-config/skills/dup"), { recursive: true });
+    await writeFile(
+      join(root, ".universal-ai-config/skills/dup/SKILL.md"),
+      "---\nname: dup\ndescription: source copy\n---\nbody\n",
+    );
+
+    const skills = await discoverSkills(root);
+    expect(skills.map((s) => s.name)).toEqual(["dup"]);
+    expect(skills[0]?.description).toBe("source copy");
+    expect(skills[0]?.relPath).toBe(join(".universal-ai-config", "skills", "dup"));
+  });
+
+  it("deterministically picks the lowest path when ranks tie", async () => {
+    const root = await createTempDir();
+    // Two neutral (non-special) locations with the same skill name.
+    await mkdir(join(root, "b-pack/dup"), { recursive: true });
+    await writeFile(
+      join(root, "b-pack/dup/SKILL.md"),
+      "---\nname: dup\ndescription: from b\n---\nbody\n",
+    );
+    await mkdir(join(root, "a-pack/dup"), { recursive: true });
+    await writeFile(
+      join(root, "a-pack/dup/SKILL.md"),
+      "---\nname: dup\ndescription: from a\n---\nbody\n",
+    );
+
+    const skills = await discoverSkills(root);
+    expect(skills.map((s) => s.name)).toEqual(["dup"]);
+    expect(skills[0]?.description).toBe("from a");
+  });
 });
 
 describe("filterSkillsByName", () => {

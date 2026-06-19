@@ -1,5 +1,5 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import { parseFrontmatter } from "./parser.js";
 
 /** A skill discovered on disk: a directory containing a valid `SKILL.md`. */
@@ -10,10 +10,29 @@ export interface DiscoveredSkill {
   description: string;
   /** Absolute path to the directory containing SKILL.md */
   dir: string;
+  /** Path to the skill dir relative to the discovery root (e.g. `.claude/skills/foo`) */
+  relPath: string;
 }
 
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", "__pycache__"]);
 const MAX_DEPTH = 5;
+
+/** Canonical uac template source directory — skills here are authored sources. */
+const TEMPLATE_SOURCE_DIR = ".universal-ai-config";
+/** Per-target output directories — skills here are generated artifacts, not sources. */
+const GENERATED_OUTPUT_DIRS = new Set([".claude", ".github", ".cursor", ".agents", ".codex"]);
+
+/**
+ * Rank a skill directory by where it lives, so that when the same skill name is
+ * found in multiple places we keep the canonical source over a generated copy.
+ * Higher wins: template source > neutral > generated output.
+ */
+function preferenceRank(dir: string): number {
+  const segments = dir.split(/[\\/]/);
+  if (segments.includes(TEMPLATE_SOURCE_DIR)) return 2;
+  if (segments.some((segment) => GENERATED_OUTPUT_DIRS.has(segment))) return 0;
+  return 1;
+}
 
 /** Normalize a skill name into a safe kebab-cased directory name. */
 export function normalizeSkillName(name: string): string {
@@ -58,7 +77,7 @@ async function findSkillDirs(dir: string, depth = 0): Promise<string[]> {
   return nested.flat();
 }
 
-async function readSkill(skillDir: string): Promise<DiscoveredSkill | null> {
+async function readSkill(skillDir: string, rootDir: string): Promise<DiscoveredSkill | null> {
   let content: string;
   try {
     content = await readFile(join(skillDir, "SKILL.md"), "utf-8");
@@ -76,12 +95,15 @@ async function readSkill(skillDir: string): Promise<DiscoveredSkill | null> {
   if (!name) return null;
 
   const description = typeof frontmatter.description === "string" ? frontmatter.description : "";
-  return { name, description, dir: skillDir };
+  return { name, description, dir: skillDir, relPath: relative(rootDir, skillDir) };
 }
 
 /**
  * Discover all skills under `rootDir` (optionally scoped to `subpath`).
- * Results are de-duplicated by name and sorted alphabetically.
+ * Results are de-duplicated by name and sorted alphabetically. When the same
+ * name is found in multiple places, the canonical template source is preferred
+ * over generated output copies (see `preferenceRank`); ties break by path so the
+ * result is deterministic regardless of filesystem traversal order.
  */
 export async function discoverSkills(
   rootDir: string,
@@ -90,18 +112,27 @@ export async function discoverSkills(
   const searchPath = subpath ? join(rootDir, subpath) : rootDir;
   const dirs = await findSkillDirs(searchPath);
 
-  const skills: DiscoveredSkill[] = [];
-  const seen = new Set<string>();
+  const byName = new Map<string, DiscoveredSkill>();
   for (const dir of dirs) {
-    const skill = await readSkill(dir);
-    if (skill && !seen.has(skill.name)) {
-      seen.add(skill.name);
-      skills.push(skill);
+    const skill = await readSkill(dir, rootDir);
+    if (!skill) continue;
+
+    const existing = byName.get(skill.name);
+    if (!existing || isPreferred(skill, existing)) {
+      byName.set(skill.name, skill);
     }
   }
 
-  skills.sort((a, b) => a.name.localeCompare(b.name));
-  return skills;
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** True when `candidate` should replace `current` for the same skill name. */
+function isPreferred(candidate: DiscoveredSkill, current: DiscoveredSkill): boolean {
+  const candidateRank = preferenceRank(candidate.dir);
+  const currentRank = preferenceRank(current.dir);
+  if (candidateRank !== currentRank) return candidateRank > currentRank;
+  // Same rank — pick the lexicographically lowest path for a stable result.
+  return candidate.dir.localeCompare(current.dir) < 0;
 }
 
 /** Filter skills by user-supplied names (case-insensitive, matches name or dir basename). */
