@@ -74,6 +74,8 @@ For Codex, multiple instruction templates consolidate into a single `AGENTS.md` 
 
 If you want a template to land at a specific directory in Codex but not affect other targets, use a per-target glob override: `globs: { codex: ["src/api/**"], default: ["**/*.ts"] }`.
 
+**Editing `globs` moves the Codex output file.** Changing `packages/frontend/**` to `packages/api/**` emits `packages/api/AGENTS.override.md` and leaves the old `packages/frontend/AGENTS.override.md` behind, where Codex keeps reading it. Run `uac generate --clean` (not plain `uac generate`) after any glob change — clean scans the project tree for that basename and removes the orphan.
+
 ### Example
 
 ```markdown

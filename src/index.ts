@@ -23,6 +23,7 @@ export type {
   MCPConfig,
   PerTargetValue,
 } from "./types.js";
+export type { CleanOptions } from "./core/writer.js";
 export type { LoadConfigOptions } from "./config/loader.js";
 export type { FetchSkillsOptions, FetchedSkills, InstalledSkill } from "./core/add-skill.js";
 export type { ParsedSkillSource } from "./core/skill-source.js";

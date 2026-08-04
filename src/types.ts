@@ -34,6 +34,18 @@ export interface UserConfig {
    */
   exclude?: PerTargetValue<string[]>;
   /**
+   * Glob patterns matched against **output** paths (relative to the project root,
+   * e.g. `"AGENTS.md"`, `".claude/skills/manual/**"`) that `uac clean` and
+   * `uac generate --clean` must never delete — the mirror image of `exclude`,
+   * which filters template inputs.
+   *
+   * Use it when a file uac would otherwise treat as a generated artifact is
+   * actually hand-authored and committed. Cleaning a directory that contains a
+   * preserved file removes the directory's other contents and leaves the
+   * directory itself in place.
+   */
+  preserveOnClean?: PerTargetValue<string[]>;
+  /**
    * Server-name-level filtering for MCP. Operates one layer deeper than `exclude`
    * (which is file-level): when `forceOptIn` is true for a target, only servers whose
    * names appear in `mcpServers` are emitted, regardless of how many input files
@@ -57,6 +69,7 @@ export interface ResolvedConfig {
   variables: Record<string, unknown>;
   outputDirs: Record<Target, string>;
   exclude: PerTargetValue<string[]>;
+  preserveOnClean: PerTargetValue<string[]>;
   mcp: MCPConfig;
 }
 
@@ -193,8 +206,6 @@ export interface GenerateOptions {
   targets?: Target[];
   types?: TemplateType[];
   config?: string;
-  dryRun?: boolean;
-  clean?: boolean;
   /** Inline config overrides — merged after config file, before CLI-level target/type overrides */
   overrides?: UserConfig;
   /** In-memory templates — processed alongside (or instead of) file-discovered templates */

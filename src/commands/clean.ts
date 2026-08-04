@@ -1,6 +1,6 @@
 import { defineCommand } from "citty";
 import { consola } from "consola";
-import { cleanTargetFiles } from "../core/writer.js";
+import { runClean } from "./run-clean.js";
 import { resolveCliRoot } from "./resolve-root.js";
 import type { Target, TemplateType } from "../types.js";
 
@@ -13,16 +13,27 @@ export default defineCommand({
     target: {
       type: "string",
       alias: "t",
-      description: "Comma-separated targets to clean: claude,copilot,cursor",
+      description: "Comma-separated targets to clean: claude,copilot,cursor,codex",
     },
     type: {
       type: "string",
       description: "Comma-separated types to clean: instructions,skills,agents,hooks,mcp",
     },
+    config: {
+      type: "string",
+      alias: "c",
+      description: "Config file path",
+    },
     root: {
       type: "string",
       alias: "r",
       description: "Project root (default: nearest uac root, searching up from cwd)",
+    },
+    "dry-run": {
+      type: "boolean",
+      alias: "d",
+      description: "Print what would be removed without deleting",
+      default: false,
     },
   },
   async run({ args }) {
@@ -34,7 +45,16 @@ export default defineCommand({
       ? (args.type.split(",").map((s) => s.trim()) as TemplateType[])
       : undefined;
 
-    await cleanTargetFiles(root, targets, types, { verbose: true });
-    consola.success("Clean complete");
+    // Always per-path: `clean` has no other output worth reading.
+    await runClean({
+      root,
+      targets,
+      types,
+      configPath: args.config,
+      verbose: true,
+      dryRun: args["dry-run"],
+    });
+
+    consola.success(args["dry-run"] ? "Dry run complete" : "Clean complete");
   },
 });
