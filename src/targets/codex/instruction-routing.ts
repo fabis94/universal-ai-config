@@ -2,6 +2,14 @@ import { normalizeGlobs } from "../../core/normalize-globs.js";
 import type { UniversalFrontmatter } from "../../types.js";
 
 /**
+ * Basename of Codex's per-directory instruction file. uac-owned — `uac seed
+ * gitignore` lists `**\/AGENTS.override.md`, generate overwrites it without
+ * asking, and `cleanTargetFiles` locates orphans by scanning for this exact
+ * name. Shared so clean and generate can't drift apart on it.
+ */
+export const CODEX_OVERRIDE_FILENAME = "AGENTS.override.md";
+
+/**
  * Given a glob pattern, return the longest leading directory prefix with no
  * wildcard characters, or `null` if the glob starts with a wildcard segment
  * or has no wildcard at all.
@@ -48,5 +56,5 @@ export function getCodexInstructionEmissionPaths(fm: UniversalFrontmatter): stri
   }
   if (dirs.size === 0) return ["AGENTS.md"];
 
-  return [...dirs].sort().map((d) => `${d}/AGENTS.override.md`);
+  return [...dirs].sort().map((d) => `${d}/${CODEX_OVERRIDE_FILENAME}`);
 }

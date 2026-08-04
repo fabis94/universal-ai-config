@@ -13,5 +13,6 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     codex: ".codex",
   },
   exclude: [],
+  preserveOnClean: [],
   mcp: {},
 };

@@ -58,6 +58,27 @@ describe("userConfigSchema", () => {
     expect(() => userConfigSchema.parse({ exclude: [123] })).toThrow();
   });
 
+  it("validates preserveOnClean as array of strings", () => {
+    const result = userConfigSchema.parse({ preserveOnClean: ["AGENTS.md", ".claude/**"] });
+    expect(result.preserveOnClean).toEqual(["AGENTS.md", ".claude/**"]);
+  });
+
+  it("validates preserveOnClean as per-target object", () => {
+    const result = userConfigSchema.parse({
+      preserveOnClean: { codex: ["AGENTS.md"], default: [] },
+    });
+    expect(result.preserveOnClean).toEqual({ codex: ["AGENTS.md"], default: [] });
+  });
+
+  it("allows omitting preserveOnClean", () => {
+    const result = userConfigSchema.parse({});
+    expect(result.preserveOnClean).toBeUndefined();
+  });
+
+  it("rejects preserveOnClean with non-string array items", () => {
+    expect(() => userConfigSchema.parse({ preserveOnClean: [123] })).toThrow();
+  });
+
   it("validates additionalTemplateDirs as array of strings", () => {
     const result = userConfigSchema.parse({
       additionalTemplateDirs: ["~/.universal-ai-config", "/shared/templates"],

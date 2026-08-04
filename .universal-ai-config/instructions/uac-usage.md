@@ -38,7 +38,7 @@ Generate target-specific config files from templates.
 - `--target, -t <targets>` — comma-separated targets: `claude`, `copilot`, `cursor`, `codex`
 - `--type <types>` — comma-separated types: `instructions`, `skills`, `agents`, `hooks`, `mcp`
 - `--dry-run, -d` — preview what would be generated without writing files
-- `--clean` — remove existing generated files before generating. Scoped by `--type`: `--clean` alone removes everything, but combined with `--type skills` it only cleans skills artifacts, leaving other types in place.
+- `--clean` — remove existing generated files before generating. Scoped by `--type`: `--clean` alone removes everything, but combined with `--type skills` it only cleans skills artifacts, leaving other types in place. Combined with `--dry-run` it previews the removals instead of performing them. With no `--target` it cleans **every** target, not just the ones in your config — see [`uac clean`](#uac-clean).
 
 ### `uac init`
 
@@ -52,8 +52,16 @@ Seed pre-built template sets into the templates directory. Available types: `met
 
 Remove all generated config directories.
 
-- `--target, -t <targets>` — comma-separated targets to clean
+- `--target, -t <targets>` — comma-separated targets to clean (default: every registered target)
 - `--type <types>` — comma-separated types to clean: `instructions`, `skills`, `agents`, `hooks`, `mcp` (default: all types)
+- `--config, -c <path>` — config file path
+- `--dry-run, -d` — print what would be removed without deleting
+
+With no `--target`, clean removes artifacts for **every registered target**, not only those in your config's `targets`. That's deliberate: dropping `codex` from `targets` would otherwise strand its `AGENTS.md`, `.agents/skills/`, and `<dir>/AGENTS.override.md` files on disk forever, where Codex keeps reading them. Narrow with `--target` when you want less.
+
+Clean loads your config so `outputDirs`, `preserveOnClean`, and `templatesDir` are honored.
+
+Codex's `<dir>/AGENTS.override.md` files are located by **scanning the project tree** rather than from a fixed list — their paths come from each template's `globs` prefix, so they move when templates change. The scan skips `node_modules`, `.git`, build output, and `templatesDir`, and matches that basename exactly (never `AGENTS.md`, which users hand-author in nested directories). This is what removes orphans left behind by a deleted template, an edited `globs`, or a dropped target.
 
 ### `uac skill add <source>`
 
@@ -97,6 +105,7 @@ The config file (`universal-ai-config.config.ts`) supports these options:
 - `variables` — custom variables for templates (EJS in markdown, typed `{{var}}` in JSON — exact-match placeholders resolve to raw values like arrays/objects)
 - `outputDirs` — override default output directories per target
 - `exclude` — glob patterns to skip templates from generation (array or per-target object)
+- `preserveOnClean` — glob patterns matching **output** paths that `uac clean` must never delete (array or per-target object). See [Preserving files from clean](#preserving-files-from-clean) below.
 - `mcp` — server-name-level opt-in filtering for MCP. `mcp.forceOptIn` toggles allow-list mode per target; `mcp.mcpServers` lists which server names are emitted when opt-in is active. See [MCP opt-in filtering](#mcp-opt-in-filtering) below.
 
 ### Template Exclusion
@@ -116,6 +125,30 @@ exclude: {
 ```
 
 For instructions/skills/agents one input file maps to one output, so exclusion is 1:1. For **hooks** and **MCP**, multiple input JSON files merge into a single output: excluding `hooks/debug.json` or `mcp/internal.json` drops every handler/server that file declared. The `exclude` option does not target individual hook handlers or named MCP servers — only the whole input file containing it. For MCP specifically, see `mcp.forceOptIn` / `mcp.mcpServers` below for server-name-level filtering.
+
+### Preserving Files From Clean
+
+`preserveOnClean` is the mirror image of `exclude`: patterns match **output** paths relative to the project root, not template input paths. Anything matching is left alone by `uac clean` and `uac generate --clean`.
+
+```typescript
+// Keep a hand-authored, committed AGENTS.md that uac would otherwise delete
+preserveOnClean: ["AGENTS.md"]
+
+// Per-target form
+preserveOnClean: {
+  codex: ["AGENTS.md"],
+  claude: [".claude/skills/manual/**"],
+  default: [],
+}
+```
+
+Reach for it whenever a path uac treats as a generated artifact is actually maintained by hand. Root `AGENTS.md` and `<dir>/AGENTS.override.md` are the usual cases — clean removes them because they exist at a uac-managed path, not because uac verified it wrote them.
+
+Notes:
+
+- Cleaning a directory that contains a preserved file removes the directory's **other** contents and leaves the directory itself in place (e.g. `preserveOnClean: [".claude/skills/manual/**"]` keeps that one skill while every other generated skill goes).
+- Preserved paths that actually exist are listed in the clean output, so you can see what was skipped.
+- Like `exclude`, an overrides config **replaces** this array; use `mergeField` to concatenate.
 
 ### MCP Opt-In Filtering
 
@@ -171,13 +204,13 @@ export default defineConfig({
 Unlike the other three targets, Codex emits files in **multiple locations** outside its `outputDir`. This is intentional — Codex auto-discovers these standard locations:
 
 - **`AGENTS.md` at project root** — concatenation of all `alwaysApply: true` instructions (plus templates with leading-wildcard or no globs)
-- **`<dir>/AGENTS.override.md`** — per-directory instruction files derived from `globs` prefixes
+- **`<dir>/AGENTS.override.md`** — per-directory instruction files derived from `globs` prefixes. Editing a template's `globs` **moves** this file; `uac clean` finds the old location by scanning for the basename, so run `uac generate --clean` after a glob change rather than plain `uac generate`
 - **`.agents/skills/<name>/SKILL.md`** — root-relative, per Codex's auto-discovery convention; sidecar `agents/openai.yaml` emitted next to SKILL.md when relevant
 - **`.codex/agents/<name>.toml`** — standalone agent files (auto-discovered by Codex)
 - **`.codex/hooks.json`** — JSON hooks file
 - **`.codex/config.toml`** — only the `[mcp_servers.*]` table is uac-owned; users can hand-author other top-level keys (profiles, providers, permissions, personality, etc.) and uac preserves them
 
-All of these are gitignored by `uac seed gitignore` so each developer regenerates locally.
+All of these are gitignored by `uac seed gitignore` so each developer regenerates locally. If you deliberately commit a hand-authored file at one of these paths, add it to `preserveOnClean` — otherwise clean removes it.
 
 ## Further Reading
 

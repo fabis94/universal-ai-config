@@ -23,8 +23,9 @@ function mergeConfigs(base: ResolvedConfig, override: UserConfig): ResolvedConfi
     // Objects: deep merge
     variables: { ...base.variables, ...override.variables },
     outputDirs: { ...base.outputDirs, ...override.outputDirs },
-    // Exclude: override replaces entirely
+    // Exclude / preserveOnClean: override replaces entirely (use `mergeField` to concatenate)
     exclude: override.exclude ?? base.exclude,
+    preserveOnClean: override.preserveOnClean ?? base.preserveOnClean,
     // MCP config: shallow-merge fields (forceOptIn / mcpServers each replace independently)
     mcp: { ...base.mcp, ...override.mcp },
   };

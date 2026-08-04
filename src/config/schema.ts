@@ -16,7 +16,7 @@ const perTargetSchema = <T extends z.ZodType>(inner: T) =>
     }),
   ]);
 
-const excludeSchema = perTargetSchema(z.array(z.string()));
+const stringArrayPerTarget = perTargetSchema(z.array(z.string()));
 
 const mcpConfigSchema = z.object({
   forceOptIn: perTargetSchema(z.boolean()).optional(),
@@ -37,7 +37,8 @@ export const userConfigSchema = z.object({
       codex: z.string().optional(),
     })
     .optional(),
-  exclude: excludeSchema.optional(),
+  exclude: stringArrayPerTarget.optional(),
+  preserveOnClean: stringArrayPerTarget.optional(),
   mcp: mcpConfigSchema.optional(),
 });
 

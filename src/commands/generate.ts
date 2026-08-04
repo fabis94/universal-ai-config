@@ -1,7 +1,8 @@
 import { defineCommand } from "citty";
 import { consola } from "consola";
 import { generate } from "../core/generate.js";
-import { writeGeneratedFiles, cleanTargetFiles } from "../core/writer.js";
+import { writeGeneratedFiles } from "../core/writer.js";
+import { runClean } from "./run-clean.js";
 import { resolveCliRoot } from "./resolve-root.js";
 import type { GeneratedFile, Target, TemplateType } from "../types.js";
 
@@ -88,10 +89,14 @@ export default defineCommand({
       : undefined;
 
     if (args.clean) {
-      const cleaned = await cleanTargetFiles(root, targets, types, { verbose: args.verbose });
-      if (!args.verbose && cleaned.length > 0) {
-        consola.info(`Cleaned ${cleaned.length} existing path(s)`);
-      }
+      await runClean({
+        root,
+        targets,
+        types,
+        configPath: args.config,
+        verbose: args.verbose,
+        dryRun: args["dry-run"],
+      });
     }
 
     const files = await generate({
@@ -99,8 +104,6 @@ export default defineCommand({
       targets,
       types,
       config: args.config,
-      dryRun: args["dry-run"],
-      clean: args.clean,
     });
 
     if (args["dry-run"]) {

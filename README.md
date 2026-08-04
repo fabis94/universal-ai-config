@@ -501,6 +501,9 @@ export default defineConfig({
 
   // Exclude templates by glob pattern (optional)
   exclude: ["agents/internal-only.md"],
+
+  // Output paths `uac clean` must never delete (optional)
+  preserveOnClean: ["AGENTS.md"],
 });
 ```
 
@@ -549,6 +552,25 @@ export default defineConfig({
 ```
 
 Supported glob syntax: `*` (single segment), `**` (recursive), `?` (single char), `{a,b}` (alternatives).
+
+### Preserving Files From Clean
+
+`uac clean` and `uac generate --clean` remove every path uac knows how to generate — including root `AGENTS.md` and any `<dir>/AGENTS.override.md` found in your project tree, whether or not uac actually wrote them. If you keep a hand-authored, committed file at one of those paths, list it under `preserveOnClean`:
+
+```typescript
+export default defineConfig({
+  preserveOnClean: ["AGENTS.md", "docs/AGENTS.override.md"],
+});
+```
+
+`preserveOnClean` is the mirror image of `exclude`: patterns match **output** paths relative to the project root (`AGENTS.md`, `.claude/skills/manual/**`), whereas `exclude` matches template **input** paths. It accepts the same per-target object form, and paths it spares are listed in the clean output so you can see what was skipped.
+
+Cleaning a directory that contains a preserved file removes the directory's other contents and leaves the directory itself in place:
+
+```typescript
+// .claude/skills/manual/ survives; every other generated skill is removed
+preserveOnClean: [".claude/skills/manual/**"];
+```
 
 ### MCP Opt-In Filtering
 
@@ -645,6 +667,8 @@ Generate config files for specified targets.
 | `--dry-run` | `-d`  | Preview without writing     | `false`         |
 | `--clean`   |       | Remove existing files first | `false`         |
 
+Combining `--clean` with `--dry-run` previews the removals instead of performing them. `--clean` is scoped by `--type`, and by `--target` when given; with no `--target` it removes artifacts for **every** target, not just the ones in your config — that's what clears stale output for a target you've since dropped from `targets`. Use [`preserveOnClean`](#preserving-files-from-clean) to protect hand-authored files.
+
 ### `uac init`
 
 Scaffold `.universal-ai-config/` directory with meta-instruction templates and a `universal-ai-config.config.ts` config file. Seeds instruction and skill templates that teach AI tools how to manage universal-ai-config templates. Adds `universal-ai-config.overrides.*` to `.gitignore`.
@@ -657,10 +681,17 @@ Scaffold `.universal-ai-config/` directory with meta-instruction templates and a
 
 Remove all generated config directories.
 
-| Flag       | Short | Description                      | Default        |
-| ---------- | ----- | -------------------------------- | -------------- |
-| `--target` | `-t`  | Comma-separated targets to clean | All            |
-| `--root`   | `-r`  | Project root                     | Nearest root ↑ |
+| Flag        | Short | Description                      | Default        |
+| ----------- | ----- | -------------------------------- | -------------- |
+| `--target`  | `-t`  | Comma-separated targets to clean | All registered |
+| `--type`    |       | Comma-separated types to clean   | All            |
+| `--config`  | `-c`  | Config file path                 | Auto-detected  |
+| `--root`    | `-r`  | Project root                     | Nearest root ↑ |
+| `--dry-run` | `-d`  | Print removals without deleting  | `false`        |
+
+With no `--target`, clean removes artifacts for **every registered target** rather than only those in your config's `targets` — so dropping `codex` from `targets` still lets a later `uac clean` remove its stale `AGENTS.md`, `.agents/skills/`, and `<dir>/AGENTS.override.md` files. Narrow it with `--target` when you want less, and use [`preserveOnClean`](#preserving-files-from-clean) to protect hand-authored files at uac-managed paths.
+
+Config is loaded so that `outputDirs`, `preserveOnClean`, and `templatesDir` are honored.
 
 ### `uac seed`
 
@@ -779,10 +810,11 @@ Codex emits files in **multiple locations** outside `outputDir` to align with Co
 
 - **`.codex/config.toml` is shared with user content.** uac only writes the `[mcp_servers.*]` table. Users can hand-author `[profiles.*]`, `[model_providers.*]`, `[permissions.*]`, `personality`, `[memories]`, `[tui]`, OTel config, etc. directly in this file and uac preserves those sections across regenerates. `uac clean --target codex` only removes the `mcp_servers` key from this file.
 - All other Codex output files (`AGENTS.md`, `AGENTS.override.md`, `.codex/agents/*.toml`, `.codex/hooks.json`, `.agents/skills/`) are wholly uac-managed — plain overwrite on each regenerate, same as `.claude/rules/`, `.cursor/rules/`, etc.
+- **`AGENTS.override.md` files are found by scanning**, not by a fixed path list — their location comes from each template's `globs` prefix, so it changes as templates change. `uac clean` walks the project tree (skipping `node_modules`, `.git`, build output, and your templates dir) and removes every file with that exact basename, which is what clears orphans left by a deleted template, an edited `globs`, or a target dropped from `targets`. A hand-authored file at that path is treated as uac-owned; list it under [`preserveOnClean`](#preserving-files-from-clean) to keep it. Nested `AGENTS.md` files are never scanned for — uac only ever writes that one at the root.
 
 #### Codex caveats
 
-- **Instructions consolidate.** `alwaysApply: true` (or templates with no globs / leading-wildcard globs like `**/*.ts`) → concatenated into root `AGENTS.md`. Templates with resolvable-prefix globs like `packages/frontend/**` → `<dir>/AGENTS.override.md`. Templates targeting the same dir get alpha-sorted and concatenated.
+- **Instructions consolidate.** `alwaysApply: true` (or templates with no globs / leading-wildcard globs like `**/*.ts`) → concatenated into root `AGENTS.md`. Templates with resolvable-prefix globs like `packages/frontend/**` → `<dir>/AGENTS.override.md`. Templates targeting the same dir get alpha-sorted and concatenated. Changing a `globs` prefix **relocates** the output file — run `uac generate --clean` afterwards so the file at the old location doesn't linger and keep steering Codex.
 - **Agents are TOML.** Each agent template → `.codex/agents/<name>.toml` with body content in `developer_instructions`. Codex auto-discovers these files; no `[agents.*]` registration in `config.toml` is needed.
 - **Per-target overrides are required** for `model` (Claude vs Codex model IDs), `permissionMode` → `sandboxMode` (different vocabularies), and `tools` (Codex has no agent-level tool restriction — use per-MCP `enabledTools` instead). uac warns when these mismatches are detected.
 - **`effort` auto-maps** to Codex's `model_reasoning_effort` when the value is in `{minimal, low, medium, high, xhigh}`. Claude-only `max` drops with a warning.
@@ -813,6 +845,7 @@ const files = await generate({
     variables: { projectName: "my-app" },
     exclude: ["agents/**"],
     outputDirs: { claude: ".custom-claude" },
+    preserveOnClean: ["AGENTS.md"],
   },
 });
 
@@ -836,15 +869,28 @@ const config = await loadProjectConfig({ root: process.cwd() });
 | `config`    | `string`         | Config file path                    |
 | `overrides` | `UserConfig`     | Inline config overrides (see below) |
 
-The `overrides` option accepts all config file fields (`templatesDir`, `additionalTemplateDirs`, `variables`, `outputDirs`, `exclude`, `targets`, `types`). Priority order: defaults → config file → overrides file → **inline overrides** → CLI-level `targets`/`types`.
+The `overrides` option accepts all config file fields (`templatesDir`, `additionalTemplateDirs`, `variables`, `outputDirs`, `exclude`, `preserveOnClean`, `targets`, `types`). Priority order: defaults → config file → overrides file → **inline overrides** → CLI-level `targets`/`types`.
+
+`generate()` never touches disk — it returns `GeneratedFile[]`. Pair it with `writeGeneratedFiles()` to write and `cleanTargetFiles()` to clean.
 
 ### `writeGeneratedFiles(files, root)`
 
 Writes `GeneratedFile[]` to disk. Handles `mergeKey` for JSON merge targets (e.g., Claude hooks into `settings.json`).
 
-### `cleanTargetFiles(root, targets?)`
+### `cleanTargetFiles(root, targets?, types?, options?)`
 
-Removes generated config files for specified targets (or all targets if omitted).
+Removes generated config files for the specified targets (all registered targets if omitted) and types (all if omitted). Returns the root-relative paths removed.
+
+| Option            | Type                              | Description                                                            |
+| ----------------- | --------------------------------- | ---------------------------------------------------------------------- |
+| `verbose`         | `boolean`                         | Log each path as it's removed, skipped, or previewed                   |
+| `dryRun`          | `boolean`                         | Return what would be removed without touching disk                     |
+| `outputDirs`      | `Partial<Record<Target, string>>` | Per-target output dirs; falls back to each target's default            |
+| `preserveOnClean` | `PerTargetValue<string[]>`        | Root-relative globs that must never be deleted                         |
+| `templatesDir`    | `string`                          | Excluded from the Codex `AGENTS.override.md` scan (inputs, not output) |
+| `onPreserve`      | `(path: string) => void`          | Called per existing path that `preserveOnClean` spared                 |
+
+Unlike the CLI, this function does not load your config file — pass `outputDirs` / `preserveOnClean` / `templatesDir` yourself (e.g. from `loadProjectConfig()`) if you need them honored.
 
 ### `loadProjectConfig(options?)`
 
