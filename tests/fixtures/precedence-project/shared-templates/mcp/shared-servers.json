@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "dup-server": { "command": "shared-cmd" },
+    "shared-server": { "command": "shared-only" }
+  },
+  "inputs": [
+    { "type": "promptString", "id": "token", "description": "token from SHARED" },
+    { "type": "promptString", "id": "shared-token", "description": "only in SHARED" }
+  ]
+}

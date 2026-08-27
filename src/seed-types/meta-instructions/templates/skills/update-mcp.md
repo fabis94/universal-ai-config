@@ -12,7 +12,7 @@ MCP (Model Context Protocol) server configurations define external tool servers 
 
 List files in `<%%= mcpTemplatePath() %>/` to discover existing MCP templates (`.json` files). Read them to understand what servers are already configured.
 
-**Note:** Servers from multiple files are merged by server name during generation (last-wins for duplicates). You can organize servers by concern (e.g. `github.json`, `databases.json`).
+**Note:** Servers from multiple files are merged by server name during generation, and the **first declaration of a name wins** (`templatesDir` before `additionalTemplateDirs`, in order). You can organize servers by concern (e.g. `github.json`, `databases.json`).
 
 ## Deciding What to Do
 

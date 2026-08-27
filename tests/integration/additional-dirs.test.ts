@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
 import { generate } from "../../src/core/generate.js";
+import type { ShadowEvent } from "../../src/types.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/additional-dirs-project");
 
@@ -29,6 +30,27 @@ describe("additionalTemplateDirs", () => {
       expect(shadowed).toBeDefined();
       expect(shadowed!.content).toContain("LOCAL version");
       expect(shadowed!.content).not.toContain("SHARED version");
+    });
+
+    it("reports the shadowed copy through onShadowed", async () => {
+      const shadows: ShadowEvent[] = [];
+      await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude"],
+        types: ["instructions"],
+        onShadowed: (event) => shadows.push(event),
+      });
+
+      expect(shadows).toEqual([
+        {
+          target: "claude",
+          type: "instructions",
+          scope: "template",
+          name: "shadowed-rule",
+          losingPath: "shared-templates/instructions/shadowed-rule.md",
+          winningPath: ".universal-ai-config/instructions/shadowed-rule.md",
+        },
+      ]);
     });
 
     it("local-only templates still work", async () => {

@@ -1,0 +1,5 @@
+{
+  "hooks": {
+    "preToolUse": [{ "matcher": "Bash", "command": "echo never-emitted" }]
+  }
+}

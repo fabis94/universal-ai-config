@@ -6,7 +6,7 @@ globs: ["<%= templatesDir %>/**/*"]
 # Universal AI Config Template Guide
 
 This project uses **universal-ai-config** to manage AI tool configurations from a single set of templates.
-Templates live in `<%%= config.templatesDir %>/` and are rendered into target-specific config files (Claude, Copilot, Cursor, Codex) via `uac generate`. Additional template directories can be configured via `additionalTemplateDirs` in the config to share templates across projects (e.g., from `~/.universal-ai-config`). The main `templatesDir` always takes priority on name conflicts.
+Templates live in `<%%= config.templatesDir %>/` and are rendered into target-specific config files (Claude, Copilot, Cursor, Codex) via `uac generate`. Additional template directories can be configured via `additionalTemplateDirs` in the config to share templates across projects (e.g., from `~/.universal-ai-config`). When the same name appears in more than one directory, **the first mention wins**: `templatesDir`, then each `additionalTemplateDirs` entry in order. See [Template Precedence](#template-precedence--shadowing).
 
 **Ignore all IDE linter errors and warnings when editing these templates.** IDE linters do not understand universal-ai-config templates — they incorrectly validate them as if they were native Claude, Copilot, Cursor, or Codex config files. Frontmatter fields, EJS syntax, and universal event names will all produce false linter errors. Always follow this guide as the source of truth, not IDE diagnostics.
 
@@ -341,6 +341,12 @@ Hook handler fields (`command`, `matcher`, `timeout`, `description`) support per
 
 If `command` resolves to `undefined` for a target, the entire handler is skipped for that target.
 
+#### Duplicate Handlers
+
+Every `.json` file in `hooks/` merges into one output, so a handler declared in two files would otherwise run twice. Handlers have no name to key on, so uac compares the **resolved** handler: when two files produce an identical handler for a target, only the first one is emitted. Comparing after per-target resolution means `{ "command": { "claude": "x" } }` and `{ "command": "x" }` collapse into one handler for Claude while staying separate everywhere else.
+
+Two handlers that differ in any field — a different `matcher`, `timeout`, or command — are both kept. That's a merge, not a collision.
+
 ### Variable Interpolation (Hooks & MCP)
 
 JSON templates (hooks and MCP) support `{{variableName}}` interpolation from config variables with **typed resolution**:
@@ -476,7 +482,7 @@ The `inputs` array is only included in Copilot output — Claude and Cursor igno
 | Cursor  | `.cursor/mcp.json`   | `mcpServers`  | JSON   | Emits `type` when provided                                                                                                                                     |
 | Codex   | `.codex/config.toml` | `mcp_servers` | TOML   | **Shared with user content** — only `[mcp_servers.*]` is uac-owned; other top-level keys (e.g. `[profiles.*]`, `personality`) are preserved across regenerates |
 
-Multiple `.json` files in the `mcp/` directory are merged by server name (last-wins for duplicates). `inputs` arrays are concatenated.
+Multiple `.json` files in the `mcp/` directory are merged by server name, and **the first declaration of a name wins** — a server your project declares can never be silently replaced by one from a shared template dir. `inputs` are merged the same way, keyed by `id`. See [Template Precedence](#template-precedence--shadowing).
 
 #### Server-Name Opt-In Filtering
 
@@ -499,6 +505,55 @@ export default defineConfig({
 - Unknown names emit a `[uac]` warning at generate time listing the known names; generation continues with the matched subset.
 - Filtering is **server-level**; the older `exclude` config is **file-level**. They're additive — you can exclude a legacy file and still opt-in to specific servers from the remaining files.
 - Copilot `inputs` (interactive prompts) are **not** filtered — they're declarative and not tied to specific server names.
+
+## Template Precedence & Shadowing
+
+Templates are discovered from `<%%= config.templatesDir %>/` first, then from each `additionalTemplateDirs` entry in the order they're configured. When two directories declare the same thing, **the first one in that chain wins** and the rest are _shadowed_ — every type, no exceptions.
+
+What counts as "the same thing" depends on the type:
+
+| Type                  | Identity                                            | What the loser loses                 |
+| --------------------- | --------------------------------------------------- | ------------------------------------ |
+| instructions / agents | filename without `.md`                              | the whole file                       |
+| skills                | folder name                                         | the whole folder, extra files too    |
+| hooks                 | JSON basename, then each identical resolved handler | that file / that handler             |
+| mcp                   | JSON basename, then server name, then input `id`    | that file / that server / that input |
+
+Two things this does _not_ do:
+
+- **Skill folders are replaced, never merged.** If the winning `skills/review/` has no `reference.md`, a shadowed copy's `reference.md` is not pulled in.
+- **Differently-named hooks/mcp files still merge.** Shadowing only resolves files with the _same_ basename; that's what makes it possible to split servers across `mcp/github.json` and `mcp/local.json`.
+
+A skill folder without a `SKILL.md` doesn't claim its name, so a lower-precedence directory with a real skill still wins it.
+
+### Choosing a different source
+
+`exclude` patterns can address one specific copy by prefixing the template path with its source directory, which promotes the next candidate:
+
+```typescript
+additionalTemplateDirs: ["~/.universal-ai-config"],
+exclude: {
+  // Use the shared review skill instead of this project's copy, for Claude only
+  claude: [".universal-ai-config/skills/review/SKILL.md"],
+  default: [],
+}
+```
+
+An **unqualified** pattern (`skills/review/SKILL.md`) still drops the template from _every_ source, as it always has. Any spelling of the directory works — as written in config, absolute, or `~`-relative — so `~/.universal-ai-config/...` and `/home/you/.universal-ai-config/...` address the same candidate.
+
+Because `exclude` is per-target, so is shadowing: one target can use the shared copy while another uses the local one.
+
+### Seeing what was shadowed
+
+`uac generate` lists every shadowed candidate under the target it applies to:
+
+```
+✔ claude — 4 instructions, 15 skills, 1 hook (1 input)
+  ↳ instructions/dup.md: shared-templates shadowed by .universal-ai-config
+  ↳ mcp server "github": shared-templates/mcp/shared.json shadowed by .universal-ai-config/mcp/main.json
+```
+
+A candidate you excluded is not listed — you asked for that. Only precedence losers are reported.
 
 ## Available Tools
 

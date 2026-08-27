@@ -1,0 +1,9 @@
+{
+  "hooks": {
+    "preToolUse": [
+      { "matcher": "Bash", "command": "echo dup-handler" },
+      { "matcher": "Edit", "command": "echo local-only" },
+      { "matcher": "Read", "command": "echo per-target-dup" }
+    ]
+  }
+}

@@ -155,6 +155,34 @@ describe("in-memory templates", () => {
     expect(alwaysRule!.content).not.toContain("SHOULD NOT APPEAR");
   });
 
+  it("an in-memory template wins once every file candidate is excluded", async () => {
+    const templates: InMemoryTemplate[] = [
+      {
+        name: "always-rule",
+        type: "instructions",
+        content: [
+          "---",
+          "description: In-memory fallback",
+          "alwaysApply: true",
+          "---",
+          "This in-memory template takes over.",
+        ].join("\n"),
+      },
+    ];
+
+    const files = await generate({
+      root: FIXTURES_DIR,
+      targets: ["claude"],
+      types: ["instructions"],
+      templates,
+      overrides: { exclude: [".universal-ai-config/instructions/always-rule.md"] },
+    });
+
+    const alwaysRule = files.find((f) => f.path.includes("always-rule"));
+    expect(alwaysRule).toBeDefined();
+    expectYamlField(alwaysRule!.content, "description", "In-memory fallback");
+  });
+
   it("handles in-memory templates with CRLF line endings", async () => {
     const templates: InMemoryTemplate[] = [
       {

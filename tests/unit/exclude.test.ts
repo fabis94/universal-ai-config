@@ -75,4 +75,25 @@ describe("createExcludeMatcher", () => {
     expect(isExcluded("agents/foo.md")).toBe(true);
     expect(isExcluded("skills/bar/SKILL.md")).toBe(false);
   });
+
+  it("matches dot-leading source dirs through a wildcard", () => {
+    // Source-qualified patterns have to reach into `.universal-ai-config`
+    const isExcluded = createExcludeMatcher(["**/instructions/dup.md"], "claude");
+    expect(isExcluded(".universal-ai-config/instructions/dup.md")).toBe(true);
+    expect(isExcluded("shared-templates/instructions/dup.md")).toBe(true);
+
+    const wildcardDir = createExcludeMatcher(["*/mcp/servers.json"], "claude");
+    expect(wildcardDir(".universal-ai-config/mcp/servers.json")).toBe(true);
+  });
+
+  it("treats a leading ./ in a pattern as no prefix", () => {
+    const isExcluded = createExcludeMatcher(["./shared/instructions/foo.md"], "claude");
+    expect(isExcluded("shared/instructions/foo.md")).toBe(true);
+  });
+
+  it("does not let an unqualified pattern match a source-qualified path", () => {
+    const isExcluded = createExcludeMatcher(["instructions/dup.md"], "claude");
+    expect(isExcluded("instructions/dup.md")).toBe(true);
+    expect(isExcluded("shared-templates/instructions/dup.md")).toBe(false);
+  });
 });

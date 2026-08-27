@@ -210,6 +210,36 @@ export interface GenerateOptions {
   overrides?: UserConfig;
   /** In-memory templates — processed alongside (or instead of) file-discovered templates */
   templates?: InMemoryTemplate[];
+  /**
+   * Called once per shadowed candidate, per target. A candidate is shadowed when
+   * a higher-precedence source declared the same identity — see `ShadowEvent`.
+   * Candidates dropped by `exclude` are not reported: that was asked for.
+   */
+  onShadowed?: (event: ShadowEvent) => void;
+}
+
+/**
+ * Reported when a template candidate loses a name collision to a
+ * higher-precedence source (`templatesDir`, then `additionalTemplateDirs` in
+ * order, then in-memory templates).
+ *
+ * Shadowing is resolved per target, because `exclude` is per target: excluding
+ * the winner for one target promotes the next candidate for that target only.
+ */
+export interface ShadowEvent {
+  target: Target;
+  type: TemplateType;
+  /**
+   * Granularity of the collision: a whole template (instructions/agents/skills),
+   * a whole hooks/mcp JSON file, or a single entry merged out of one.
+   */
+  scope: "template" | "file" | "handler" | "server" | "input";
+  /** The identity that collided — template name, JSON basename, hook event, server name, input id */
+  name: string;
+  /** Source-qualified path of the candidate that lost */
+  losingPath: string;
+  /** Source-qualified path of the candidate that won */
+  winningPath: string;
 }
 
 /**

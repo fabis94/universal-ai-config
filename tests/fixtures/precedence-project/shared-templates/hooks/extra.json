@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "preToolUse": [
+      { "matcher": "Bash", "command": "echo dup-handler" },
+      { "matcher": "Write", "command": "echo shared-only" },
+      {
+        "matcher": "Read",
+        "command": { "claude": "echo per-target-dup", "default": "echo per-target-unique" }
+      }
+    ]
+  }
+}

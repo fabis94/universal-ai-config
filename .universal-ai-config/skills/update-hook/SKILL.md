@@ -12,7 +12,7 @@ Hooks are lifecycle automation that triggers on specific events during AI sessio
 
 List files in `<%= hookTemplatePath() %>/` to discover existing hook templates (`.json` files). Read them to understand what events are already handled.
 
-**Note:** Hooks from multiple files are merged by event name during generation. You can organize hooks by concern (e.g. `linting.json`, `security.json`).
+**Note:** Hooks from multiple files are merged by event name during generation; if two files produce an identical handler for a target, only the first is emitted. You can organize hooks by concern (e.g. `linting.json`, `security.json`).
 
 ## Deciding What to Do
 

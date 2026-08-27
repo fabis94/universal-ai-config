@@ -13,6 +13,7 @@ export type {
   InMemoryTemplate,
   InMemoryExtraFile,
   ResolvedConfig,
+  ShadowEvent,
   Target,
   TemplateType,
   UserConfig,

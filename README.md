@@ -17,6 +17,7 @@ Generate tool-specific AI config files from shared templates. Write your AI inst
 - [Per-Target Overrides](#per-target-overrides)
 - [EJS Template Variables](#ejs-template-variables)
 - [Configuration](#configuration)
+  - [Template Precedence & Shadowing](#template-precedence--shadowing)
 - [CLI Reference](#cli-reference)
   - [`uac generate`](#uac-generate)
   - [`uac init`](#uac-init)
@@ -199,7 +200,7 @@ You are a code reviewer. Check for bugs and best practice violations.
 
 ### Hooks
 
-Hooks are JSON files that define automated scripts running at lifecycle events (pre-tool-use, session start, etc.). Unlike other template types, hooks use pure JSON with no EJS templating. Multiple `.json` files in the `hooks/` directory are deep-merged by event name.
+Hooks are JSON files that define automated scripts running at lifecycle events (pre-tool-use, session start, etc.). Unlike other template types, hooks use pure JSON with no EJS templating. Multiple `.json` files in the `hooks/` directory are deep-merged by event name. When two files produce an identical handler for a target, only the first is emitted — see [Template Precedence & Shadowing](#template-precedence--shadowing).
 
 ```json
 {
@@ -258,7 +259,7 @@ Cursor-specific events (`beforeShellExecution`, `afterFileEdit`, etc.) can be us
 
 ### MCP Servers
 
-MCP server configs define external tool servers available to AI assistants. Like hooks, they use JSON format with typed `{{variable}}` interpolation support. Multiple `.json` files in the `mcp/` directory are merged by server name. Use exact-match placeholders like `"args": "{{myArgs}}"` to substitute entire typed values (arrays, objects) from config variables.
+MCP server configs define external tool servers available to AI assistants. Like hooks, they use JSON format with typed `{{variable}}` interpolation support. Multiple `.json` files in the `mcp/` directory are merged by server name, and the **first declaration of a name wins** — see [Template Precedence & Shadowing](#template-precedence--shadowing). Use exact-match placeholders like `"args": "{{myArgs}}"` to substitute entire typed values (arrays, objects) from config variables.
 
 ```json
 {
@@ -553,6 +554,21 @@ export default defineConfig({
 
 Supported glob syntax: `*` (single segment), `**` (recursive), `?` (single char), `{a,b}` (alternatives).
 
+**Source-qualified form** — when several template directories declare the same name, prefix the path with the directory it came from to drop just that copy:
+
+```typescript
+export default defineConfig({
+  additionalTemplateDirs: ["~/.universal-ai-config"],
+  exclude: {
+    // Use the shared copy of this instruction for Claude, keep the local one elsewhere
+    claude: [".universal-ai-config/instructions/style.md"],
+    default: [],
+  },
+});
+```
+
+An unqualified pattern still drops the template from **every** source. Any spelling of the directory works — as written in config, absolute, or `~`-relative — so `~/.universal-ai-config/...` and `/home/you/.universal-ai-config/...` address the same candidate. See [Template Precedence & Shadowing](#template-precedence--shadowing).
+
 ### Preserving Files From Clean
 
 `uac clean` and `uac generate --clean` remove every path uac knows how to generate — including root `AGENTS.md` and any `<dir>/AGENTS.override.md` found in your project tree, whether or not uac actually wrote them. If you keep a hand-authored, committed file at one of those paths, list it under `preserveOnClean`:
@@ -618,10 +634,49 @@ export default defineConfig({
 ```
 
 - Paths can be absolute, relative to the project root, or use `~` for the home directory
-- The main `templatesDir` always takes priority — if a template with the same name and type exists in both, the main dir's version is used
-- Within `additionalTemplateDirs`, earlier entries take priority over later ones
-- The `exclude` option works the same way — patterns match against type-relative paths (e.g., `instructions/foo.md`) regardless of source directory
 - Generated files are always written to the project's output directories
+- Name conflicts resolve by precedence — see below
+
+### Template Precedence & Shadowing
+
+Templates are discovered from `templatesDir` first, then from each `additionalTemplateDirs` entry in configured order. When the same name shows up more than once, **the first one in that chain wins**; the rest are _shadowed_. One rule, every type:
+
+| Type                  | Identity                                            | What the loser loses                 |
+| --------------------- | --------------------------------------------------- | ------------------------------------ |
+| instructions / agents | filename without `.md`                              | the whole file                       |
+| skills                | folder name                                         | the whole folder, extra files too    |
+| hooks                 | JSON basename, then each identical resolved handler | that file / that handler             |
+| mcp                   | JSON basename, then server name, then input `id`    | that file / that server / that input |
+
+Two things shadowing deliberately does **not** do:
+
+- **Skill folders are replaced, never merged.** If the winning `skills/review/` ships no `reference.md`, a shadowed copy's `reference.md` is not pulled in.
+- **Hooks/MCP files with different basenames still merge.** Shadowing only resolves same-named files — splitting servers across `mcp/github.json` and `mcp/local.json` works as before. The sub-file identities (handler, server name, input `id`) are what make that merge first-wins too.
+
+A skill folder without a `SKILL.md` never claims its name, so a lower-precedence directory with a real skill still wins it.
+
+**Using a lower-precedence copy.** Exclude the winner by its [source-qualified path](#template-exclusion) and the next candidate takes over. Because `exclude` is per-target, so is the outcome — one target can use the shared copy while another keeps the local one:
+
+```typescript
+export default defineConfig({
+  additionalTemplateDirs: ["~/.universal-ai-config"],
+  exclude: {
+    claude: [".universal-ai-config/skills/review/SKILL.md"],
+    default: [],
+  },
+});
+```
+
+**Seeing what lost.** `uac generate` lists each shadowed candidate under the target it applies to:
+
+```
+✔ claude — 4 instructions, 15 skills, 1 hook (1 input)
+  ↳ instructions/dup.md: ~/.universal-ai-config shadowed by .universal-ai-config
+  ↳ mcp server "github": ~/.universal-ai-config/mcp/shared.json shadowed by .universal-ai-config/mcp/main.json
+✔ Generated 21 file(s)
+```
+
+Candidates you excluded yourself are not listed — only precedence losers are.
 
 ### Merge Behavior
 
@@ -658,14 +713,15 @@ When run without `--root`, every command except `uac init` searches **upward** f
 
 Generate config files for specified targets.
 
-| Flag        | Short | Description                 | Default         |
-| ----------- | ----- | --------------------------- | --------------- |
-| `--target`  | `-t`  | Comma-separated targets     | All from config |
-| `--type`    |       | Comma-separated types       | All from config |
-| `--config`  | `-c`  | Config file path            | Auto-detected   |
-| `--root`    | `-r`  | Project root                | Nearest root ↑  |
-| `--dry-run` | `-d`  | Preview without writing     | `false`         |
-| `--clean`   |       | Remove existing files first | `false`         |
+| Flag        | Short | Description                            | Default         |
+| ----------- | ----- | -------------------------------------- | --------------- |
+| `--target`  | `-t`  | Comma-separated targets                | All from config |
+| `--type`    |       | Comma-separated types                  | All from config |
+| `--config`  | `-c`  | Config file path                       | Auto-detected   |
+| `--root`    | `-r`  | Project root                           | Nearest root ↑  |
+| `--dry-run` | `-d`  | Preview without writing                | `false`         |
+| `--clean`   |       | Remove existing files first            | `false`         |
+| `--verbose` | `-v`  | Per-file output instead of the summary | `false`         |
 
 Combining `--clean` with `--dry-run` previews the removals instead of performing them. `--clean` is scoped by `--type`, and by `--target` when given; with no `--target` it removes artifacts for **every** target, not just the ones in your config — that's what clears stale output for a target you've since dropped from `targets`. Use [`preserveOnClean`](#preserving-files-from-clean) to protect hand-authored files.
 
@@ -861,15 +917,19 @@ const config = await loadProjectConfig({ root: process.cwd() });
 
 ### `generate(options?)`
 
-| Option      | Type             | Description                         |
-| ----------- | ---------------- | ----------------------------------- |
-| `root`      | `string`         | Project root (default: `cwd`)       |
-| `targets`   | `Target[]`       | Override targets (highest priority) |
-| `types`     | `TemplateType[]` | Override types (highest priority)   |
-| `config`    | `string`         | Config file path                    |
-| `overrides` | `UserConfig`     | Inline config overrides (see below) |
+| Option       | Type                           | Description                                                     |
+| ------------ | ------------------------------ | --------------------------------------------------------------- |
+| `root`       | `string`                       | Project root (default: `cwd`)                                   |
+| `targets`    | `Target[]`                     | Override targets (highest priority)                             |
+| `types`      | `TemplateType[]`               | Override types (highest priority)                               |
+| `config`     | `string`                       | Config file path                                                |
+| `overrides`  | `UserConfig`                   | Inline config overrides (see below)                             |
+| `templates`  | `InMemoryTemplate[]`           | Templates supplied in memory, ranked below file-discovered ones |
+| `onShadowed` | `(event: ShadowEvent) => void` | Called for each candidate that lost a name collision            |
 
 The `overrides` option accepts all config file fields (`templatesDir`, `additionalTemplateDirs`, `variables`, `outputDirs`, `exclude`, `preserveOnClean`, `targets`, `types`). Priority order: defaults → config file → overrides file → **inline overrides** → CLI-level `targets`/`types`.
+
+`onShadowed` receives `{ target, type, scope, name, losingPath, winningPath }`, where `scope` is `"template"`, `"file"`, `"handler"`, `"server"` or `"input"` — see [Template Precedence & Shadowing](#template-precedence--shadowing). Candidates dropped by `exclude` are not reported.
 
 `generate()` never touches disk — it returns `GeneratedFile[]`. Pair it with `writeGeneratedFiles()` to write and `cleanTargetFiles()` to clean.
 

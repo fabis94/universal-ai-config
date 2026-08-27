@@ -10,6 +10,10 @@ import type { PerTargetValue } from "../types.js";
  * The mirror image of `createExcludeMatcher`, which matches template *input*
  * paths — the two configs look alike but operate on opposite ends of the
  * pipeline.
+ *
+ * `dot: true` for the same reason as `createExcludeMatcher`: output lives under
+ * dot-leading dirs (`.claude/`, `.codex/`, `.agents/`), so `**\/SKILL.md` must
+ * be able to reach into them.
  */
 export function createPreserveMatcher(
   preserveOnClean: PerTargetValue<string[]> | undefined,
@@ -18,5 +22,5 @@ export function createPreserveMatcher(
   if (preserveOnClean === undefined) return () => false;
   const patterns = (resolveForTarget(preserveOnClean, target) as string[] | undefined) ?? [];
   if (patterns.length === 0) return () => false;
-  return picomatch(patterns);
+  return picomatch(patterns, { dot: true });
 }

@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "never-emitted": { "command": "shadowed-file" }
+  }
+}

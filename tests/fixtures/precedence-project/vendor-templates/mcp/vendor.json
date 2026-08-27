@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "dup-server": { "command": "vendor-cmd" }
+  }
+}

@@ -99,12 +99,12 @@ uac skill add ./local/skills-repo --all                # copy every skill from a
 The config file (`universal-ai-config.config.ts`) supports these options:
 
 - `templatesDir` — templates directory (default: `.universal-ai-config`)
-- `additionalTemplateDirs` — extra directories to discover templates from; supports absolute paths, relative paths, and `~` for home directory (default: `[]`). Main `templatesDir` takes priority on name conflicts.
+- `additionalTemplateDirs` — extra directories to discover templates from; supports absolute paths, relative paths, and `~` for home directory (default: `[]`). On a name conflict the **first mention wins**: `templatesDir`, then each entry in order. See [Template precedence](#template-precedence) below.
 - `targets` — which targets to generate (default: all)
 - `types` — which template types to generate (default: all)
 - `variables` — custom variables for templates (EJS in markdown, typed `{{var}}` in JSON — exact-match placeholders resolve to raw values like arrays/objects)
 - `outputDirs` — override default output directories per target
-- `exclude` — glob patterns to skip templates from generation (array or per-target object)
+- `exclude` — glob patterns to skip templates from generation (array or per-target object). Prefix a pattern with a source directory to skip just that copy — see [Template precedence](#template-precedence).
 - `preserveOnClean` — glob patterns matching **output** paths that `uac clean` must never delete (array or per-target object). See [Preserving files from clean](#preserving-files-from-clean) below.
 - `mcp` — server-name-level opt-in filtering for MCP. `mcp.forceOptIn` toggles allow-list mode per target; `mcp.mcpServers` lists which server names are emitted when opt-in is active. See [MCP opt-in filtering](#mcp-opt-in-filtering) below.
 
@@ -125,6 +125,37 @@ exclude: {
 ```
 
 For instructions/skills/agents one input file maps to one output, so exclusion is 1:1. For **hooks** and **MCP**, multiple input JSON files merge into a single output: excluding `hooks/debug.json` or `mcp/internal.json` drops every handler/server that file declared. The `exclude` option does not target individual hook handlers or named MCP servers — only the whole input file containing it. For MCP specifically, see `mcp.forceOptIn` / `mcp.mcpServers` below for server-name-level filtering.
+
+Patterns can also be **source-qualified** — prefixed with the directory the template came from — which is how you pick a different copy when several directories declare the same name:
+
+```typescript
+exclude: {
+  // Drop this project's copy so the one from a shared dir is used, for Claude only
+  claude: [".universal-ai-config/instructions/style.md"],
+  default: [],
+}
+```
+
+An unqualified pattern (`instructions/style.md`) still drops the template from every source. Any spelling of the directory resolves to the same candidate — as written in config, absolute, or `~`-relative. See [Template precedence](#template-precedence).
+
+### Template Precedence
+
+Templates are discovered from `templatesDir` first, then from each `additionalTemplateDirs` entry in configured order. When the same name shows up more than once, **the first one in that chain wins** and the rest are _shadowed_. This holds for every type:
+
+| Type                  | Identity                                            | What the loser loses                 |
+| --------------------- | --------------------------------------------------- | ------------------------------------ |
+| instructions / agents | filename without `.md`                              | the whole file                       |
+| skills                | folder name                                         | the whole folder, extra files too    |
+| hooks                 | JSON basename, then each identical resolved handler | that file / that handler             |
+| mcp                   | JSON basename, then server name, then input `id`    | that file / that server / that input |
+
+Notes:
+
+- Skill folders are **replaced, not merged** — a shadowed copy's extra files never leak into the winner.
+- Hooks/MCP files with **different** basenames still merge; shadowing only resolves same-named files. The sub-file identities (handler, server name, input id) are what make that merge first-wins too.
+- A skill folder with no `SKILL.md` doesn't claim its name, so a lower-precedence dir with a real skill wins it.
+- To use a lower-precedence copy, exclude the winner by its source-qualified path (see [Template Exclusion](#template-exclusion)). Since `exclude` is per-target, one target can use the shared copy while another keeps the local one.
+- `uac generate` prints one line per shadowed candidate under the target it applies to. Candidates you excluded yourself are not listed.
 
 ### Preserving Files From Clean
 
