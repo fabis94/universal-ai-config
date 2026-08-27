@@ -75,6 +75,8 @@ interface DiscoveredTemplate {
   excludePaths: string[];
   /** Source-qualified path, e.g. "shared-templates/instructions/foo.md" — for shadow reports */
   displayPath: string;
+  /** The source dir as written in config, e.g. "shared-templates" ("" for in-memory) */
+  sourceId: string;
   /** Extra files in skill directories (beyond SKILL.md) */
   extraFiles?: ExtraFile[];
   /** In-memory content — when present, readFile is skipped */
@@ -207,8 +209,10 @@ async function discoverTemplates(
       }
 
       if (type === "skills") {
-        // Skills are folders, each containing SKILL.md + optional extra files
-        const entries = await readdir(typeDir);
+        // Skills are folders, each containing SKILL.md + optional extra files.
+        // Sorted because readdir order is filesystem-dependent, and precedence
+        // must not change between machines.
+        const entries = (await readdir(typeDir)).sort();
         for (const entry of entries) {
           const skillDir = join(typeDir, entry);
           const skillStats = await stat(skillDir);
@@ -230,6 +234,7 @@ async function discoverTemplates(
               templateRelativePath,
               excludePaths: excludePathsFor(source, root, templateRelativePath),
               displayPath: displayPathFor(source, templateRelativePath),
+              sourceId: source.id,
               extraFiles: extraFiles.length > 0 ? extraFiles : undefined,
             });
           } catch {
@@ -239,7 +244,7 @@ async function discoverTemplates(
         }
       } else {
         // Instructions and agents are flat .md files
-        const entries = await readdir(typeDir);
+        const entries = (await readdir(typeDir)).sort();
         for (const entry of entries) {
           if (!entry.endsWith(".md")) continue;
           const name = basename(entry, ".md");
@@ -257,6 +262,7 @@ async function discoverTemplates(
             templateRelativePath,
             excludePaths: excludePathsFor(source, root, templateRelativePath),
             displayPath: displayPathFor(source, templateRelativePath),
+            sourceId: source.id,
           });
         }
       }
@@ -287,6 +293,8 @@ interface DiscoveredJsonFile {
   excludePaths: string[];
   /** Source-qualified path, e.g. "shared-templates/hooks/basic.json" — for shadow reports */
   displayPath: string;
+  /** The source dir as written in config, e.g. "shared-templates" */
+  sourceId: string;
 }
 
 /** All JSON files competing for one basename, in precedence order. */
@@ -316,7 +324,9 @@ async function discoverJsonFiles(
       return;
     }
 
-    const entries = await readdir(typeDir);
+    // Sorted: within one dir, this order decides which file's declaration of a
+    // shared server name (or an identical handler) wins.
+    const entries = (await readdir(typeDir)).sort();
     for (const file of entries) {
       if (!file.endsWith(".json")) continue;
       const templateRelativePath = normalizePath(join(type, file));
@@ -330,6 +340,7 @@ async function discoverJsonFiles(
         templateRelativePath,
         excludePaths: excludePathsFor(source, root, templateRelativePath),
         displayPath: displayPathFor(source, templateRelativePath),
+        sourceId: source.id,
       });
     }
   }
@@ -360,6 +371,8 @@ function selectJsonFiles(
         name: slot.name,
         losingPath: loser.displayPath,
         winningPath: won.displayPath,
+        losingSource: loser.sourceId,
+        winningSource: won.sourceId,
       }),
     );
     if (winner) selected.push(winner);
@@ -439,6 +452,8 @@ function resolveHookHandlers(
           name: event,
           losingPath: source?.displayPath ?? event,
           winningPath: winner?.displayPath ?? event,
+          losingSource: source?.sourceId ?? "",
+          winningSource: winner?.sourceId ?? "",
         });
         continue;
       }
@@ -560,6 +575,8 @@ async function mergeMCPFiles(
             name,
             losingPath: file.displayPath,
             winningPath: winner.displayPath,
+            losingSource: file.sourceId,
+            winningSource: winner.sourceId,
           });
           continue;
         }
@@ -581,6 +598,8 @@ async function mergeMCPFiles(
           name: key,
           losingPath: file.displayPath,
           winningPath: winner.displayPath,
+          losingSource: file.sourceId,
+          winningSource: winner.sourceId,
         });
         continue;
       }
@@ -730,6 +749,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
         // No source dir to qualify with, so only the unqualified path addresses it
         excludePaths: [relativePath],
         displayPath: relativePath,
+        sourceId: "",
         content: inMem.content,
         extraFiles: inMem.extraFiles?.map((ef) => ({
           relativePath: ef.relativePath,
@@ -763,6 +783,8 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
           name: slot.name,
           losingPath: loser.displayPath,
           winningPath: won.displayPath,
+          losingSource: loser.sourceId,
+          winningSource: won.sourceId,
         }),
       );
       slot.winnerByTarget.set(targetName, winner);

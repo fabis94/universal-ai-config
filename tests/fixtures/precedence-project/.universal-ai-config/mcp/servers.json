@@ -1,7 +1,8 @@
 {
   "mcpServers": {
     "dup-server": { "command": "local-cmd" },
-    "local-server": { "command": "local-only" }
+    "local-server": { "command": "local-only" },
+    "same-dir-server": { "command": "from-servers" }
   },
   "inputs": [{ "type": "promptString", "id": "token", "description": "token from LOCAL" }]
 }

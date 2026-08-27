@@ -526,6 +526,8 @@ Two things this does _not_ do:
 
 A skill folder without a `SKILL.md` doesn't claim its name, so a lower-precedence directory with a real skill still wins it.
 
+Within a single directory — two `mcp/*.json` files declaring the same server name, say — files are read in alphabetical order, so which one wins never depends on the filesystem.
+
 ### Choosing a different source
 
 `exclude` patterns can address one specific copy by prefixing the template path with its source directory, which promotes the next candidate:
@@ -545,10 +547,15 @@ Because `exclude` is per-target, so is shadowing: one target can use the shared 
 
 ### Seeing what was shadowed
 
-`uac generate` lists every shadowed candidate under the target it applies to:
+`uac generate` prints a one-line count, and `uac generate --verbose` lists what lost:
 
 ```
 ✔ claude — 4 instructions, 15 skills, 1 hook (1 input)
+ℹ 2 shadowed by higher-precedence sources (--verbose to list)
+```
+
+```
+ℹ 2 shadowed by higher-precedence sources:
   ↳ instructions/dup.md: shared-templates shadowed by .universal-ai-config
   ↳ mcp server "github": shared-templates/mcp/shared.json shadowed by .universal-ai-config/mcp/main.json
 ```

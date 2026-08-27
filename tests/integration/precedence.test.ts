@@ -132,9 +132,31 @@ describe("template precedence", () => {
       expect(Object.keys(parsed.mcpServers).sort()).toEqual([
         "dup-server",
         "local-server",
+        "same-dir-server",
         "shared-server",
       ]);
       expect(parsed.mcpServers["never-emitted"]).toBeUndefined();
+    });
+
+    it("resolves a collision between two files in the same dir, alphabetically", async () => {
+      // aardvark.json and servers.json both declare "same-dir-server". Neither
+      // file outranks the other by source dir, so the order has to come from
+      // somewhere stable — readdir order is filesystem-dependent.
+      const { files, shadows } = await run({ targets: ["claude"], types: ["mcp"] });
+
+      const parsed = JSON.parse(files.find((f) => f.type === "mcp")!.content);
+      expect(parsed.mcpServers["same-dir-server"].command).toBe("from-aardvark");
+
+      expect(shadows).toContainEqual(
+        expect.objectContaining({
+          scope: "server",
+          name: "same-dir-server",
+          losingPath: ".universal-ai-config/mcp/servers.json",
+          winningPath: ".universal-ai-config/mcp/aardvark.json",
+          losingSource: ".universal-ai-config",
+          winningSource: ".universal-ai-config",
+        }),
+      );
     });
 
     it("the first declaration of an input id wins", async () => {
@@ -167,10 +189,10 @@ describe("template precedence", () => {
     it("counts only files that contributed something that survived", async () => {
       const { files } = await run({ targets: ["claude"], types: ["mcp"] });
 
-      // servers.json (dup-server + local-server) and shared-servers.json
-      // (shared-server) contribute; vendor.json declares only a shadowed name,
-      // and shared-templates/mcp/servers.json lost at the file level.
-      expect(files.find((f) => f.type === "mcp")!.inputCount).toBe(2);
+      // aardvark.json, servers.json and shared-servers.json each contribute a
+      // surviving server; vendor.json declares only a shadowed name, and
+      // shared-templates/mcp/servers.json lost at the file level.
+      expect(files.find((f) => f.type === "mcp")!.inputCount).toBe(3);
     });
 
     it("still counts a file whose duplicate handlers were dropped", async () => {
@@ -274,6 +296,8 @@ describe("template precedence", () => {
         name: "dup",
         losingPath: "shared-templates/instructions/dup.md",
         winningPath: ".universal-ai-config/instructions/dup.md",
+        losingSource: "shared-templates",
+        winningSource: ".universal-ai-config",
       });
       expect(dup[1]!.losingPath).toBe("vendor-templates/instructions/dup.md");
       expect(dup[1]!.winningPath).toBe(".universal-ai-config/instructions/dup.md");

@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "same-dir-server": { "command": "from-aardvark" }
+  }
+}

@@ -653,7 +653,7 @@ Two things shadowing deliberately does **not** do:
 - **Skill folders are replaced, never merged.** If the winning `skills/review/` ships no `reference.md`, a shadowed copy's `reference.md` is not pulled in.
 - **Hooks/MCP files with different basenames still merge.** Shadowing only resolves same-named files — splitting servers across `mcp/github.json` and `mcp/local.json` works as before. The sub-file identities (handler, server name, input `id`) are what make that merge first-wins too.
 
-A skill folder without a `SKILL.md` never claims its name, so a lower-precedence directory with a real skill still wins it.
+A skill folder without a `SKILL.md` never claims its name, so a lower-precedence directory with a real skill still wins it. Within a single directory — two `mcp/*.json` files declaring the same server name, say — files are read in alphabetical order, so the winner never depends on the filesystem.
 
 **Using a lower-precedence copy.** Exclude the winner by its [source-qualified path](#template-exclusion) and the next candidate takes over. Because `exclude` is per-target, so is the outcome — one target can use the shared copy while another keeps the local one:
 
@@ -667,16 +667,22 @@ export default defineConfig({
 });
 ```
 
-**Seeing what lost.** `uac generate` lists each shadowed candidate under the target it applies to:
+**Seeing what lost.** `uac generate` reports shadowing in one line, and `--verbose` lists it:
 
 ```
 ✔ claude — 4 instructions, 15 skills, 1 hook (1 input)
-  ↳ instructions/dup.md: ~/.universal-ai-config shadowed by .universal-ai-config
-  ↳ mcp server "github": ~/.universal-ai-config/mcp/shared.json shadowed by .universal-ai-config/mcp/main.json
+ℹ 2 shadowed by higher-precedence sources (--verbose to list)
 ✔ Generated 21 file(s)
 ```
 
-Candidates you excluded yourself are not listed — only precedence losers are.
+```
+$ uac generate --verbose
+ℹ 2 shadowed by higher-precedence sources:
+  ↳ instructions/dup.md: ~/.universal-ai-config shadowed by .universal-ai-config
+  ↳ mcp server "github": ~/.universal-ai-config/mcp/shared.json shadowed by .universal-ai-config/mcp/main.json
+```
+
+A collision that applies to only some targets is tagged with them (`[claude, cursor]`); one that applies to every target is listed once. Candidates you excluded yourself are not listed — only precedence losers are.
 
 ### Merge Behavior
 

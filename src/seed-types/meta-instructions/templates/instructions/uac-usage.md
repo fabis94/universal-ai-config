@@ -154,8 +154,9 @@ Notes:
 - Skill folders are **replaced, not merged** — a shadowed copy's extra files never leak into the winner.
 - Hooks/MCP files with **different** basenames still merge; shadowing only resolves same-named files. The sub-file identities (handler, server name, input id) are what make that merge first-wins too.
 - A skill folder with no `SKILL.md` doesn't claim its name, so a lower-precedence dir with a real skill wins it.
+- Within a single directory — two `mcp/*.json` files declaring the same server name, say — files are read in alphabetical order, so the winner doesn't depend on the filesystem.
 - To use a lower-precedence copy, exclude the winner by its source-qualified path (see [Template Exclusion](#template-exclusion)). Since `exclude` is per-target, one target can use the shared copy while another keeps the local one.
-- `uac generate` prints one line per shadowed candidate under the target it applies to. Candidates you excluded yourself are not listed.
+- `uac generate` prints a one-line shadowing count; `uac generate --verbose` lists each shadowed candidate. Candidates you excluded yourself are never listed.
 
 ### Preserving Files From Clean
 

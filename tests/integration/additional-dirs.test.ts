@@ -49,6 +49,8 @@ describe("additionalTemplateDirs", () => {
           name: "shadowed-rule",
           losingPath: "shared-templates/instructions/shadowed-rule.md",
           winningPath: ".universal-ai-config/instructions/shadowed-rule.md",
+          losingSource: "shared-templates",
+          winningSource: ".universal-ai-config",
         },
       ]);
     });

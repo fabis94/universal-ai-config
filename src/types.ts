@@ -240,6 +240,10 @@ export interface ShadowEvent {
   losingPath: string;
   /** Source-qualified path of the candidate that won */
   winningPath: string;
+  /** Template directory the loser came from, as written in config ("" for in-memory) */
+  losingSource: string;
+  /** Template directory the winner came from, as written in config ("" for in-memory) */
+  winningSource: string;
 }
 
 /**
