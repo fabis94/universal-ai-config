@@ -1,3 +1,4 @@
+import { booleanField } from "../mappers.js";
 import { defineTarget } from "../define-target.js";
 import type { UniversalHookHandler, UniversalMCPServer } from "../../types.js";
 import { normalizeGlobs } from "../../core/normalize-globs.js";
@@ -147,7 +148,7 @@ export default defineTarget({
       license: "license",
       compatibility: "compatibility",
       metadata: "metadata",
-      userInvocable: "user-invocable",
+      userInvocable: booleanField("user-invocable"),
       skillPaths: (value) => ({ paths: normalizeGlobs(value) }),
       icon: "icon",
       color: "color",

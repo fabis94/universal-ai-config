@@ -447,3 +447,13 @@ describe("cursor target", () => {
     });
   });
 });
+
+describe("cursor target — user-invocable is boolean only", () => {
+  it("drops a non-boolean with a warning", () => {
+    const { ctx, diagnostics } = collectingContext();
+    expect(
+      mapFrontmatter({ userInvocable: "/x" as unknown as boolean }, cursor.skills!, ctx),
+    ).toEqual({});
+    expect(diagnostics.map((d) => d.code)).toEqual(["suspicious-value"]);
+  });
+});

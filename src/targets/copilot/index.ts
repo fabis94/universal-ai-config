@@ -1,3 +1,4 @@
+import { booleanField } from "../mappers.js";
 import { defineTarget, type FrontmatterMapper, type TargetContext } from "../define-target.js";
 import type {
   UniversalFrontmatter,
@@ -257,7 +258,7 @@ export default defineTarget({
       name: "name",
       description: "description",
       disableAutoInvocation: "disable-model-invocation",
-      userInvocable: "user-invocable",
+      userInvocable: booleanField("user-invocable"),
       argumentHint: "argument-hint",
       compatibility: "compatibility",
       license: "license",
@@ -286,7 +287,7 @@ export default defineTarget({
         return {};
       },
       mcpServers: "mcp-servers",
-      userInvocable: "user-invocable",
+      userInvocable: booleanField("user-invocable"),
       disableAutoInvocation: "disable-model-invocation",
       hooks: "hooks",
       skills: "skills",

@@ -95,7 +95,7 @@ describe("complete-project (all frontmatter fields)", () => {
       expectYamlField(c, "name", "deploy-helper");
       expectYamlField(c, "description", "Assists with deployment tasks");
       expect(c).toContain("disable-model-invocation: true");
-      expectYamlField(c, "user-invocable", "/deploy");
+      expect(c).toContain("user-invocable: true");
       expect(c).toContain("allowed-tools:");
       expect(c).toContain("  - ");
       expectYamlField(c, "model", "sonnet");
@@ -125,7 +125,7 @@ describe("complete-project (all frontmatter fields)", () => {
       expectYamlField(c, "name", "deploy-helper");
       expectYamlField(c, "description", "Assists with deployment tasks");
       expect(c).toContain("disable-model-invocation: true");
-      expectYamlField(c, "user-invocable", "/deploy");
+      expect(c).toContain("user-invocable: true");
       expectYamlField(c, "argument-hint", "<environment> [--dry-run]");
       expectYamlField(c, "license", "MIT");
       expectYamlField(c, "compatibility", ">=1.0.0");

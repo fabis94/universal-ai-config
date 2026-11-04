@@ -396,7 +396,8 @@ export interface UniversalFrontmatter {
   // Skills
   name?: string;
   disableAutoInvocation?: boolean;
-  userInvocable?: boolean | string;
+  /** Show the skill (or agent) in the `/` menu; boolean only */
+  userInvocable?: boolean;
   allowedTools?: string[];
   model?: string | string[];
   subagentType?: string;

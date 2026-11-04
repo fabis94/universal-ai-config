@@ -54,7 +54,7 @@ describe("printDiagnostics", () => {
     target,
     type,
     message: "m",
-    detail: { by: by as "claude", loses: `${target} loses ${type}` },
+    detail: { by: by as "claude", loses: `${target} loses ${type}`, reason: "overlap" },
   });
 
   function capture(diagnostics: Diagnostic[], verbose = false) {
@@ -81,6 +81,18 @@ describe("printDiagnostics", () => {
     );
     expect(lines.slice(1).join("\n")).toContain("claude read the generated AGENTS.md files");
     expect(lines.at(-1)).toContain("--verbose");
+  });
+
+  it("words an agentsMd.enable opt-in without the fewer-targets advice", () => {
+    const optIn: Diagnostic = {
+      ...served("claude", "instructions", "agentsMd"),
+      detail: { by: "agentsMd", loses: "x", reason: "agents-md-enabled" },
+    } as Diagnostic;
+    const lines = capture([optIn]);
+    expect(lines[0]).toBe(
+      "warn: agentsMd.enable is on, so these targets use AGENTS.md for instructions:",
+    );
+    expect(lines.join("\n")).not.toContain("overrides.ts");
   });
 
   it("lists what each target loses under --verbose", () => {

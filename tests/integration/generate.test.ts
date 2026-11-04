@@ -102,7 +102,7 @@ describe("generate", () => {
     expect(skill).toBeDefined();
     expect(skill!.path).toBe(".claude/skills/test-gen/SKILL.md");
     expect(skill!.content).toContain("disable-model-invocation: true");
-    expectYamlField(skill!.content, "user-invocable", "/test");
+    expect(skill!.content).toContain("user-invocable: true");
   });
 
   describe("skill extra files", () => {

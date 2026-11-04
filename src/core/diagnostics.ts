@@ -18,7 +18,16 @@ export interface DiagnosticDetails {
    * A target skipped its own output for a type because it reads another
    * output instead (AGENTS.md, or another target's file).
    */
-  "served-by": { by: OutputSource; loses: string };
+  "served-by": {
+    by: OutputSource;
+    loses: string;
+    /**
+     * `overlap`: another target in the run produces the output (codex for
+     * AGENTS.md) — usually fixed by generating fewer targets per machine.
+     * `agents-md-enabled`: the project turned AGENTS.md on itself.
+     */
+    reason: "overlap" | "agents-md-enabled";
+  };
   /** The shared output was rendered for `view`, and `reader` would have gotten something else. */
   "shared-divergence": {
     view: Target;

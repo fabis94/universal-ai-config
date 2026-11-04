@@ -178,13 +178,21 @@ export function printDiagnostics(
   const { verbose } = options;
 
   const served = diagnostics.filter((d): d is ServedDiagnostic => d.code === "served-by");
-  if (served.length > 0) {
+  const overlap = served.filter((d) => d.detail.reason === "overlap");
+  const optedIn = served.filter((d) => d.detail.reason === "agents-md-enabled");
+  if (overlap.length > 0) {
     consola.warn(
       "Several targets in this run read the same files. Usually you only need one of them on a machine: " +
         "set `targets` in universal-ai-config.overrides.ts.",
     );
-    printLines(formatServedBy(served, verbose));
-    if (!verbose) consola.log(pc.dim("  (--verbose for what each target loses)"));
+    printLines(formatServedBy(overlap, verbose));
+  }
+  if (optedIn.length > 0) {
+    consola.warn("agentsMd.enable is on, so these targets use AGENTS.md for instructions:");
+    printLines(formatServedBy(optedIn, verbose));
+  }
+  if (served.length > 0 && !verbose) {
+    consola.log(pc.dim("  (--verbose for what each target loses)"));
   }
 
   for (const d of diagnostics) {

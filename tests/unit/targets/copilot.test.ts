@@ -94,8 +94,16 @@ describe("copilot target", () => {
 
     it("maps disableAutoInvocation, userInvocable, and argumentHint", () => {
       expect(config.frontmatterMap.disableAutoInvocation).toBe("disable-model-invocation");
-      expect(config.frontmatterMap.userInvocable).toBe("user-invocable");
       expect(config.frontmatterMap.argumentHint).toBe("argument-hint");
+      expect(mapFrontmatter({ userInvocable: false }, config)).toEqual({ "user-invocable": false });
+    });
+
+    it("drops a non-boolean userInvocable with a warning", () => {
+      const { ctx, diagnostics } = collectingContext();
+      expect(mapFrontmatter({ userInvocable: "/x" as unknown as boolean }, config, ctx)).toEqual(
+        {},
+      );
+      expect(diagnostics.map((d) => d.code)).toEqual(["suspicious-value"]);
     });
 
     it("generates correct output path", () => {

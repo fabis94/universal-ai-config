@@ -3,11 +3,11 @@ import { DiagnosticSink, printDiagnostic, type Diagnostic } from "../diagnostics
 import { buildPlan, type OutputPlan } from "../plan/build-plan.js";
 import { createLocator } from "../plan/locate.js";
 import { targets } from "../../targets/index.js";
-import type { GeneratedFile, GenerateOptions } from "../../types.js";
+import type { GeneratedFile, GenerateOptions, TemplateType } from "../../types.js";
 import { generateAgentsMdFiles } from "./agents-md.js";
 import { assertNoPathCollisions } from "./collisions.js";
 import type { GenerateRun } from "./context.js";
-import { buildDocsIndex, discoverTemplates } from "./discover.js";
+import { buildDocsIndex, discoverJsonFiles, discoverTemplates } from "./discover.js";
 import { generateHooksFiles } from "./hooks.js";
 import { generateMCPFiles } from "./mcp.js";
 import { FileReader } from "./read-cache.js";
@@ -37,29 +37,39 @@ function reportForcedAgentsMd(run: GenerateRun, plan: OutputPlan): void {
 }
 
 /**
- * Report each output a target skipped because it reads another one — only
- * where that other output was actually generated, so a project without, say,
- * MCP templates hears nothing about MCP.
+ * Report each output a target skipped because it reads another one — for
+ * types the project has templates of, so a project without, say, MCP
+ * templates hears nothing about MCP. (It still fires when the source ended
+ * up writing nothing: the reader then gets nothing either.)
  */
-function reportServedBy(run: GenerateRun, plan: OutputPlan, files: GeneratedFile[]): void {
+function reportServedBy(
+  run: GenerateRun,
+  plan: OutputPlan,
+  typesWithTemplates: Set<TemplateType>,
+): void {
   for (const served of plan.servedBy) {
-    const shared = files.some(
-      (file) => file.type === served.type && (file.consumers ?? []).includes(served.target),
-    );
-    if (!shared) continue;
+    if (!typesWithTemplates.has(served.type)) continue;
+    const optIn = served.by === "agentsMd" && !plan.agentsMd?.forced;
     const source =
       served.by === "agentsMd"
         ? "the AGENTS.md files"
         : `${served.by}'s ${served.type === "mcp" ? "MCP config" : served.type}`;
+    const message = optIn
+      ? `agentsMd.enable is on, so ${served.target} reads the AGENTS.md files instead of its own instruction files. ` +
+        `${served.target} loses: ${served.loses}`
+      : `${served.target} reads ${source} too, so uac skips ${served.target}'s own ${served.type} output. ` +
+        `Usually you only need one of these targets on a machine: set \`targets\` in universal-ai-config.overrides.ts. ` +
+        `${served.target} loses: ${served.loses}`;
     run.sink.report({
       code: "served-by",
       target: served.target,
       type: served.type,
-      message:
-        `${served.target} reads ${source} too, so uac skips ${served.target}'s own ${served.type} output. ` +
-        `Usually you only need one of these targets on a machine: set \`targets\` in universal-ai-config.overrides.ts. ` +
-        `${served.target} loses: ${served.loses}`,
-      detail: { by: served.by, loses: served.loses },
+      message,
+      detail: {
+        by: served.by,
+        loses: served.loses,
+        reason: optIn ? "agents-md-enabled" : "overlap",
+      },
     });
   }
 }
@@ -131,9 +141,12 @@ export async function generateProject(options: GenerateOptions = {}): Promise<Ge
   if (config.types.includes("hooks")) files.push(...(await generateHooksFiles(run, plan)));
   if (config.types.includes("mcp")) files.push(...(await generateMCPFiles(run, plan)));
 
-  const merged = assertNoPathCollisions(files);
-  reportServedBy(run, plan, merged);
-  return { files: merged, diagnostics: sink.items, plan };
+  const typesWithTemplates = new Set<TemplateType>([...slots.values()].map((slot) => slot.type));
+  for (const type of ["hooks", "mcp"] as const) {
+    if ((await discoverJsonFiles(root, config, type)).size > 0) typesWithTemplates.add(type);
+  }
+  reportServedBy(run, plan, typesWithTemplates);
+  return { files: assertNoPathCollisions(files), diagnostics: sink.items, plan };
 }
 
 /** Generate every output for a project. Same as `generateProject()`, returning only the files. */

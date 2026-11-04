@@ -1,3 +1,4 @@
+import { booleanField } from "../mappers.js";
 import { defineTarget, type TargetContext } from "../define-target.js";
 import type { UniversalHookHandler, UniversalMCPServer } from "../../types.js";
 import { normalizeGlobs } from "../../core/normalize-globs.js";
@@ -210,7 +211,7 @@ export default defineTarget({
       name: "name",
       description: "description",
       disableAutoInvocation: "disable-model-invocation",
-      userInvocable: "user-invocable",
+      userInvocable: booleanField("user-invocable"),
       allowedTools: "allowed-tools",
       model: "model",
       subagentType: "agent",

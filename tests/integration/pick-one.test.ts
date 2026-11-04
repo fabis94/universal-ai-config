@@ -80,7 +80,17 @@ describe("pick one: instructions", () => {
     const { diagnostics } = await run(["claude", "codex"], ["instructions"]);
     const warning = diagnostics.find((d) => d.code === "served-by");
     expect(warning!.severity).toBe("warn");
+    expect(warning!.detail).toMatchObject({ reason: "overlap" });
     expect(warning!.message).toContain("universal-ai-config.overrides.ts");
+  });
+
+  it("an agentsMd.enable opt-in is reported without the fewer-targets advice", async () => {
+    const { diagnostics } = await run(["claude"], ["instructions"], {
+      overrides: { agentsMd: { enable: true } },
+    });
+    const warning = diagnostics.find((d) => d.code === "served-by");
+    expect(warning!.detail).toMatchObject({ by: "agentsMd", reason: "agents-md-enabled" });
+    expect(warning!.message).not.toContain("overrides.ts");
   });
 
   it("uses the config's targets when no targets option is given", async () => {
@@ -194,5 +204,15 @@ describe("pick one: hook checks that need a custom project", () => {
       (d) => d.code === "unsupported" && d.target === "copilot" && d.type === "hooks",
     );
     expect(rejected!.message).toContain("rejects that whole file");
+  });
+});
+
+describe("pick one: a source that writes nothing", () => {
+  it("still warns when copilot yields MCP to claude but claude keeps no servers", async () => {
+    const { files, servedBy } = await run(["claude", "copilot"], ["mcp"], {
+      overrides: { mcp: { forceOptIn: { claude: true, default: false }, mcpServers: [] } },
+    });
+    expect(files).toEqual([]);
+    expect(servedBy).toEqual([["copilot", "mcp", "claude"]]);
   });
 });
