@@ -12,7 +12,7 @@ export interface UserConfig {
    * Supports absolute paths, relative paths, and `~`. Main `templatesDir` wins on name conflicts.
    */
   additionalTemplateDirs?: string[];
-  /** Which targets to generate config for. Default: all (`["claude", "copilot", "cursor"]`). */
+  /** Which targets to generate config for. Default: all (`["claude", "copilot", "cursor", "codex"]`). */
   targets?: Target[];
   /** Which template types to generate. Default: all (`["instructions", "skills", "agents", "hooks", "mcp"]`). */
   types?: TemplateType[];
