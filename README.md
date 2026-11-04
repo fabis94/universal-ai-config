@@ -14,6 +14,7 @@ Generate tool-specific AI config files from shared templates. Write your AI inst
   - [Agents](#agents)
   - [Hooks](#hooks)
   - [MCP Servers](#mcp-servers)
+  - [Reference Docs](#reference-docs)
 - [Per-Target Overrides](#per-target-overrides)
 - [EJS Template Variables](#ejs-template-variables)
 - [Configuration](#configuration)
@@ -83,8 +84,10 @@ your-project/
     ├── hooks/                 # Hook configs (JSON)
     │   ├── security.json
     │   └── quality.json
-    └── mcp/                   # MCP server configs (JSON)
-        └── github.json
+    ├── mcp/                   # MCP server configs (JSON)
+    │   └── github.json
+    └── docs/                  # Reference docs — never generated, linked via docPath()
+        └── api-errors.md
 ```
 
 ## Writing Templates
@@ -126,7 +129,7 @@ Check existing patterns before creating new code.
 | `alwaysApply`  | `boolean`            | Apply to all files regardless of context                         |
 | `excludeAgent` | `string`             | Copilot-only: exclude from specific agent (e.g. `"code-review"`) |
 
-> **Codex routing:** Codex consolidates instructions. `alwaysApply: true` (or templates with no globs / leading-wildcard globs) → concatenated into root `AGENTS.md`. Resolvable-prefix globs like `packages/frontend/**` → `<dir>/AGENTS.override.md`. See the [UAC Template Guide](src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md) for full Codex caveats.
+> **Codex routing:** Codex consolidates instructions. `alwaysApply: true` (or templates with no globs / leading-wildcard globs) → concatenated into root `AGENTS.md`. Resolvable-prefix globs like `packages/frontend/**` → `<dir>/AGENTS.override.md`. See the [Codex reference](src/seed-types/meta-instructions/templates/docs/uac/codex.md) for full Codex caveats.
 
 ### Skills
 
@@ -289,7 +292,7 @@ MCP server configs define external tool servers available to AI assistants. Like
 
 \*A server must have either `command` or `url`. If neither is present after per-target override resolution, the server is dropped for that target.
 
-**Codex-specific MCP fields** (universal camelCase → snake_case in TOML): `cwd`, `envVars`, `enabledTools`, `disabledTools`, `bearerTokenEnvVar`, `envHttpHeaders`, `startupTimeoutSec`, `startupTimeoutMs`, `toolTimeoutSec`, `enabled`, `required`, `oauthResource`, `scopes`, `experimentalEnvironment`. See the [UAC Template Guide](src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md) for the full field reference. Codex's authentication uses `bearerTokenEnvVar` + `oauthResource` + `scopes` — Claude's `oauth` and Cursor's `auth` fields drop with a warning when emitting for Codex.
+**Codex-specific MCP fields** (universal camelCase → snake_case in TOML): `cwd`, `envVars`, `enabledTools`, `disabledTools`, `bearerTokenEnvVar`, `envHttpHeaders`, `startupTimeoutSec`, `startupTimeoutMs`, `toolTimeoutSec`, `enabled`, `required`, `oauthResource`, `scopes`, `experimentalEnvironment`. See the [MCP reference](src/seed-types/meta-instructions/templates/docs/uac/mcp.md) for the full field reference. Codex's authentication uses `bearerTokenEnvVar` + `oauthResource` + `scopes` — Claude's `oauth` and Cursor's `auth` fields drop with a warning when emitting for Codex.
 
 Server fields support per-target overrides (same syntax as hooks):
 
@@ -314,6 +317,24 @@ For Copilot, an optional `inputs` array provides interactive secret prompts. It'
   ]
 }
 ```
+
+### Reference Docs
+
+Files under `docs/` in your templates directory (or in any `additionalTemplateDirs` entry) are **reference docs**. uac never generates them, and no AI tool loads them automatically. Link one from an instruction, skill, or agent with the `docPath()` helper, and agents read it only when they need it. Use them to keep always-on instructions short:
+
+```markdown
+---
+description: API conventions
+alwaysApply: true
+---
+
+Return errors as `{ code, message }`. Full error code table: <%= docPath('api-errors') %>
+```
+
+- `docPath('api-errors')` renders `.universal-ai-config/docs/api-errors.md`. Nested names like `docPath('api/errors')` work too.
+- The path is project-root-relative, or absolute when the doc lives in a template directory outside the project (e.g. `~/.universal-ai-config/docs/`).
+- The first template directory that has the doc wins, the same as templates. A name with no matching doc prints a warning during `uac generate`.
+- Docs are read as-is, so EJS inside them is not rendered. Link sibling docs with relative links.
 
 ## Per-Target Overrides
 
@@ -409,6 +430,7 @@ Templates have access to path helper functions. All `name` parameters are option
 | `skillPath(name?)`         | Target-specific output path (or directory) for a skill's `SKILL.md`                              |
 | `skillDirPath(name, rel?)` | Target-specific path to a skill's directory, or to a file inside it (use for reference/examples) |
 | `agentPath(name?)`         | Target-specific output path (or directory) for an agent                                          |
+| `docPath(name?)`           | Path to a [reference doc](#reference-docs) `docs/<name>.md` (or the docs directory)              |
 
 **Template path helpers** — resolve to the source template path in the templates directory:
 
@@ -781,15 +803,16 @@ uac seed meta-instructions --root ./my-project
 | -------- | ----- | ------------ | -------------- |
 | `--root` | `-r`  | Project root | Nearest root ↑ |
 
-The `meta-instructions` seed creates 12 files in the templates directory:
+The `meta-instructions` seed creates 20 files in the templates directory:
 
-| File                                        | Purpose                                                        |
-| ------------------------------------------- | -------------------------------------------------------------- |
-| `instructions/uac-usage.md`                 | How to use uac CLI commands (always applied)                   |
-| `instructions/uac-template-guide.md`        | Full template authoring guide                                  |
-| `skills/update-ai-config/SKILL.md`          | Main entry point for creating or updating any template         |
-| `skills/import-existing-ai-config/SKILL.md` | Import existing target-specific configs as universal templates |
-| `skills/ai-config-compress/SKILL.md`        | Compress LLM instructions to reduce token count                |
+| File                                        | Purpose                                                                                                            |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `instructions/uac-usage.md`                 | Short uac CLI and config cheat sheet (always applied)                                                              |
+| `instructions/uac-template-guide.md`        | Template authoring guide (applied to the templates directory)                                                      |
+| `docs/uac/*.md`                             | Full reference, read on demand (8 files, listed under [Complete Template Reference](#complete-template-reference)) |
+| `skills/update-ai-config/SKILL.md`          | Main entry point for creating or updating any template                                                             |
+| `skills/import-existing-ai-config/SKILL.md` | Import existing target-specific configs as universal templates                                                     |
+| `skills/ai-config-compress/SKILL.md`        | Compress LLM instructions to reduce token count                                                                    |
 
 `update-ai-config` is the primary skill users should invoke — it analyzes intent and auto-delegates to internal type-specific skills (`update-instruction`, `update-skill`, `update-agent`, `update-hook`, `update-mcp`).
 
@@ -882,11 +905,24 @@ Codex emits files in **multiple locations** outside `outputDir` to align with Co
 - **`effort` auto-maps** to Codex's `model_reasoning_effort` when the value is in `{minimal, low, medium, high, xhigh}`. Claude-only `max` drops with a warning.
 - **`disableAutoInvocation` auto-maps** to `agents/openai.yaml` `policy.allow_implicit_invocation: !disableAutoInvocation`.
 
-See the [UAC Template Guide](src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md) for the complete reference.
+See the [Codex reference](src/seed-types/meta-instructions/templates/docs/uac/codex.md) for the complete reference.
 
 ## Complete Template Reference
 
-For the most up-to-date reference on all frontmatter fields, available tools per platform (Claude, Copilot, Cursor), MCP tool syntax, hook matcher patterns, and per-target overrides, see the [UAC Template Guide](src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md). This guide is also seeded into your project via `uac seed meta-instructions` and made available to your AI tools as a rule/instruction.
+The [UAC Template Guide](src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md) covers template authoring: types, EJS and path helpers, per-target overrides, and a summary of each topic. The full per-target reference is split into on-demand docs:
+
+| Doc                                                                                    | Covers                                                                          |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [`cli.md`](src/seed-types/meta-instructions/templates/docs/uac/cli.md)                 | Every command and flag, root resolution, clean behavior, `skill add` sources    |
+| [`config.md`](src/seed-types/meta-instructions/templates/docs/uac/config.md)           | Config options, variables, exclusion, precedence & shadowing, `preserveOnClean` |
+| [`frontmatter.md`](src/seed-types/meta-instructions/templates/docs/uac/frontmatter.md) | Every skill and agent field with per-target support, Codex skill metadata       |
+| [`hooks.md`](src/seed-types/meta-instructions/templates/docs/uac/hooks.md)             | Handler fields, universal → per-target event mapping, matcher patterns          |
+| [`mcp.md`](src/seed-types/meta-instructions/templates/docs/uac/mcp.md)                 | Server fields per target, Copilot inputs, output paths, opt-in filtering        |
+| [`tools.md`](src/seed-types/meta-instructions/templates/docs/uac/tools.md)             | Tool names per platform and common combinations                                 |
+| [`models.md`](src/seed-types/meta-instructions/templates/docs/uac/models.md)           | Model identifiers per target                                                    |
+| [`codex.md`](src/seed-types/meta-instructions/templates/docs/uac/codex.md)             | Codex output locations, caveats, values uac can't translate                     |
+
+`uac seed meta-instructions` (run by `uac init`) seeds all of this into your project. The guide becomes a rule scoped to your templates directory, and the docs land in `.universal-ai-config/docs/uac/`, where your AI tools read them only when a link points there.
 
 ## Programmatic API
 

@@ -77,7 +77,7 @@ For each template type the tool supports, the full set of accepted frontmatter f
 
 - `src/targets/<tool>/index.ts` → `frontmatterMap` inside each `TemplateTypeConfig`
 - `src/types.ts` → `UniversalFrontmatter` interface (universal field names)
-- Documentation that lists fields: `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md`
+- Documentation that lists fields: `src/seed-types/meta-instructions/templates/docs/uac/frontmatter.md` (skills, agents, `codex.*`), the Instructions table in `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md`, `src/seed-types/meta-instructions/templates/docs/uac/hooks.md` (handler fields), `src/seed-types/meta-instructions/templates/docs/uac/mcp.md` (server fields)
 
 **What to look for in docs**
 
@@ -122,7 +122,7 @@ Sections titled "Hooks reference," "Lifecycle events," "Hook configuration," "Ho
 **Where in uac**
 
 - `src/targets/<tool>/index.ts` → `frontmatterMap` entries for `tools`, `allowedTools`, `disallowedTools`
-- Documentation that lists tools: `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md` → "Available Tools" section
+- Documentation that lists tools: `src/seed-types/meta-instructions/templates/docs/uac/tools.md` (and the short per-target summary in the "Tools" section of `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md`)
 
 **What to look for in docs**
 
@@ -165,7 +165,7 @@ Pages titled "MCP," "Model Context Protocol," "External tools," "Add an MCP serv
 **Where in uac**
 
 - `src/core/resolve-json-variables.ts` (uac's own `{{var}}` syntax — this is uac's, not the vendor's, but the documentation must not collide with vendor syntax)
-- Documentation in `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md` distinguishing `{{var}}` (uac) from `${ENV_VAR}` (vendor passthrough)
+- Documentation in `src/seed-types/meta-instructions/templates/docs/uac/config.md` ("Variables") and the "Variables in JSON Templates" section of `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md` distinguishing `{{var}}` (uac) from `${ENV_VAR}` (vendor passthrough)
 
 **What to look for in docs**
 
@@ -227,7 +227,7 @@ Pages titled "Memory," "Context," "AGENTS.md," "Project instructions," "Reposito
 **Where in uac**
 
 - `src/targets/<tool>/index.ts` → `frontmatterMap` entries for `model`
-- **`src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md` → "Model identifiers per target" section.** This is the user-facing enumeration of accepted constants per target and is the primary artifact a validation run must keep current.
+- **`src/seed-types/meta-instructions/templates/docs/uac/models.md`.** This is the user-facing enumeration of accepted constants per target and is the primary artifact a validation run must keep current.
 - Documentation examples elsewhere in template guides (these often contain stale model IDs)
 
 **What to look for in docs**
@@ -236,7 +236,7 @@ Each tool publishes a dedicated **supported-models** or **model catalog** page l
 
 **Output expected from validation**
 
-A reconciled per-target list of model identifier strings, ready to drop into the "Model identifiers per target" section of `uac-template-guide.md`. Flag any IDs present in uac docs but missing upstream (likely deprecated), and any IDs new upstream that aren't yet documented in uac.
+A reconciled per-target list of model identifier strings, ready to drop into `src/seed-types/meta-instructions/templates/docs/uac/models.md`. Flag any IDs present in uac docs but missing upstream (likely deprecated), and any IDs new upstream that aren't yet documented in uac.
 
 ---
 
@@ -251,7 +251,7 @@ A reconciled per-target list of model identifier strings, ready to drop into the
 
 **Where in uac**
 
-- Surfacing of beta status: `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md`
+- Surfacing of beta status: the relevant reference doc in `src/seed-types/meta-instructions/templates/docs/uac/` (usually `frontmatter.md`, `hooks.md`, or `mcp.md`)
 - README.md — claims about which features are supported
 
 **What to look for in docs**

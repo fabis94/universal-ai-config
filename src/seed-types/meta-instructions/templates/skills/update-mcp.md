@@ -45,140 +45,15 @@ List files in `<%%= mcpTemplatePath() %>/` to discover existing MCP templates (`
 
 ### Server Fields
 
-See the **MCP Servers → Server Fields** section in `<%%= instructionPath('uac-template-guide') %>` for the complete reference, including all 13 Codex-specific fields (`cwd`, `envVars`, `enabledTools`, `disabledTools`, `bearerTokenEnvVar`, `envHttpHeaders`, `startupTimeoutSec`, `startupTimeoutMs`, `toolTimeoutSec`, `enabled`, `required`, `oauthResource`, `scopes`, `experimentalEnvironment`).
+Core fields: `command` + `args` (stdio) or `url` + `headers` (HTTP), plus `type` and `env`. A server must have `command` or `url`. If neither is left after per-target override resolution, the server is dropped for that target, which is how you define target-exclusive servers.
 
-Key cross-target fields:
+Before using any other field, check `<%%= docPath('uac/mcp') %>`. It lists every server field with the targets that use it (including Codex's auth fields and `enabledTools`/`disabledTools`), per-target override examples, Copilot `inputs` prompts, the output path for each target, and server-name opt-in filtering.
 
-| Field     | Type                     | Description                                                           |
-| --------- | ------------------------ | --------------------------------------------------------------------- |
-| `command` | `string`                 | Command to launch the server (stdio transport)                        |
-| `args`    | `string[]`               | Arguments for the command                                             |
-| `env`     | `Record<string, string>` | Environment variables                                                 |
-| `url`     | `string`                 | Server URL (HTTP transport)                                           |
-| `headers` | `Record<string, string>` | HTTP headers. **Codex:** renames to `http_headers`                    |
-| `type`    | `string`                 | Transport type. **Codex:** dropped — inferred from `command` vs `url` |
+### Variables and Secrets
 
-A server must have either `command` (stdio) or `url` (HTTP). If neither is present after per-target override resolution, the server is dropped for that target.
-
-### Codex notes
-
-- Codex output emits **TOML** (`.codex/config.toml`) merged into the `[mcp_servers.*]` table. Other top-level keys in `config.toml` (`[profiles.*]`, `[model_providers.*]`, `[permissions.*]`, `personality`, etc.) are preserved across regenerates — uac only owns `[mcp_servers.*]`.
-- Auth model differs: Codex uses `bearerTokenEnvVar` + `oauthResource` + `scopes` instead of Claude's `oauth` object or Cursor's `auth` object. Claude/Cursor auth fields are dropped with a warning when emitting for Codex; use per-target overrides for Codex-specific auth.
-- Per-server tool restriction lives at the MCP server level via `enabledTools` (allowlist) and `disabledTools` (denylist) — agent-level `tools` fields are not applicable for Codex.
-
-### Variable Interpolation
-
-Use `{{variableName}}` syntax to reference variables from the config file. Variables support **typed resolution**: when the entire JSON value is `"{{varName}}"`, it resolves to the raw typed value (array, object, number, boolean). When embedded in other text, it does string interpolation.
-
-```json
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": "{{playwrightArgs}}",
-      "env": {
-        "API_HOST": "{{apiHost}}"
-      }
-    }
-  }
-}
-```
-
-Variables are defined in `universal-ai-config.config.ts`:
-
-```typescript
-export default defineConfig({
-  variables: {
-    playwrightArgs: ["-y", "@playwright/mcp@latest"],
-    apiHost: "api.example.com",
-  },
-});
-```
-
-For environment-specific values, use `universal-ai-config.overrides.ts` (gitignored):
-
-```typescript
-export default defineConfig({
-  variables: {
-    playwrightArgs: [
-      "-y",
-      "@playwright/mcp@latest",
-      "--headless",
-      "--executable-path",
-      "/usr/bin/chromium",
-    ],
-  },
-});
-```
-
-**Important:** `{{varName}}` is for uac config variables. Use `${ENV_VAR}` for runtime environment variable references that should be passed through to the generated output unchanged.
-
-### Per-Target Overrides
-
-Any server field can have per-target values using the same override syntax as hooks:
-
-```json
-{
-  "mcpServers": {
-    "my-server": {
-      "command": {
-        "default": "npx",
-        "cursor": "node"
-      },
-      "args": {
-        "default": ["-y", "@my/server"],
-        "cursor": ["./mcp-server.js"]
-      },
-      "type": {
-        "claude": "stdio",
-        "copilot": "stdio"
-      }
-    }
-  }
-}
-```
-
-If `command` (and `url`) resolve to `undefined` for a target, the entire server is dropped for that target. This lets you define target-exclusive servers.
-
-### Copilot Inputs
-
-For Copilot, you can include an `inputs` array for interactive secret prompts:
-
-```json
-{
-  "mcpServers": {
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_TOKEN": "${input:github-token}"
-      }
-    }
-  },
-  "inputs": [
-    {
-      "type": "promptString",
-      "id": "github-token",
-      "description": "GitHub Personal Access Token",
-      "password": true
-    }
-  ]
-}
-```
-
-The `inputs` array is only included in Copilot output — Claude and Cursor ignore it.
-
-### Output Paths
-
-Generated MCP files are placed at root-relative paths (not inside the target's output directory):
-
-| Target  | Output Path        | Wrapper Key  |
-| ------- | ------------------ | ------------ |
-| Claude  | `.mcp.json`        | `mcpServers` |
-| Copilot | `.vscode/mcp.json` | `servers`    |
-| Cursor  | `.cursor/mcp.json` | `mcpServers` |
-
-**Note:** Cursor omits the `type` field from generated output (it infers transport from the presence of `command` vs `url`).
+- `{{variableName}}` pulls a value from `variables` in the config. `"{{var}}"` as the whole value keeps its type, e.g. an `args` array. Worked example: `<%%= docPath('uac/config') %>`.
+- `${ENV_VAR}` passes through unchanged — use it for secrets resolved at runtime.
+- Put machine-specific variable values in `universal-ai-config.overrides.ts` (gitignored).
 
 ### Example
 

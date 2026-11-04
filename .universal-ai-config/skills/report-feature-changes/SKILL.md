@@ -38,7 +38,7 @@ Before fetching any docs, read uac's current implementation for each tool in sco
 
 - `src/targets/<tool>/index.ts` — `outputDir`, `supportedTypes`, `frontmatterMap` for each template type, `EVENT_NAME_MAP`, `transform*Hooks()`, `transform*MCP()`.
 - `src/types.ts` — `UniversalFrontmatter`, `UniversalHookHandler`, `UniversalMCPServer`, `UniversalMCPInput`, `TemplateType` union.
-- `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md` — documentation claims (frontmatter field tables, hook event mapping table, tools tables). Drift here is a finding too.
+- `src/seed-types/meta-instructions/templates/docs/uac/*.md` — the full reference docs: `frontmatter.md` (skill/agent fields), `hooks.md` (event mapping + handler fields), `mcp.md` (server fields), `tools.md`, `models.md`, `codex.md`, `cli.md`, `config.md`. Plus the core summaries in `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md`. Drift in any of these is a finding too.
 - `src/core/writer.ts` — `CLEAN_PATHS`, `CLEAN_MCP_PATHS`.
 
 Note specific identifiers (event names, frontmatter field names, tool names, output paths) so the comparison in Step 3 can be exact, not vague.
@@ -93,7 +93,7 @@ Use this structure:
 - **Tier 2 evidence:** <changelog URL + date, or "no announcement found">
 - **uac files affected:**
   - `src/targets/<tool>/index.ts:<line range>` — <what's there now>
-  - `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md` — <which table>
+  - `src/seed-types/meta-instructions/templates/docs/uac/<file>.md` (or `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md`) — <which table>
 - **Suggested change:** <one or two sentences>
 - **Caveats:** <beta status, conflicting surfaces, in-product-only, etc.>
 

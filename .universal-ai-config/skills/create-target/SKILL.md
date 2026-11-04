@@ -86,7 +86,7 @@ After the user approves the research findings, **enter plan mode** to design the
    - Hook `transform`: converts universal event names and handler format to target format
    - Hook `mergeKey`: if the target's hook config is nested inside a larger settings file (like Claude's `settings.json` which has a `hooks` key)
    - **`mcpToolRef` update**: add a `case "<target>"` branch to `mcpToolRef()` in `src/core/parser.ts` with both the specific-tool form (e.g. `server/tool`) and the wildcard form (e.g. `server/*`). Derive these from the MCP tool reference syntax you found in Phase 1.
-   - **New universal fields**: audit whether the target needs new fields in `UniversalFrontmatter`, `UniversalMCPServer`, or `UniversalHookHandler` for lossless round-trip fidelity. If so, plan additions to `src/types.ts` and the meta-instruction `uac-template-guide.md` field tables. Common triggers: target-specific auth options, timeout knobs, per-server tool allow/denylists, agent sandbox modes.
+   - **New universal fields**: audit whether the target needs new fields in `UniversalFrontmatter`, `UniversalMCPServer`, or `UniversalHookHandler` for lossless round-trip fidelity. If so, plan additions to `src/types.ts` and to the reference docs under `src/seed-types/meta-instructions/templates/docs/uac/` (`frontmatter.md`, `hooks.md`, `mcp.md`). Common triggers: target-specific auth options, timeout knobs, per-server tool allow/denylists, agent sandbox modes.
    - **Pipeline extensions**: if the target needs a non-JSON output format (e.g., TOML for hooks/MCP) or a new writer primitive for merging into a shared user-managed file, plan those explicitly. Examples: `format: "toml"` on `HooksTypeConfig`/`MCPTypeConfig`, a `mergeTomlKey` writer primitive analogous to the existing `mergeJsonKey`.
 
 5. **Get plan approval** — present the plan to the user for review. **Do not start implementing until the plan is approved.**
@@ -103,7 +103,7 @@ Once the plan is approved, execute it:
 
 9. **Add `mcpToolRef` case** — add the new `case "<target>"` branch to `mcpToolRef()` in `src/core/parser.ts`. Add corresponding test cases to `tests/unit/parser.test.ts` (specific-tool and wildcard forms for the new target).
 
-10. **Add new universal type fields** — if the plan identified new fields for `UniversalFrontmatter`, `UniversalMCPServer`, or `UniversalHookHandler`, add them to `src/types.ts` now. Also update the `uac-template-guide.md` field tables to document the new fields with their per-target support annotations.
+10. **Add new universal type fields** — if the plan identified new fields for `UniversalFrontmatter`, `UniversalMCPServer`, or `UniversalHookHandler`, add them to `src/types.ts` now. Also document the new fields with their per-target support annotations in the seed reference docs (`src/seed-types/meta-instructions/templates/docs/uac/frontmatter.md`, `hooks.md`, or `mcp.md`). A new target also needs its column or row in `hooks.md` (event table), `mcp.md` (output paths), `tools.md`, `models.md`, and the per-target path examples in `instructions/uac-template-guide.md`. See the "Where to document a change" table in `<%= instructionPath('project-conventions') %>`.
 
 11. **Add tests** — create integration tests using existing fixtures that generate for the new target, verifying output paths and content
 

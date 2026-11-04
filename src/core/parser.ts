@@ -1,6 +1,6 @@
 import { parse as parseYAML } from "yaml";
 import ejs from "ejs";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import { targets } from "../targets/index.js";
 import { getCodexInstructionEmissionPaths } from "../targets/codex/instruction-routing.js";
 import type { ResolvedConfig, Target, TemplateType, UniversalFrontmatter } from "../types.js";
@@ -12,6 +12,15 @@ interface ParsedTemplate {
 
 export interface TemplatesIndex {
   instructions: Map<string, UniversalFrontmatter>;
+  /**
+   * Reference docs found under `<source>/docs/` across every template source,
+   * first source wins. Key is the doc name (`uac/hooks` for `docs/uac/hooks.md`),
+   * value is the path to print: root-relative when the doc is inside the
+   * project, absolute when it lives in a template dir outside it.
+   */
+  docs?: Map<string, string>;
+  /** Names passed to `docPath()` that matched no doc — collected for a warning */
+  missingDocs?: Set<string>;
 }
 
 interface RenderContext {
@@ -39,6 +48,13 @@ export function parseFrontmatter(content: string): ParsedTemplate {
   const frontmatter = (yamlContent ? parseYAML(yamlContent) : {}) as UniversalFrontmatter;
 
   return { frontmatter, body };
+}
+
+/** Normalize a `docPath()` argument to its index key: forward slashes, no `./`, no `.md`. */
+export function normalizeDocName(name: string): string {
+  let key = name.split("\\").join("/");
+  while (key.startsWith("./")) key = key.slice(2);
+  return key.replace(/\.md$/, "");
 }
 
 function buildPathHelpers(target: Target, templatesDir: string, templatesIndex?: TemplatesIndex) {
@@ -116,6 +132,14 @@ function buildPathHelpers(target: Target, templatesDir: string, templatesIndex?:
       name ? join(templatesDir, `hooks/${name}.json`) : join(templatesDir, "hooks"),
     mcpTemplatePath: (name?: string) =>
       name ? join(templatesDir, `mcp/${name}.json`) : join(templatesDir, "mcp"),
+    docPath: (name?: string) => {
+      if (!name) return join(templatesDir, "docs");
+      const key = normalizeDocName(name);
+      const found = templatesIndex?.docs?.get(key);
+      if (found) return found;
+      templatesIndex?.missingDocs?.add(key);
+      return join(templatesDir, "docs", extname(key) ? key : `${key}.md`);
+    },
     mcpToolRef: (server: string, tool?: string): string => {
       switch (target) {
         case "claude":

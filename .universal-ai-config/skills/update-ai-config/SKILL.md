@@ -11,7 +11,7 @@ When the user wants to add or change AI configuration for this project, follow t
 
 ## 1. Understand the Request
 
-Read the template guide at `<%= instructionPath('uac-template-guide') %>` to understand the available template types and when to use each.
+Read the template guide at `<%= instructionPath('uac-template-guide') %>` to understand the available template types and when to use each. It links to detailed reference docs (full field tables, per-target event and tool names) — read those only when you need the exact detail.
 
 ## 2. Determine the Template Type
 
@@ -22,6 +22,7 @@ Based on the user's request, decide which type of template to work with:
 - **Specialized AI persona with restricted tools** → Agent template
 - **Automatic lifecycle automation (on events)** → Hook template
 - **MCP server configuration** → MCP template
+- **Long reference material only needed occasionally** → a reference doc in `<%= config.templatesDir %>/docs/`, linked from an instruction or skill with `docPath()` (see **Reference Docs** in the template guide)
 
 Examples:
 

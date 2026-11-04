@@ -41,6 +41,7 @@ src/
 └── seed-types/                    # Seedable template sets
     ├── shared.ts                  # Common seed utilities
     ├── meta-instructions/         # Meta-instructions about uac
+    │   └── templates/             # instructions/, skills/, docs/uac/ (seed sources)
     └── examples/                  # Example templates
 tests/
 ├── unit/                          # Isolated function tests
@@ -88,7 +89,7 @@ The generation pipeline in `src/core/generate.ts` runs this sequence:
 
 ### Key Modules
 
-- **`parser.ts`** — `parseFrontmatter()` uses gray-matter, `renderEjs()` provides target/type/config variables plus output and template path helpers
+- **`parser.ts`** — `parseFrontmatter()` uses gray-matter, `renderEjs()` provides target/type/config variables plus output and template path helpers. `docPath()` resolves reference docs from the docs index that `generate.ts` builds over every template source's `docs/` folder (first source wins; root-relative inside the project, absolute outside)
 - **`resolve-overrides.ts`** — detects per-target objects (all keys in `[claude, copilot, cursor, default]`), resolves to the target's value or `default`, returns `undefined` if no match (field dropped)
 - **`writer.ts`** — writes files to disk, handles `mergeKey` for JSON merge (e.g. Claude hooks → `settings.json`), handles cleanup per target
 - **`safe-path.ts`** — prevents `../` directory traversal attacks
@@ -144,11 +145,11 @@ All commands are in `src/commands/`:
 
 `src/seed-types/` contains seedable template sets:
 
-- **`meta-instructions`** — instructions about uac + management skills (seeded on `uac init`)
+- **`meta-instructions`** — instructions about uac + management skills + reference docs in `docs/uac/` (seeded on `uac init`)
 - **`examples`** — example templates for each type (seeded on `uac seed examples`)
-- **`shared.ts`** — common utilities: `renderTemplate()`, `getSeedTemplatesDir()`, `collectSkillTemplates()`
+- **`shared.ts`** — common utilities: `renderTemplate()`, `getSeedTemplatesDir()`, `collectSkillTemplates()`, `collectDocTemplates()`
 
-Seed templates are EJS-rendered with `config.templatesDir` as a variable. Skills can be seeded as flat `.md` files (become `skills/{name}/SKILL.md`) or as directories with `SKILL.md` + extra supporting files.
+Seed templates are EJS-rendered with `config.templatesDir` as a variable. Skills can be seeded as flat `.md` files (become `skills/{name}/SKILL.md`) or as directories with `SKILL.md` + extra supporting files. Files under `docs/` are copied to `<templatesDir>/docs/` — they are never generated, so the seed render is their only EJS pass (see [EJS escaping in seed templates](#ejs-escaping-in-seed-templates)).
 
 ## Code Conventions
 
@@ -190,11 +191,42 @@ The README is the public-facing overview for people discovering the package on n
 
 ### Meta-instruction templates — for AIs
 
-The seed templates in `src/seed-types/meta-instructions/templates/` are detailed reference docs seeded into consumer projects on `uac init`. These are the primary source of truth for AI tools working with uac:
+The seed templates in `src/seed-types/meta-instructions/templates/` are seeded into consumer projects on `uac init` / `uac seed meta-instructions`. They are the primary source of truth for AI tools working with uac, split into three tiers by how often they're loaded:
 
-- **`uac-template-guide.md`** — comprehensive template authoring reference: all template types, every frontmatter field, EJS templating, per-target overrides, hooks, available tools. This is the most important doc to keep current when adding or changing frontmatter fields, target behavior, or template features.
-- **`uac-usage.md`** — CLI command reference and usage patterns. Update when adding commands, flags, or changing CLI behavior.
-- **Management skills** (`update-instruction`, `update-skill`, `update-agent`, `update-hook`, etc.) — step-by-step guides for creating/modifying templates. Update when template conventions or file structure change.
+- **`instructions/uac-usage.md`** — `alwaysApply`, so it's loaded into **every** session on every target (and concatenated into Codex's root `AGENTS.md`). Keep it a tiny cheat sheet: one line per command and per config option, plus links. Only touch it for a new command or config option.
+- **`instructions/uac-template-guide.md`** — loaded when files in the templates dir are touched. The authoring core: template types, EJS + path helpers, per-target overrides, the instruction field table, and a short summary of each topic with a `docPath()` link to the full reference.
+- **`docs/uac/*.md`** — full reference, never loaded automatically; agents read a file only when a link sends them there. Seeded to `<templatesDir>/docs/uac/` and linked with `docPath('uac/<name>')`.
+- **Management skills** (`update-instruction`, `update-skill`, `update-agent`, `update-hook`, `update-mcp`, `update-ai-config`, `import-existing-ai-config`, `ai-config-compress`) — step-by-step workflows. They link to `docs/uac/*` instead of copying tables. Update them when template conventions or file structure change.
+
+### Where to document a change
+
+| Change                                            | Update                                                                                      |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Skill or agent frontmatter field                  | `docs/uac/frontmatter.md` (+ the guide's "most-used fields" line if it's a core field)      |
+| Instruction frontmatter field                     | the Instructions table in `uac-template-guide.md`                                           |
+| Hook event, handler field, matcher behavior       | `docs/uac/hooks.md`                                                                         |
+| MCP server field, output path, opt-in filtering   | `docs/uac/mcp.md`                                                                           |
+| CLI command or flag                               | `docs/uac/cli.md` (+ a one-liner in `uac-usage.md` for a new command or common flag)        |
+| Config option, precedence/exclude/clean semantics | `docs/uac/config.md` (+ a one-liner in `uac-usage.md` for a new option)                     |
+| Codex output paths, caveats, untranslated values  | `docs/uac/codex.md`                                                                         |
+| Tool names per target                             | `docs/uac/tools.md`                                                                         |
+| Model IDs per target                              | `docs/uac/models.md`                                                                        |
+| EJS variable or path helper                       | the EJS Templating section of `uac-template-guide.md`                                       |
+| A new doc file                                    | link it with `docPath()` from `uac-usage.md` or the guide, and from any skill that needs it |
+
+All of these live under `src/seed-types/meta-instructions/templates/`. A seed test fails if any `docPath('…')` used in a seeded instruction or skill has no matching file in `docs/`.
+
+### EJS escaping in seed templates
+
+Seed sources are rendered at **seed time** (only `templatesDir` is defined then). Instructions and skills are rendered **again** by `uac generate`; docs are not. So the same intent needs a different escape level:
+
+| Intent                                                              | `instructions/` and `skills/` (2 passes) | `docs/` (1 pass)                                             |
+| ------------------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------ |
+| Templates dir path                                                  | `<%%%= config.templatesDir %>`           | `<%%= templatesDir %>`                                       |
+| EJS shown literally as an example                                   | `<%%%%= target %>`                       | `<%%%= target %>`                                            |
+| Generate-time helper (`docPath`, `instructionPath`, `skillPath`, …) | `<%%%= docPath('uac/hooks') %>`          | not available — use a relative link like `[hooks](hooks.md)` |
+
+When moving text between a doc and an instruction or skill, re-escape it — don't copy it verbatim. Frontmatter is rendered only at seed time, which is why `globs` uses the single-escaped `<%%= templatesDir %>`.
 
 ### Never edit seeded outputs directly
 
@@ -202,7 +234,8 @@ This repo dogfoods its own seed templates: `pnpm uac init` was used during setup
 
 - `instructions/uac-template-guide.md`
 - `instructions/uac-usage.md`
-- `skills/update-instruction/`, `skills/update-skill/`, `skills/update-agent/`, `skills/update-hook/`, `skills/update-mcp/`, `skills/update-ai-config/`, `skills/import-existing-ai-config/`, `skills/create-target/`
+- `docs/uac/` (every file)
+- `skills/update-instruction/`, `skills/update-skill/`, `skills/update-agent/`, `skills/update-hook/`, `skills/update-mcp/`, `skills/update-ai-config/`, `skills/import-existing-ai-config/`, `skills/ai-config-compress/`
 
 To change any of these, edit the corresponding source under `src/seed-types/meta-instructions/templates/` and regenerate with:
 
@@ -212,9 +245,19 @@ pnpm uac seed meta-instructions
 
 Then run `pnpm uac generate` to refresh the target outputs (`.claude/`, `.github/`, etc.). Editing the seeded file directly will be overwritten the next time the seed runs.
 
+Repo-only templates (`create-target`, `pr-description`, `release`, `report-feature-changes`, `project-conventions`, `testing-guidelines`) are not seeded — edit them in `.universal-ai-config/` directly.
+
 ### Keeping docs in sync
 
-- When changing how templates work (frontmatter, templating, settings): update `uac-template-guide.md` field tables + the relevant target implementation + mention in `README.md`
-- When adding a CLI command or flag or a config option: update `uac-usage.md` + `README.md` usage section
+- When changing how templates work (frontmatter, templating, settings): update the file from the table above + the relevant target implementation + mention in `README.md`
+- When adding a CLI command or flag or a config option: update `docs/uac/cli.md` or `docs/uac/config.md`, the one-liner in `uac-usage.md` if it's new, and the `README.md` usage section
 - When changing template structure or conventions: update relevant management skills
-- The README should link to template docs rather than duplicate them — keep it as the "quick start" entry point. Some high level core details like available frontmatter/hook fields should still be duplicated, though.
+- The README should link to the reference docs rather than duplicate them — keep it as the "quick start" entry point. Some high level core details like available frontmatter/hook fields should still be duplicated, though.
+
+### Keep meta-instructions short
+
+Everything we seed costs tokens in every consumer project. `uac-usage.md` is loaded into **every** session on every target, and `uac-template-guide.md` whenever someone touches their templates. So when documenting a feature, put it in a doc by default and earn every line in an instruction:
+
+- **Instructions** (`uac-usage.md`, `uac-template-guide.md`): add only what an agent needs in most sessions — a one-line summary and a `docPath('uac/…')` link. Put full tables, flag lists, edge cases, examples, and per-target detail in `docs/uac/` (an existing file, or a new one if no topic fits). The size test in `tests/unit/seed.test.ts` fails if `uac-usage.md` grows past its budget — trim or move content rather than raising it.
+- **Skills** are loaded only when invoked, so they can afford more, but the same rule applies. Keep `SKILL.md` to the workflow steps. Move bulky reference material into a **sidecar file in the skill's own folder** (turn a flat `skills/<name>.md` seed into `skills/<name>/SKILL.md` + extras, like `ai-config-compress/references/`), linked by relative path. Use `docs/uac/` instead when the material is shared with the guide or other skills, as `update-mcp` and `update-hook` do.
+- **Never copy** a table or field list between an instruction, a skill, and a doc. Link to the single copy — duplicates drift (the old `update-mcp` output-path table went stale this way).

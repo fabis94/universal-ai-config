@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseFrontmatter, renderEjs, parseTemplate } from "../../src/core/parser.js";
+import {
+  parseFrontmatter,
+  renderEjs,
+  parseTemplate,
+  type TemplatesIndex,
+} from "../../src/core/parser.js";
 import { DEFAULT_CONFIG } from "../../src/config/defaults.js";
 
 describe("parseFrontmatter", () => {
@@ -483,6 +488,68 @@ describe("renderEjs", () => {
           config,
         }),
       ).toBe(".claude/skills/deploy/ref.md");
+    });
+  });
+
+  describe("docPath helper", () => {
+    const ctx = (templatesIndex?: TemplatesIndex, config = DEFAULT_CONFIG) => ({
+      target: "claude" as const,
+      type: "instructions" as const,
+      config,
+      templatesIndex,
+    });
+    const index = (docs: Record<string, string>): TemplatesIndex => ({
+      instructions: new Map(),
+      docs: new Map(Object.entries(docs)),
+      missingDocs: new Set(),
+    });
+
+    it("falls back to the templatesDir docs path without an index", () => {
+      expect(renderEjs("<%= docPath('guide') %>", ctx())).toBe(
+        ".universal-ai-config/docs/guide.md",
+      );
+      expect(renderEjs("<%= docPath('uac/hooks') %>", ctx())).toBe(
+        ".universal-ai-config/docs/uac/hooks.md",
+      );
+    });
+
+    it("returns the docs directory when called without a name", () => {
+      expect(renderEjs("<%= docPath() %>", ctx())).toBe(".universal-ai-config/docs");
+      const config = { ...DEFAULT_CONFIG, templatesDir: "custom-ai" };
+      expect(renderEjs("<%= docPath() %>", ctx(undefined, config))).toBe("custom-ai/docs");
+    });
+
+    it("returns the indexed path, relative or absolute, as the index holds it", () => {
+      const idx = index({
+        guide: ".universal-ai-config/docs/guide.md",
+        shared: "/home/me/.universal-ai-config/docs/shared.md",
+      });
+      expect(renderEjs("<%= docPath('guide') %>", ctx(idx))).toBe(
+        ".universal-ai-config/docs/guide.md",
+      );
+      expect(renderEjs("<%= docPath('shared') %>", ctx(idx))).toBe(
+        "/home/me/.universal-ai-config/docs/shared.md",
+      );
+    });
+
+    it("accepts a .md suffix and a leading ./", () => {
+      const idx = index({ "uac/hooks": "x/docs/uac/hooks.md" });
+      expect(renderEjs("<%= docPath('uac/hooks.md') %>", ctx(idx))).toBe("x/docs/uac/hooks.md");
+      expect(renderEjs("<%= docPath('./uac/hooks') %>", ctx(idx))).toBe("x/docs/uac/hooks.md");
+    });
+
+    it("keeps non-markdown extensions in the fallback path", () => {
+      expect(renderEjs("<%= docPath('diagram.svg') %>", ctx())).toBe(
+        ".universal-ai-config/docs/diagram.svg",
+      );
+    });
+
+    it("records names that match no doc and falls back", () => {
+      const idx = index({ guide: ".universal-ai-config/docs/guide.md" });
+      expect(renderEjs("<%= docPath('missing') %>", ctx(idx))).toBe(
+        ".universal-ai-config/docs/missing.md",
+      );
+      expect([...idx.missingDocs!]).toEqual(["missing"]);
     });
   });
 

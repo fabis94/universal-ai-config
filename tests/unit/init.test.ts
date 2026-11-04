@@ -58,6 +58,10 @@ describe("init command", () => {
     expect(guide).toContain(
       "description: Guide for creating and managing universal-ai-config templates",
     );
+
+    // Reference docs are seeded alongside, for docPath() links to resolve
+    const hooksDoc = await readFile(join(templatesDir, "docs/uac/hooks.md"), "utf-8");
+    expect(hooksDoc).toContain("# Hooks reference");
   });
 
   it("does not overwrite existing config file", async () => {

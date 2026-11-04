@@ -86,3 +86,21 @@ export function collectSkillTemplates(
 
   return templates;
 }
+
+/**
+ * Collect seed templates from a docs directory. Every file is copied to
+ * `docs/<relative path>`; `.md` files are EJS-rendered once with `vars`.
+ *
+ * Docs are never touched by `uac generate`, so this seed-time render is their
+ * only pass — unlike instructions and skills, which are rendered again at
+ * generate time. Generate-time helpers (`docPath`, `instructionPath`, …) are
+ * not available here.
+ */
+export function collectDocTemplates(docsDir: string, vars: Record<string, string>): SeedTemplate[] {
+  return collectFilesSync(docsDir).map((file) => ({
+    relativePath: `docs/${file.relativePath.split("\\").join("/")}`,
+    content: file.relativePath.endsWith(".md")
+      ? renderTemplate(file.filePath, vars)
+      : readFileSync(file.filePath, "utf-8"),
+  }));
+}
