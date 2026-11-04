@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { mkdtemp } from "node:fs/promises";
+import { afterEach, describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { generate } from "../../src/core/generate/index.js";
@@ -11,10 +11,21 @@ const instruction = (name: string, frontmatter: string, body: string) => ({
   content: `---\n${frontmatter}\n---\n${body}\n`,
 });
 
+const dirs: string[] = [];
+async function tempRoot(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "uac-same-path-"));
+  dirs.push(dir);
+  return dir;
+}
+
 describe("templates that render to the same path", () => {
+  afterEach(async () => {
+    for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
+  });
+
   it("joins every always-on Copilot instruction into one copilot-instructions.md", async () => {
     const files = await generate({
-      root: await mkdtemp(join(tmpdir(), "uac-same-path-")),
+      root: await tempRoot(),
       targets: ["copilot"],
       types: ["instructions"],
       templates: [
@@ -33,7 +44,7 @@ describe("templates that render to the same path", () => {
 
   it("writes a single always-on Copilot instruction without frontmatter", async () => {
     const files = await generate({
-      root: await mkdtemp(join(tmpdir(), "uac-same-path-")),
+      root: await tempRoot(),
       targets: ["copilot"],
       types: ["instructions"],
       templates: [instruction("general", "alwaysApply: true\ndescription: General", "Body")],

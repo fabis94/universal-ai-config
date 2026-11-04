@@ -1,5 +1,5 @@
-import { booleanField } from "../mappers.js";
-import { defineTarget } from "../define-target.js";
+import { booleanField, checkMatcherToolNames } from "../mappers.js";
+import { defineTarget, type TargetContext } from "../define-target.js";
 import type { UniversalHookHandler, UniversalMCPServer } from "../../types.js";
 import { normalizeGlobs } from "../../core/normalize-globs.js";
 import { flattenCommand } from "../../core/shell.js";
@@ -30,8 +30,19 @@ const EVENT_NAME_MAP: Record<string, string> = {
   afterTabFileEdit: "afterTabFileEdit",
 };
 
+/** Events whose matcher is a tool name. */
+const TOOL_EVENTS = new Set(["preToolUse", "postToolUse", "postToolUseFailure"]);
+
+/** Claude tool names → Cursor's tool names (as Cursor's own Claude-hook importer maps them). */
+const CURSOR_TOOL_NAMES: Record<string, string> = {
+  Bash: "Shell",
+  Edit: "Write",
+  WebFetch: "Fetch",
+};
+
 function transformCursorHooks(
   hooks: Record<string, UniversalHookHandler[]>,
+  { report }: TargetContext,
 ): Record<string, unknown> {
   const result: Record<string, unknown[]> = {};
 
@@ -40,6 +51,9 @@ function transformCursorHooks(
     if (!cursorEvent) continue;
 
     result[cursorEvent] = handlers.map((h) => {
+      if (TOOL_EVENTS.has(event)) {
+        checkMatcherToolNames("Cursor", event, h.matcher, CURSOR_TOOL_NAMES, report);
+      }
       const handlerType = h.type ?? "command";
       const entry: Record<string, unknown> = { type: handlerType };
       // Cursor has no args array — fold args into the command string

@@ -1,4 +1,4 @@
-import { booleanField } from "../mappers.js";
+import { booleanField, checkMatcherToolNames } from "../mappers.js";
 import { defineTarget, type FrontmatterMapper, type TargetContext } from "../define-target.js";
 import type {
   UniversalFrontmatter,
@@ -31,6 +31,28 @@ const EVENT_NAME_MAP: Record<string, string> = {
   preMcpToolCall: "preMcpToolCall",
   postResult: "postResult",
   prePRDescription: "prePRDescription",
+};
+
+/** Events whose matcher is a tool name. */
+const TOOL_EVENTS = new Set([
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "permissionRequest",
+]);
+
+/** Claude tool names → Copilot's runtime tool names (matchers are anchored, case-sensitive). */
+const COPILOT_TOOL_NAMES: Record<string, string> = {
+  Bash: "bash",
+  Read: "view",
+  Write: "create",
+  Edit: "edit",
+  Grep: "grep",
+  Glob: "glob",
+  Task: "task",
+  Agent: "task",
+  WebFetch: "web_fetch",
+  AskUserQuestion: "ask_user",
 };
 
 /** Copilot runs prompt hooks only at session start. */
@@ -79,6 +101,9 @@ function transformCopilotHooks(
           detail: { kind: "handler-type", name: "prompt" },
         });
         continue;
+      }
+      if (TOOL_EVENTS.has(event)) {
+        checkMatcherToolNames("Copilot", event, h.matcher, COPILOT_TOOL_NAMES, report);
       }
       entries.push(transformCopilotHandler(h));
     }

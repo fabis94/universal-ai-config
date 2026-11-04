@@ -481,3 +481,30 @@ describe("copilot target", () => {
     });
   });
 });
+
+describe("copilot hooks — Claude tool names in matchers", () => {
+  it("warns that Claude's tool names never match, naming Copilot's", () => {
+    const { ctx, diagnostics } = collectingContext();
+    const result = copilot.hooks!.transform(
+      { preToolUse: [{ command: "x", matcher: "Bash|Edit|mcp__docs__.*" }] },
+      ctx,
+    ) as { hooks: { preToolUse: Array<Record<string, unknown>> } };
+    // Written as given — the fix is a per-target override
+    expect(result.hooks.preToolUse[0]!.matcher).toBe("Bash|Edit|mcp__docs__.*");
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]!.message).toContain("Bash → bash, Edit → edit");
+    expect(diagnostics[0]!.message).toContain('matcher: { claude: "Bash", copilot: "bash" }');
+  });
+
+  it("stays quiet for Copilot's own names and for non-tool events", () => {
+    const { ctx, diagnostics } = collectingContext();
+    copilot.hooks!.transform(
+      {
+        preToolUse: [{ command: "x", matcher: "bash|view" }],
+        preCompact: [{ command: "y", matcher: "auto" }],
+      },
+      ctx,
+    );
+    expect(diagnostics).toEqual([]);
+  });
+});

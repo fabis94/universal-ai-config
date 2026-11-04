@@ -95,9 +95,12 @@ describe("printDiagnostics", () => {
     expect(lines.join("\n")).not.toContain("overrides.ts");
   });
 
-  it("lists what each target loses under --verbose", () => {
+  it("lists what each target loses under --verbose, indented below its line", () => {
     const lines = capture([served("copilot", "hooks", "claude")], true);
-    expect(lines.join("\n")).toContain("copilot loses: copilot loses hooks");
+    const index = lines.findIndex((line) => line.includes("both read claude's hooks"));
+    expect(lines[index]).toMatch(/↳ claude and copilot both read/);
+    expect(lines[index + 1]).toMatch(/^log: \S*\s{6}copilot loses: copilot loses hooks/);
+    expect(lines[index + 1]).not.toContain("↳");
   });
 
   it("prints other warnings one by one and counts info", () => {

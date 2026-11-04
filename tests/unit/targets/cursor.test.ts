@@ -457,3 +457,18 @@ describe("cursor target — user-invocable is boolean only", () => {
     expect(diagnostics.map((d) => d.code)).toEqual(["suspicious-value"]);
   });
 });
+
+describe("cursor hooks — Claude tool names in matchers", () => {
+  it("warns that Bash never matches Cursor's Shell tool", () => {
+    const { ctx, diagnostics } = collectingContext();
+    cursor.hooks!.transform({ postToolUse: [{ command: "x", matcher: "Bash" }] }, ctx);
+    expect(diagnostics.map((d) => d.code)).toEqual(["suspicious-value"]);
+    expect(diagnostics[0]!.message).toContain("Bash → Shell");
+  });
+
+  it("stays quiet for Cursor's own names", () => {
+    const { ctx, diagnostics } = collectingContext();
+    cursor.hooks!.transform({ preToolUse: [{ command: "x", matcher: "Shell|Read" }] }, ctx);
+    expect(diagnostics).toEqual([]);
+  });
+});

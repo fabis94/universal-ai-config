@@ -177,6 +177,15 @@ Matcher syntax per target:
 - **Copilot:** compiled as `^(?:PATTERN)$` against Copilot's runtime names: `bash`, `powershell`, `view`, `create`, `edit`, `grep`, `glob`, `task`, `web_fetch`, `ask_user`, and `serverName-toolName` for MCP tools. Matchers apply to `preToolUse`, `postToolUse`, `permissionRequest`, `preCompact`, `subagentStart` and `notification`.
 - **Codex:** matches Claude-style tool names (`Bash`, `mcp__server__.*`). `SessionEnd` matches the end reason, `SubagentStart`/`SubagentStop` the subagent type, `PreCompact`/`PostCompact` the trigger; `PreModelRequest`, `PostModelRequest` and `Interrupt` ignore matchers.
 
+uac writes a matcher as given. A Claude tool name in a Cursor or Copilot tool-event matcher (`Bash`, `Edit`, …) never matches there, so uac warns (`suspicious-value`) and names the target's tool. Give such matchers per-target values:
+
+```json
+{
+  "command": "./scripts/guard.sh",
+  "matcher": { "claude": "Bash", "codex": "Bash", "cursor": "Shell", "copilot": "bash" }
+}
+```
+
 Tool names per target: [tools.md](tools.md).
 
 ## Per-target caveats

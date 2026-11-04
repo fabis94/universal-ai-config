@@ -136,33 +136,41 @@ function list(items: string[]): string {
  * The switch-over lines: one per shared output, naming who reads it. AGENTS.md
  * gets its own wording, since it replaces a whole instruction mechanism.
  */
-function formatServedBy(served: ServedDiagnostic[], verbose: boolean): string[] {
+/** A summary line, and (under --verbose) indented detail lines below it. */
+interface ReportLine {
+  text: string;
+  details: string[];
+}
+
+function formatServedBy(served: ServedDiagnostic[], verbose: boolean): ReportLine[] {
   const groups = new Map<string, ServedDiagnostic[]>();
   for (const d of served) {
     const key = `${d.detail.by}\u0000${d.type ?? ""}`;
     groups.set(key, [...(groups.get(key) ?? []), d]);
   }
 
-  const lines: string[] = [];
+  const lines: ReportLine[] = [];
   for (const group of groups.values()) {
     const [first] = group;
     if (!first?.target || !first.type) continue;
     const readers = group.map((d) => d.target).filter((t): t is Target => t !== undefined);
     const by = first.detail.by;
-    lines.push(
-      by === "agentsMd"
-        ? `${list(readers)} read the generated AGENTS.md files — skipping their own instruction files`
-        : `${list([by, ...readers])} ${readers.length === 1 ? "both" : "all"} read ${by}'s ${TYPE_NOUN[first.type]} — generating only ${by}'s`,
-    );
-    if (verbose) {
-      for (const d of group) lines.push(`    ${d.target} loses: ${d.detail.loses}`);
-    }
+    lines.push({
+      text:
+        by === "agentsMd"
+          ? `${list(readers)} read the generated AGENTS.md files — skipping their own instruction files`
+          : `${list([by, ...readers])} ${readers.length === 1 ? "both" : "all"} read ${by}'s ${TYPE_NOUN[first.type]} — generating only ${by}'s`,
+      details: verbose ? group.map((d) => `${d.target} loses: ${d.detail.loses}`) : [],
+    });
   }
   return lines;
 }
 
-function printLines(lines: string[]): void {
-  for (const line of lines) consola.log(pc.dim(`  ↳ ${line}`));
+function printLines(lines: ReportLine[]): void {
+  for (const line of lines) {
+    consola.log(pc.dim(`  ↳ ${line.text}`));
+    for (const detail of line.details) consola.log(pc.dim(`      ${detail}`));
+  }
 }
 
 /**
