@@ -1,8 +1,8 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join, basename, isAbsolute, relative, sep } from "node:path";
-import { consola } from "consola";
 import { stringify as stringifyYAML } from "yaml";
 import { loadProjectConfig } from "../config/loader.js";
+import { DiagnosticSink, printDiagnostic } from "./diagnostics.js";
 import { createExcludeMatcher } from "./exclude.js";
 import { filterMCPServers } from "./filter-mcp-servers.js";
 import {
@@ -507,6 +507,7 @@ async function generateHooksFiles(
   root: string,
   config: ResolvedConfig,
   report: ShadowReporter,
+  sink: DiagnosticSink,
 ): Promise<GeneratedFile[]> {
   const hookSlots = await discoverJsonFiles(root, config, "hooks");
   if (hookSlots.size === 0) return [];
@@ -537,7 +538,9 @@ async function generateHooksFiles(
       survivingSources,
       report,
     );
-    const transformed = hooksConfig.transform(resolvedHooks);
+    const transformed = hooksConfig.transform(resolvedHooks, {
+      report: sink.scoped(targetName, "hooks"),
+    });
     const outputDir = config.outputDirs[targetName as Target] ?? targetDef.outputDir;
     const fullOutputPath = join(outputDir, hooksConfig.outputPath);
 
@@ -666,6 +669,7 @@ async function generateMCPFiles(
   root: string,
   config: ResolvedConfig,
   report: ShadowReporter,
+  sink: DiagnosticSink,
 ): Promise<GeneratedFile[]> {
   const mcpSlots = await discoverJsonFiles(root, config, "mcp");
   if (mcpSlots.size === 0) return [];
@@ -697,13 +701,19 @@ async function generateMCPFiles(
     );
     if (unknownNames.length > 0) {
       const known = Object.keys(resolvedServers).join(", ") || "(none)";
-      consola.warn(
-        `[uac] ${targetName}: mcp.mcpServers references unknown server name(s): ${unknownNames.join(", ")}. Known: ${known}`,
-      );
+      sink.report({
+        code: "mcp-unknown-server",
+        target: targetName,
+        type: "mcp",
+        message: `mcp.mcpServers references unknown server name(s): ${unknownNames.join(", ")}. Known: ${known}`,
+        detail: { names: unknownNames, known: Object.keys(resolvedServers) },
+      });
     }
     if (Object.keys(finalServers).length === 0) continue;
 
-    const transformed = mcpConfig.transform(finalServers, mergedData.inputs);
+    const transformed = mcpConfig.transform(finalServers, mergedData.inputs, {
+      report: sink.scoped(targetName, "mcp"),
+    });
 
     const survivingSources = new Set<DiscoveredJsonFile>();
     for (const name of Object.keys(finalServers)) {
@@ -756,7 +766,18 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
     }
   }
 
-  const report: ShadowReporter = (event) => options.onShadowed?.(event);
+  const sink = new DiagnosticSink((diagnostic) => {
+    if (diagnostic.code === "shadowed") options.onShadowed?.(diagnostic.detail);
+    (options.onDiagnostic ?? printDiagnostic)(diagnostic);
+  });
+  const report: ShadowReporter = (event) =>
+    sink.report({
+      code: "shadowed",
+      target: event.target,
+      type: event.type,
+      message: `${event.losingPath} shadowed by ${event.winningPath}`,
+      detail: event,
+    });
 
   const slots = await discoverTemplates(root, config);
 
@@ -900,9 +921,14 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
 
       // Check if target supports this template type
       if (!targetDef.supportedTypes.includes(template.type)) {
-        consola.warn(
-          `Target "${targetName}" does not support "${template.type}" — skipping ${template.relativePath}`,
-        );
+        sink.report({
+          code: "unsupported",
+          target: targetName,
+          type: template.type,
+          source: template.relativePath,
+          message: `does not support "${template.type}" — skipping ${template.relativePath}`,
+          detail: { kind: "type", name: template.type },
+        });
         continue;
       }
 
@@ -1013,32 +1039,37 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
   }
 
   for (const name of missingDocs) {
-    consola.warn(
-      `[uac] docPath('${name}') matched no file under docs/ in templatesDir or any additionalTemplateDirs entry`,
-    );
+    sink.report({
+      code: "missing-doc",
+      message: `docPath('${name}') matched no file under docs/ in templatesDir or any additionalTemplateDirs entry`,
+      detail: { name },
+    });
   }
 
   // Invoke consolidate functions with the buffered template lists. Each
   // function returns root-relative `GeneratedFile`s for its (target, type).
   for (const buf of consolidateBuffers.values()) {
-    const consolidateInput: ConsolidateInput = {
+    const consolidateInput: Omit<ConsolidateInput, "report"> = {
       templates: buf.templates,
       outputDir: buf.outputDir,
       root,
     };
-    const files = await buf.consolidateFn(consolidateInput);
+    const files = await buf.consolidateFn({
+      ...consolidateInput,
+      report: sink.scoped(buf.targetName, buf.type),
+    });
     generatedFiles.push(...files);
   }
 
   // Generate hooks files (separate pipeline — JSON, not markdown)
   if (config.types.includes("hooks")) {
-    const hooksFiles = await generateHooksFiles(root, config, report);
+    const hooksFiles = await generateHooksFiles(root, config, report, sink);
     generatedFiles.push(...hooksFiles);
   }
 
   // Generate MCP files (separate pipeline — JSON, root-relative output)
   if (config.types.includes("mcp")) {
-    const mcpFiles = await generateMCPFiles(root, config, report);
+    const mcpFiles = await generateMCPFiles(root, config, report, sink);
     generatedFiles.push(...mcpFiles);
   }
 

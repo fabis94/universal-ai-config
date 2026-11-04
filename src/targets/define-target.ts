@@ -7,6 +7,13 @@ import type {
   UniversalMCPInput,
   UniversalMCPServer,
 } from "../types.js";
+import type { Reporter } from "../core/diagnostics.js";
+
+/** Passed to every target transform and renderer. */
+export interface TargetContext {
+  /** Report a diagnostic; the target and type are filled in for you. */
+  report: Reporter;
+}
 
 /**
  * Input passed to a target's `consolidate` function — the full set of parsed
@@ -31,6 +38,8 @@ export interface ConsolidateInput {
   outputDir: string;
   /** Project root — for any path resolution the consolidate function needs */
   root: string;
+  /** Report a diagnostic; the target and type are filled in for you. */
+  report: Reporter;
 }
 
 export interface TemplateTypeConfig {
@@ -66,7 +75,10 @@ export interface TemplateTypeConfig {
 
 export interface HooksTypeConfig {
   /** Transform universal hooks config to target-specific output object */
-  transform: (hooks: Record<string, UniversalHookHandler[]>) => Record<string, unknown>;
+  transform: (
+    hooks: Record<string, UniversalHookHandler[]>,
+    ctx: TargetContext,
+  ) => Record<string, unknown>;
   /** Output file path relative to outputDir */
   outputPath: string;
   /** If set, merge output into this key of existing file at outputPath instead of overwriting */
@@ -83,7 +95,8 @@ export interface MCPTypeConfig {
   /** Transform universal MCP servers to target-specific output object */
   transform: (
     servers: Record<string, UniversalMCPServer>,
-    inputs?: UniversalMCPInput[],
+    inputs: UniversalMCPInput[] | undefined,
+    ctx: TargetContext,
   ) => Record<string, unknown>;
   /** Output file path relative to project root (not outputDir) */
   outputPath: string;

@@ -1,6 +1,5 @@
-import { consola } from "consola";
 import { stringify as stringifyYAML } from "yaml";
-import { defineTarget, type ConsolidateInput } from "../define-target.js";
+import { defineTarget, type ConsolidateInput, type TargetContext } from "../define-target.js";
 import { stringifyToml } from "../../core/toml.js";
 import type { GeneratedFile, UniversalHookHandler, UniversalMCPServer } from "../../types.js";
 import { getCodexInstructionEmissionPaths } from "./instruction-routing.js";
@@ -41,6 +40,7 @@ function flattenCommand(command: string, args?: string[]): string {
 
 function transformCodexHooks(
   hooks: Record<string, UniversalHookHandler[]>,
+  { report }: TargetContext,
 ): Record<string, unknown> {
   const result: Record<string, unknown[]> = {};
 
@@ -56,13 +56,19 @@ function transformCodexHooks(
       // else with a warning so users know their handler isn't being emitted.
       const handlerType = handler.type ?? "command";
       if (handlerType !== "command") {
-        consola.warn(
-          `[codex] hook handler type "${handlerType}" not supported (only "command"); dropping`,
-        );
+        report({
+          code: "unsupported",
+          message: `hook handler type "${handlerType}" not supported (only "command"); dropping`,
+          detail: { kind: "handler-type", name: handlerType },
+        });
         continue;
       }
       if (!handler.command) {
-        consola.warn(`[codex] hook handler missing command; dropping`);
+        report({
+          code: "unsupported",
+          message: "hook handler missing command; dropping",
+          detail: { kind: "field", name: "command" },
+        });
         continue;
       }
       const key = handler.matcher ?? "";
@@ -102,7 +108,11 @@ function transformCodexHooks(
   return { hooks: result };
 }
 
-function transformCodexMCP(servers: Record<string, UniversalMCPServer>): Record<string, unknown> {
+function transformCodexMCP(
+  servers: Record<string, UniversalMCPServer>,
+  _inputs: unknown,
+  { report }: TargetContext,
+): Record<string, unknown> {
   const mcp_servers: Record<string, unknown> = {};
   for (const [name, server] of Object.entries(servers)) {
     const entry: Record<string, unknown> = {};
@@ -134,15 +144,25 @@ function transformCodexMCP(servers: Record<string, UniversalMCPServer>): Record<
 
     // Drop-with-warning: Codex auth model differs from Claude/Cursor OAuth
     if (server.oauth !== undefined) {
-      consola.warn(
-        `[codex] mcp.${name}: oauth dropped (use bearerTokenEnvVar + oauthResource + scopes)`,
-      );
+      report({
+        code: "unsupported",
+        message: `mcp.${name}: oauth dropped (use bearerTokenEnvVar + oauthResource + scopes)`,
+        detail: { kind: "field", name: "oauth" },
+      });
     }
     if (server.auth !== undefined) {
-      consola.warn(`[codex] mcp.${name}: auth dropped (use bearerTokenEnvVar for Codex)`);
+      report({
+        code: "unsupported",
+        message: `mcp.${name}: auth dropped (use bearerTokenEnvVar for Codex)`,
+        detail: { kind: "field", name: "auth" },
+      });
     }
     if (server.envFile !== undefined) {
-      consola.warn(`[codex] mcp.${name}: envFile dropped (use envVars or env for Codex)`);
+      report({
+        code: "unsupported",
+        message: `mcp.${name}: envFile dropped (use envVars or env for Codex)`,
+        detail: { kind: "field", name: "envFile" },
+      });
     }
     // `type` is dropped silently — Codex infers transport from command vs url
 
@@ -317,7 +337,11 @@ function consolidateCodexSkills({ templates }: ConsolidateInput): GeneratedFile[
   return files;
 }
 
-function consolidateCodexAgents({ templates, outputDir }: ConsolidateInput): GeneratedFile[] {
+function consolidateCodexAgents({
+  templates,
+  outputDir,
+  report,
+}: ConsolidateInput): GeneratedFile[] {
   const files: GeneratedFile[] = [];
   for (const t of templates) {
     const fm = t.frontmatter;
@@ -330,9 +354,12 @@ function consolidateCodexAgents({ templates, outputDir }: ConsolidateInput): Gen
     if (fm.model !== undefined) {
       tomlObj.model = fm.model;
       if (typeof fm.model === "string" && fm.model.startsWith("claude-")) {
-        consola.warn(
-          `[codex] agent "${t.name}": model "${fm.model}" looks Claude-shaped; use a per-target override for Codex (e.g. model: { codex: "gpt-5.4", default: "..." })`,
-        );
+        report({
+          code: "suspicious-value",
+          message: `agent "${t.name}": model "${fm.model}" looks Claude-shaped; use a per-target override for Codex (e.g. model: { codex: "gpt-5.4", default: "..." })`,
+          source: t.sourcePath,
+          detail: { field: "model", value: fm.model },
+        });
       }
     }
 
@@ -343,9 +370,12 @@ function consolidateCodexAgents({ templates, outputDir }: ConsolidateInput): Gen
       if (CODEX_REASONING_EFFORT.has(fm.effort)) {
         tomlObj.model_reasoning_effort = fm.effort;
       } else {
-        consola.warn(
-          `[codex] agent "${t.name}": effort "${fm.effort}" has no Codex equivalent; dropped (use a per-target override for Codex)`,
-        );
+        report({
+          code: "unsupported",
+          message: `agent "${t.name}": effort "${fm.effort}" has no Codex equivalent; dropped (use a per-target override for Codex)`,
+          source: t.sourcePath,
+          detail: { kind: "field", name: "effort" },
+        });
       }
     }
 
@@ -355,19 +385,28 @@ function consolidateCodexAgents({ templates, outputDir }: ConsolidateInput): Gen
 
     // Drop-with-warning: fields with no clean Codex translation.
     if (fm.tools !== undefined) {
-      consola.warn(
-        `[codex] agent "${t.name}": "tools" dropped (Codex uses per-MCP-server enabled_tools, not agent-level)`,
-      );
+      report({
+        code: "unsupported",
+        message: `agent "${t.name}": "tools" dropped (Codex uses per-MCP-server enabled_tools, not agent-level)`,
+        source: t.sourcePath,
+        detail: { kind: "field", name: "tools" },
+      });
     }
     if (fm.disallowedTools !== undefined) {
-      consola.warn(
-        `[codex] agent "${t.name}": disallowedTools dropped (Codex has no agent-level denylist)`,
-      );
+      report({
+        code: "unsupported",
+        message: `agent "${t.name}": disallowedTools dropped (Codex has no agent-level denylist)`,
+        source: t.sourcePath,
+        detail: { kind: "field", name: "disallowedTools" },
+      });
     }
     if (fm.permissionMode !== undefined) {
-      consola.warn(
-        `[codex] agent "${t.name}": permissionMode dropped (use sandboxMode for Codex via per-target override)`,
-      );
+      report({
+        code: "unsupported",
+        message: `agent "${t.name}": permissionMode dropped (use sandboxMode for Codex via per-target override)`,
+        source: t.sourcePath,
+        detail: { kind: "field", name: "permissionMode" },
+      });
     }
 
     files.push({

@@ -1,3 +1,5 @@
+import type { Diagnostic } from "./core/diagnostics.js";
+
 export type Target = "claude" | "copilot" | "cursor" | "codex";
 export type TemplateType = "instructions" | "skills" | "agents" | "hooks" | "mcp";
 
@@ -214,8 +216,16 @@ export interface GenerateOptions {
    * Called once per shadowed candidate, per target. A candidate is shadowed when
    * a higher-precedence source declared the same identity — see `ShadowEvent`.
    * Candidates dropped by `exclude` are not reported: that was asked for.
+   *
+   * @deprecated Use `onDiagnostic` and read diagnostics with `code: "shadowed"`.
    */
   onShadowed?: (event: ShadowEvent) => void;
+  /**
+   * Called with every diagnostic the run produces: warnings (unsupported fields,
+   * outputs another target serves, …) and info (shadowed templates). When
+   * omitted, warnings are printed to the console.
+   */
+  onDiagnostic?: (diagnostic: Diagnostic) => void;
 }
 
 /**

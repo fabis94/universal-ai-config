@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import type { DiagnosticInput } from "../../../src/core/diagnostics.js";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYAML } from "yaml";
 import codex, { globRootDir } from "../../../src/targets/codex/index.js";
@@ -27,8 +28,15 @@ function makeInput(
   templates: ConsolidateInput["templates"],
   outputDir = ".codex",
 ): ConsolidateInput {
-  return { templates, outputDir, root: "/tmp/fixture" };
+  return { templates, outputDir, root: "/tmp/fixture", report: (d) => diagnostics.push(d) };
 }
+
+/** Diagnostics reported by the last target call — reset before each test. */
+let diagnostics: DiagnosticInput[] = [];
+const ctx = { report: (d: DiagnosticInput) => diagnostics.push(d) };
+beforeEach(() => {
+  diagnostics = [];
+});
 
 describe("codex target", () => {
   it("has correct name, outputDir, and supportedTypes", () => {
@@ -633,7 +641,7 @@ describe("codex target", () => {
         permissionRequest: [{ command: "e.sh" }],
         stop: [{ command: "f.sh" }],
       };
-      const result = transform(hooks) as { hooks: Record<string, unknown> };
+      const result = transform(hooks, ctx) as { hooks: Record<string, unknown> };
       expect(result.hooks).toHaveProperty("SessionStart");
       expect(result.hooks).toHaveProperty("UserPromptSubmit");
       expect(result.hooks).toHaveProperty("PreToolUse");
@@ -649,7 +657,7 @@ describe("codex target", () => {
         preCompact: [{ command: "c.sh" }],
         preToolUse: [{ command: "d.sh" }],
       };
-      const result = transform(hooks) as { hooks: Record<string, unknown> };
+      const result = transform(hooks, ctx) as { hooks: Record<string, unknown> };
       expect(result.hooks).toHaveProperty("PreToolUse");
       expect(result.hooks).not.toHaveProperty("SessionEnd");
       expect(result.hooks).not.toHaveProperty("SubagentStart");
@@ -660,7 +668,7 @@ describe("codex target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ type: "command", command: "x.sh", timeout: 30 }],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
       };
       const entry = result.hooks.PreToolUse[0]!.hooks[0]!;
@@ -673,7 +681,7 @@ describe("codex target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ command: "x.sh" }],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
       };
       expect(result.hooks.PreToolUse[0]!.hooks[0]!.type).toBe("command");
@@ -689,7 +697,7 @@ describe("codex target", () => {
           { type: "command", command: "kept.sh" },
         ],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
       };
       // Only one handler should survive (the type: "command" one)
@@ -702,7 +710,7 @@ describe("codex target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ command: "echo", args: ["hello world", "it's me"] }],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<{ command: string }> }> };
       };
       const cmd = result.hooks.PreToolUse[0]!.hooks[0]!.command;
@@ -713,7 +721,7 @@ describe("codex target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ command: "lint", args: ["--fix", "src/main.ts"] }],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<{ command: string }> }> };
       };
       expect(result.hooks.PreToolUse[0]!.hooks[0]!.command).toBe("lint --fix src/main.ts");
@@ -723,7 +731,7 @@ describe("codex target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ command: "x.sh", statusMessage: "checking…" }],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
       };
       expect(result.hooks.PreToolUse[0]!.hooks[0]!.statusMessage).toBe("checking…");
@@ -737,7 +745,7 @@ describe("codex target", () => {
           { command: "global.sh" },
         ],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ matcher?: string; hooks: unknown[] }> };
       };
       const groups = result.hooks.PreToolUse;
@@ -761,7 +769,7 @@ describe("codex target", () => {
           },
         ],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
       };
       const entry = result.hooks.PreToolUse[0]!.hooks[0]!;
@@ -777,7 +785,7 @@ describe("codex target", () => {
     const transform = codex.mcp!.transform;
 
     it("wraps output in mcp_servers key (TOML-shaped)", () => {
-      const result = transform({}) as Record<string, unknown>;
+      const result = transform({}, undefined, ctx) as Record<string, unknown>;
       expect(result).toHaveProperty("mcp_servers");
     });
 
@@ -790,7 +798,7 @@ describe("codex target", () => {
           url: "https://x",
         },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcp_servers.s!;
@@ -804,7 +812,7 @@ describe("codex target", () => {
       const servers: Record<string, UniversalMCPServer> = {
         s: { url: "https://x", headers: { Authorization: "Bearer x" } },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       expect(result.mcp_servers.s!.http_headers).toEqual({ Authorization: "Bearer x" });
@@ -815,7 +823,7 @@ describe("codex target", () => {
       const servers: Record<string, UniversalMCPServer> = {
         s: { type: "stdio", command: "node" },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       expect(result.mcp_servers.s!.type).toBeUndefined();
@@ -841,7 +849,7 @@ describe("codex target", () => {
           experimentalEnvironment: "remote",
         },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcp_servers.s!;
@@ -866,7 +874,7 @@ describe("codex target", () => {
       const servers: Record<string, UniversalMCPServer> = {
         s: { url: "https://x", oauth: { clientId: "id" } },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       expect(result.mcp_servers.s!.oauth).toBeUndefined();
@@ -878,7 +886,7 @@ describe("codex target", () => {
       const servers: Record<string, UniversalMCPServer> = {
         s: { url: "https://x", auth: { CLIENT_ID: "id" } },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       expect(result.mcp_servers.s!.auth).toBeUndefined();
@@ -890,7 +898,7 @@ describe("codex target", () => {
       const servers: Record<string, UniversalMCPServer> = {
         s: { command: "x", envFile: ".env" },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       expect(result.mcp_servers.s!.envFile).toBeUndefined();
@@ -908,7 +916,7 @@ describe("codex target", () => {
           dev: { debug: true },
         },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcp_servers.s!;
