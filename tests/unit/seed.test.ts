@@ -303,8 +303,23 @@ describe("seed gitignore", () => {
     // Codex outputs
     expect(gitignore).toContain(".codex/");
     expect(gitignore).toContain(".agents/skills/");
-    expect(gitignore).toContain("AGENTS.md");
-    expect(gitignore).toContain("**/AGENTS.override.md");
+    // Unanchored on purpose: every AGENTS.md is uac output
+    expect(gitignore).toContain("\nAGENTS.md\n");
+    expect(gitignore).not.toContain("AGENTS.override.md");
+    expect(gitignore).toContain("/.agents/uac-instructions/");
+  });
+
+  it("ignores the configured agentsMd.indexDir", async () => {
+    await writeFile(
+      join(tempDir, "universal-ai-config.config.json"),
+      JSON.stringify({ agentsMd: { indexDir: "docs/ai/scoped/" } }),
+      "utf-8",
+    );
+    await runCommand(seedCommand, { rawArgs: ["gitignore", "--root", tempDir] });
+
+    const gitignore = await readFile(join(tempDir, ".gitignore"), "utf-8");
+    expect(gitignore).toContain("/docs/ai/scoped/");
+    expect(gitignore).not.toContain("uac-instructions");
   });
 
   it("appends block to existing .gitignore", async () => {
