@@ -102,9 +102,12 @@ export interface GeneratedFile {
   inputCount?: number;
 }
 
+/** Kinds of hook handler. Each target declares which it can run (`HooksTypeConfig.handlerTypes`). */
+export type HookHandlerType = "command" | "http" | "mcp_tool" | "prompt" | "agent";
+
 export interface UniversalHookHandler {
-  // Handler type: "command" (default), "http", "mcp_tool", "prompt", "agent"
-  type?: string;
+  /** Handler type; defaults to `"command"` */
+  type?: HookHandlerType;
   // command handler
   command?: string;
   args?: string[];

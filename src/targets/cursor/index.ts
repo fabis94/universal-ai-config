@@ -1,6 +1,7 @@
 import { defineTarget } from "../define-target.js";
 import type { UniversalHookHandler, UniversalMCPServer } from "../../types.js";
 import { normalizeGlobs } from "../../core/normalize-globs.js";
+import { flattenCommand } from "../../core/shell.js";
 
 // Cursor uses camelCase but with some different event names
 const EVENT_NAME_MAP: Record<string, string> = {
@@ -40,7 +41,8 @@ function transformCursorHooks(
     result[cursorEvent] = handlers.map((h) => {
       const handlerType = h.type ?? "command";
       const entry: Record<string, unknown> = { type: handlerType };
-      if (h.command !== undefined) entry.command = h.command;
+      // Cursor has no args array — fold args into the command string
+      if (h.command !== undefined) entry.command = flattenCommand(h.command, h.args);
       if (h.prompt !== undefined) entry.prompt = h.prompt;
       if (h.model !== undefined) entry.model = h.model;
       if (h.matcher) entry.matcher = h.matcher;
@@ -103,6 +105,7 @@ export default defineTarget({
   // agents: not supported — cursor has no agent files
 
   hooks: {
+    handlerTypes: ["command", "prompt"],
     transform: transformCursorHooks,
     outputPath: "hooks.json",
   },

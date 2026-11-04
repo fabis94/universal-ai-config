@@ -4,7 +4,8 @@ import { resolveJsonVariables } from "../resolve-json-variables.js";
 import { resolveOverrides } from "../resolve-overrides.js";
 import { stringifyToml } from "../toml.js";
 import { targets } from "../../targets/index.js";
-import type { GeneratedFile, Target, UniversalHookHandler } from "../../types.js";
+import type { Reporter } from "../diagnostics.js";
+import type { GeneratedFile, HookHandlerType, Target, UniversalHookHandler } from "../../types.js";
 import type { GenerateRun } from "./context.js";
 import { discoverJsonFiles, type DiscoveredJsonFile } from "./discover.js";
 import { selectJsonFiles, type ShadowReporter } from "./select.js";
@@ -44,6 +45,43 @@ async function mergeHookFiles(
   return Object.keys(merged).length > 0 ? { hooks: merged, handlerSources } : null;
 }
 
+/** Fields a handler of each type must have to do anything. */
+const REQUIRED_FIELDS: Record<HookHandlerType, readonly (keyof UniversalHookHandler)[]> = {
+  command: ["command"],
+  http: ["url"],
+  mcp_tool: ["server", "tool"],
+  prompt: ["prompt"],
+  agent: ["prompt"],
+};
+
+/**
+ * Whether a resolved handler should reach this target's transform.
+ *
+ * A handler missing a required field is dropped silently: that is how a
+ * per-target override opts a target out (`command: { claude: "x" }` has no
+ * command for copilot). A handler whose type the target can't run is dropped
+ * with a diagnostic, because the user asked for something the target lacks.
+ */
+function isRunnable(
+  handler: Record<string, unknown>,
+  event: string,
+  handlerTypes: readonly HookHandlerType[],
+  report: Reporter,
+): boolean {
+  const type = (handler.type ?? "command") as HookHandlerType;
+  const required = REQUIRED_FIELDS[type] as readonly string[] | undefined;
+  if (required && required.some((field) => !handler[field])) return false;
+  if (!required || !handlerTypes.includes(type)) {
+    report({
+      code: "unsupported",
+      message: `${event}: "${String(type)}" hook handlers are not supported (supported: ${handlerTypes.join(", ")}); dropping`,
+      detail: { kind: "handler-type", name: String(type) },
+    });
+    return false;
+  }
+  return true;
+}
+
 /**
  * Resolve per-target overrides on every merged handler, dropping duplicates.
  *
@@ -56,9 +94,11 @@ async function mergeHookFiles(
 function resolveHookHandlers(
   hooks: Record<string, Record<string, unknown>[]>,
   target: Target,
+  handlerTypes: readonly HookHandlerType[],
   handlerSources: WeakMap<Record<string, unknown>, DiscoveredJsonFile>,
   survivingSources: Set<DiscoveredJsonFile>,
   shadow: ShadowReporter,
+  report: Reporter,
 ): Record<string, UniversalHookHandler[]> {
   const result: Record<string, UniversalHookHandler[]> = {};
   for (const [event, handlers] of Object.entries(hooks)) {
@@ -66,7 +106,7 @@ function resolveHookHandlers(
     const winners = new Map<string, DiscoveredJsonFile | undefined>();
     for (const handler of handlers) {
       const r = resolveOverrides(handler, target);
-      if (!r.command) continue;
+      if (!isRunnable(r, event, handlerTypes, report)) continue;
 
       const fingerprint = stableStringify(r);
       const source = handlerSources.get(handler);
@@ -114,16 +154,17 @@ export async function generateHooksFiles(run: GenerateRun): Promise<GeneratedFil
 
     const hooksConfig = targetDef.hooks;
     const survivingSources = new Set<DiscoveredJsonFile>();
+    const report = sink.scoped(targetName, "hooks");
     const resolvedHooks = resolveHookHandlers(
       mergedHooks.hooks,
       targetName,
+      hooksConfig.handlerTypes,
       mergedHooks.handlerSources,
       survivingSources,
       shadow,
+      report,
     );
-    const transformed = hooksConfig.transform(resolvedHooks, {
-      report: sink.scoped(targetName, "hooks"),
-    });
+    const transformed = hooksConfig.transform(resolvedHooks, { report });
     const outputDir = config.outputDirs[targetName] ?? targetDef.outputDir;
 
     const hooksFormat = hooksConfig.format ?? "json";

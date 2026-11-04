@@ -179,6 +179,7 @@ export default defineTarget({
   },
 
   hooks: {
+    handlerTypes: ["command", "http", "mcp_tool", "prompt", "agent"],
     transform: transformClaudeHooks,
     outputPath: "settings.json",
     mergeKey: "hooks",

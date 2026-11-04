@@ -1,4 +1,5 @@
 import { expect } from "vitest";
+import type { DiagnosticInput } from "../src/core/diagnostics.js";
 
 /**
  * Helper to check for YAML field regardless of quoting style.
@@ -17,4 +18,13 @@ export function text(file: { content: string | Uint8Array } | undefined): string
   return typeof file.content === "string"
     ? file.content
     : Buffer.from(file.content).toString("utf-8");
+}
+
+/** A target context whose `report` collects diagnostics into `diagnostics`. */
+export function collectingContext(): {
+  ctx: { report: (d: DiagnosticInput) => void };
+  diagnostics: DiagnosticInput[];
+} {
+  const diagnostics: DiagnosticInput[] = [];
+  return { ctx: { report: (d) => diagnostics.push(d) }, diagnostics };
 }

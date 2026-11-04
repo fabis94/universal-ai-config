@@ -1,4 +1,4 @@
-import { defineTarget } from "../define-target.js";
+import { defineTarget, type TargetContext } from "../define-target.js";
 import type {
   UniversalFrontmatter,
   UniversalHookHandler,
@@ -6,6 +6,7 @@ import type {
   UniversalMCPServer,
 } from "../../types.js";
 import { normalizeGlobs } from "../../core/normalize-globs.js";
+import { flattenCommand } from "../../core/shell.js";
 
 // Copilot uses camelCase but with some different event names
 const EVENT_NAME_MAP: Record<string, string> = {
@@ -17,8 +18,32 @@ const EVENT_NAME_MAP: Record<string, string> = {
   errorOccurred: "errorOccurred",
 };
 
+/** Copilot runs prompt hooks only at session start. */
+const PROMPT_HOOK_EVENTS = new Set(["sessionStart"]);
+
+function transformCopilotHandler(h: UniversalHookHandler): Record<string, unknown> {
+  const type = h.type ?? "command";
+  const entry: Record<string, unknown> = { type };
+  switch (type) {
+    case "http":
+      entry.url = h.url;
+      if (h.headers !== undefined) entry.headers = h.headers;
+      if (h.allowedEnvVars !== undefined) entry.allowedEnvVars = h.allowedEnvVars;
+      break;
+    case "prompt":
+      entry.prompt = h.prompt;
+      break;
+    default:
+      // Copilot has no args array — fold args into the command string
+      entry.bash = flattenCommand(h.command ?? "", h.args);
+  }
+  if (h.timeout !== undefined) entry.timeoutSec = h.timeout;
+  return entry;
+}
+
 function transformCopilotHooks(
   hooks: Record<string, UniversalHookHandler[]>,
+  { report }: TargetContext,
 ): Record<string, unknown> {
   const result: Record<string, unknown[]> = {};
 
@@ -26,14 +51,19 @@ function transformCopilotHooks(
     const copilotEvent = EVENT_NAME_MAP[event];
     if (!copilotEvent) continue;
 
-    result[copilotEvent] = handlers.map((h) => {
-      const entry: Record<string, unknown> = {
-        type: "command",
-        bash: h.command,
-      };
-      if (h.timeout !== undefined) entry.timeoutSec = h.timeout;
-      return entry;
-    });
+    const entries: Record<string, unknown>[] = [];
+    for (const h of handlers) {
+      if (h.type === "prompt" && !PROMPT_HOOK_EVENTS.has(event)) {
+        report({
+          code: "unsupported",
+          message: `${event}: Copilot runs "prompt" hook handlers only on sessionStart; dropping`,
+          detail: { kind: "handler-type", name: "prompt" },
+        });
+        continue;
+      }
+      entries.push(transformCopilotHandler(h));
+    }
+    if (entries.length > 0) result[copilotEvent] = entries;
   }
 
   return { version: "1", hooks: result };
@@ -126,6 +156,7 @@ export default defineTarget({
   },
 
   hooks: {
+    handlerTypes: ["command", "http", "prompt"],
     transform: transformCopilotHooks,
     outputPath: "hooks/hooks.json",
   },

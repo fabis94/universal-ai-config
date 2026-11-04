@@ -1,5 +1,6 @@
 import { stringify as stringifyYAML } from "yaml";
 import { defineTarget, type ConsolidateInput, type TargetContext } from "../define-target.js";
+import { flattenCommand } from "../../core/shell.js";
 import { stringifyToml } from "../../core/toml.js";
 import type { GeneratedFile, UniversalHookHandler, UniversalMCPServer } from "../../types.js";
 import { getCodexInstructionEmissionPaths } from "./instruction-routing.js";
@@ -19,28 +20,26 @@ const EVENT_NAME_MAP: Record<string, string> = {
 /** Codex `model_reasoning_effort` accepts these values. Claude `effort` overlaps for low/medium/high/xhigh. */
 const CODEX_REASONING_EFFORT = new Set(["minimal", "low", "medium", "high", "xhigh"]);
 
-/**
- * POSIX shell-quote a single argument. Wraps in single quotes (preserves
- * everything literally) and escapes embedded single quotes via `'\''`.
- * No quoting applied to bare-word args that contain only safe characters.
- */
-function shellQuote(s: string): string {
-  if (/^[A-Za-z0-9_/@:%.,+=-]+$/.test(s)) return s;
-  return `'${s.replace(/'/g, "'\\''")}'`;
-}
-
-/**
- * Codex hooks accept a single `command` shell string — not `command` + `args`
- * array. Flatten universal `command + args` into one shell-escaped string.
- */
-function flattenCommand(command: string, args?: string[]): string {
-  if (!args || args.length === 0) return command;
-  return [command, ...args.map(shellQuote)].join(" ");
+function transformCodexHandler(h: UniversalHookHandler): Record<string, unknown> {
+  if (h.type === "mcp_tool") {
+    const entry: Record<string, unknown> = { type: "mcp_tool", server: h.server, tool: h.tool };
+    if (h.input !== undefined) entry.input = h.input;
+    if (h.timeout !== undefined) entry.timeout = h.timeout;
+    if (h.statusMessage !== undefined) entry.statusMessage = h.statusMessage;
+    return entry;
+  }
+  // Codex hooks take one `command` shell string, not `command` + `args`
+  const entry: Record<string, unknown> = {
+    type: "command",
+    command: flattenCommand(h.command ?? "", h.args),
+  };
+  if (h.timeout !== undefined) entry.timeout = h.timeout;
+  if (h.statusMessage !== undefined) entry.statusMessage = h.statusMessage;
+  return entry;
 }
 
 function transformCodexHooks(
   hooks: Record<string, UniversalHookHandler[]>,
-  { report }: TargetContext,
 ): Record<string, unknown> {
   const result: Record<string, unknown[]> = {};
 
@@ -52,57 +51,17 @@ function transformCodexHooks(
     // accepts the same nested `{ matcher?, hooks: [...] }` structure).
     const groups = new Map<string, UniversalHookHandler[]>();
     for (const handler of handlers) {
-      // Codex only reliably runs `type: "command"` handlers. Drop anything
-      // else with a warning so users know their handler isn't being emitted.
-      const handlerType = handler.type ?? "command";
-      if (handlerType !== "command") {
-        report({
-          code: "unsupported",
-          message: `hook handler type "${handlerType}" not supported (only "command"); dropping`,
-          detail: { kind: "handler-type", name: handlerType },
-        });
-        continue;
-      }
-      if (!handler.command) {
-        report({
-          code: "unsupported",
-          message: "hook handler missing command; dropping",
-          detail: { kind: "field", name: "command" },
-        });
-        continue;
-      }
       const key = handler.matcher ?? "";
       const existing = groups.get(key);
-      if (existing) {
-        existing.push(handler);
-      } else {
-        groups.set(key, [handler]);
-      }
+      if (existing) existing.push(handler);
+      else groups.set(key, [handler]);
     }
 
-    const matcherGroups: Array<Record<string, unknown>> = [];
-    for (const [matcher, groupHandlers] of groups) {
-      const hookEntries = groupHandlers.map((h) => {
-        // h.command is non-undefined here — the filter above drops handlers
-        // with missing command before they reach the grouping step.
-        const cmd = h.command ?? "";
-        const entry: Record<string, unknown> = {
-          type: "command",
-          command: flattenCommand(cmd, h.args),
-        };
-        if (h.timeout !== undefined) entry.timeout = h.timeout;
-        if (h.statusMessage !== undefined) entry.statusMessage = h.statusMessage;
-        return entry;
-      });
-
-      const group: Record<string, unknown> = { hooks: hookEntries };
+    result[codexEvent] = [...groups].map(([matcher, groupHandlers]) => {
+      const group: Record<string, unknown> = { hooks: groupHandlers.map(transformCodexHandler) };
       if (matcher) group.matcher = matcher;
-      matcherGroups.push(group);
-    }
-
-    if (matcherGroups.length > 0) {
-      result[codexEvent] = matcherGroups;
-    }
+      return group;
+    });
   }
 
   return { hooks: result };
@@ -445,6 +404,7 @@ export default defineTarget({
   },
 
   hooks: {
+    handlerTypes: ["command", "mcp_tool"],
     transform: transformCodexHooks,
     outputPath: "hooks.json",
   },

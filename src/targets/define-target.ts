@@ -1,5 +1,6 @@
 import type {
   GeneratedFile,
+  HookHandlerType,
   InMemoryExtraFile,
   TemplateType,
   UniversalFrontmatter,
@@ -74,6 +75,12 @@ export interface TemplateTypeConfig {
 }
 
 export interface HooksTypeConfig {
+  /**
+   * Handler types this target can run. Handlers of any other type are dropped
+   * with an `unsupported` diagnostic before `transform` is called, so the
+   * transform only ever sees these types (each with its required fields set).
+   */
+  handlerTypes: readonly HookHandlerType[];
   /** Transform universal hooks config to target-specific output object */
   transform: (
     hooks: Record<string, UniversalHookHandler[]>,

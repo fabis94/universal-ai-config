@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
+import { collectingContext } from "../../test-helpers.js";
 import copilot from "../../../src/targets/copilot/index.js";
 import type {
   UniversalFrontmatter,
   UniversalHookHandler,
   UniversalMCPServer,
 } from "../../../src/types.js";
+
+const { ctx } = collectingContext();
 
 describe("copilot target", () => {
   it("has correct name and output dir", () => {
@@ -167,7 +170,7 @@ describe("copilot target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ command: "test.sh", timeout: 30 }],
       };
-      const result = config.transform(hooks) as {
+      const result = config.transform(hooks, ctx) as {
         version: string;
         hooks: Record<string, unknown[]>;
       };
@@ -183,7 +186,7 @@ describe("copilot target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         userPromptSubmit: [{ command: "validate.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       expect(result.hooks).toHaveProperty("userPromptSubmitted");
       expect(result.hooks).not.toHaveProperty("userPromptSubmit");
     });
@@ -194,7 +197,7 @@ describe("copilot target", () => {
         stop: [{ command: "stop.sh" }],
         subagentStart: [{ command: "agent.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       expect(result.hooks).toHaveProperty("preToolUse");
       expect(result.hooks).not.toHaveProperty("stop");
       expect(result.hooks).not.toHaveProperty("subagentStart");
@@ -204,7 +207,7 @@ describe("copilot target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ matcher: "Bash", command: "test.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       const handler = result.hooks.preToolUse[0] as Record<string, unknown>;
       expect(handler).not.toHaveProperty("matcher");
     });
@@ -218,7 +221,7 @@ describe("copilot target", () => {
         postToolUse: [{ command: "a.sh" }],
         errorOccurred: [{ command: "a.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       expect(result.hooks).toHaveProperty("sessionStart");
       expect(result.hooks).toHaveProperty("sessionEnd");
       expect(result.hooks).toHaveProperty("userPromptSubmitted");
@@ -234,7 +237,7 @@ describe("copilot target", () => {
           { matcher: "Edit", command: "lint.sh" },
         ],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       // flat array of handlers, not nested by matcher
       expect(result.hooks.preToolUse).toHaveLength(2);
       const first = result.hooks.preToolUse[0] as Record<string, unknown>;
@@ -243,7 +246,7 @@ describe("copilot target", () => {
     });
 
     it("always wraps output in version + hooks keys", () => {
-      const result = config.transform({}) as Record<string, unknown>;
+      const result = config.transform({}, ctx) as Record<string, unknown>;
       expect(result.version).toBe("1");
       expect(result).toHaveProperty("hooks");
     });
@@ -271,7 +274,7 @@ describe("copilot target", () => {
           headers: { Authorization: "Bearer tok" },
         },
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         servers: Record<string, Record<string, unknown>>;
       };
       const s = result.servers["my-server"]!;
@@ -295,7 +298,7 @@ describe("copilot target", () => {
           dev: { watch: "src/**", debug: true },
         },
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         servers: Record<string, Record<string, unknown>>;
       };
       const s = result.servers["my-server"]!;
@@ -309,12 +312,15 @@ describe("copilot target", () => {
       const inputs = [
         { type: "promptString" as const, id: "token", description: "API token", password: true },
       ];
-      const result = config.transform(servers, inputs) as Record<string, unknown>;
+      const result = config.transform(servers, inputs, ctx) as Record<string, unknown>;
       expect(result.inputs).toEqual(inputs);
     });
 
     it("omits inputs key when no inputs provided", () => {
-      const result = config.transform({ s: { command: "npx" } }) as Record<string, unknown>;
+      const result = config.transform({ s: { command: "npx" } }, undefined, ctx) as Record<
+        string,
+        unknown
+      >;
       expect(result).not.toHaveProperty("inputs");
     });
 
@@ -327,7 +333,7 @@ describe("copilot target", () => {
           headersHelper: "./gen.sh",
         } as UniversalMCPServer,
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         servers: Record<string, Record<string, unknown>>;
       };
       const s = result.servers["my-server"]!;
@@ -343,7 +349,7 @@ describe("copilot target", () => {
           auth: { CLIENT_ID: "id", CLIENT_SECRET: "sec", scopes: ["read"] },
         } as UniversalMCPServer,
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         servers: Record<string, Record<string, unknown>>;
       };
       const s = result.servers["my-server"]!;
@@ -351,7 +357,10 @@ describe("copilot target", () => {
     });
 
     it("wraps output in servers key", () => {
-      const result = config.transform({ s: { command: "node" } }) as Record<string, unknown>;
+      const result = config.transform({ s: { command: "node" } }, undefined, ctx) as Record<
+        string,
+        unknown
+      >;
       expect(result).toHaveProperty("servers");
     });
   });

@@ -687,23 +687,32 @@ describe("codex target", () => {
       expect(result.hooks.PreToolUse[0]!.hooks[0]!.type).toBe("command");
     });
 
-    it("non-command handler types dropped with warning", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    it("mcp_tool handlers emit server, tool, input, timeout and statusMessage", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [
-          { type: "http", url: "https://x", command: "n/a" },
-          { type: "mcp_tool", server: "s", tool: "t", command: "n/a" },
-          { type: "prompt", prompt: "go", command: "n/a" },
-          { type: "command", command: "kept.sh" },
+          {
+            type: "mcp_tool",
+            server: "audit",
+            tool: "log",
+            input: { path: "${tool_input.file_path}" },
+            timeout: 5,
+            statusMessage: "Auditing",
+            matcher: "Bash",
+          },
         ],
       };
       const result = transform(hooks, ctx) as {
-        hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
+        hooks: { PreToolUse: Array<{ matcher?: string; hooks: Array<Record<string, unknown>> }> };
       };
-      // Only one handler should survive (the type: "command" one)
-      expect(result.hooks.PreToolUse[0]!.hooks).toHaveLength(1);
-      expect(result.hooks.PreToolUse[0]!.hooks[0]!.command).toBe("kept.sh");
-      warnSpy.mockRestore();
+      expect(result.hooks.PreToolUse[0]!.matcher).toBe("Bash");
+      expect(result.hooks.PreToolUse[0]!.hooks[0]).toEqual({
+        type: "mcp_tool",
+        server: "audit",
+        tool: "log",
+        input: { path: "${tool_input.file_path}" },
+        timeout: 5,
+        statusMessage: "Auditing",
+      });
     });
 
     it("command + args flattened into single shell-escaped string", () => {

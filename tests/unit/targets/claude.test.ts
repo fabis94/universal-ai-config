@@ -1,10 +1,13 @@
 import { describe, it, expect } from "vitest";
+import { collectingContext } from "../../test-helpers.js";
 import claude from "../../../src/targets/claude/index.js";
 import type {
   UniversalFrontmatter,
   UniversalHookHandler,
   UniversalMCPServer,
 } from "../../../src/types.js";
+
+const { ctx } = collectingContext();
 
 describe("claude target", () => {
   it("has correct name and output dir", () => {
@@ -187,7 +190,7 @@ describe("claude target", () => {
         preToolUse: [{ command: "test.sh" }],
         sessionStart: [{ command: "init.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown> };
       expect(result.hooks).toHaveProperty("PreToolUse");
       expect(result.hooks).toHaveProperty("SessionStart");
       expect(result.hooks).not.toHaveProperty("preToolUse");
@@ -201,7 +204,7 @@ describe("claude target", () => {
           { command: "global-check.sh" },
         ],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       const groups = result.hooks.PreToolUse as Array<{ matcher?: string; hooks: unknown[] }>;
       expect(groups).toHaveLength(2);
 
@@ -224,7 +227,7 @@ describe("claude target", () => {
         preToolUse: [{ command: "test.sh" }],
         errorOccurred: [{ command: "error.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown> };
       expect(result.hooks).toHaveProperty("PreToolUse");
       expect(result.hooks).not.toHaveProperty("errorOccurred");
     });
@@ -261,7 +264,7 @@ describe("claude target", () => {
         taskCreated: [{ command: "a.sh" }],
         taskCompleted: [{ command: "a.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown> };
       expect(result.hooks).toHaveProperty("SessionStart");
       expect(result.hooks).toHaveProperty("SessionEnd");
       expect(result.hooks).toHaveProperty("UserPromptSubmit");
@@ -313,7 +316,7 @@ describe("claude target", () => {
           },
         ],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       const groups = result.hooks.PreToolUse as Array<{ hooks: unknown[] }>;
       const entries = groups[0]!.hooks as Record<string, unknown>[];
 
@@ -359,7 +362,7 @@ describe("claude target", () => {
           },
         ],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       const groups = result.hooks.PreToolUse as Array<{ hooks: unknown[] }>;
       const entry = groups[0]!.hooks[0] as Record<string, unknown>;
       expect(entry.headers).toEqual({ Authorization: "Bearer tok" });
@@ -371,7 +374,7 @@ describe("claude target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         sessionStart: [{ command: "node", args: ["./check.js", "--strict"] }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       const groups = result.hooks.SessionStart as Array<{ hooks: unknown[] }>;
       const entry = groups[0]!.hooks[0] as Record<string, unknown>;
       expect(entry.command).toBe("node");
@@ -435,7 +438,7 @@ describe("claude target", () => {
           headers: { Authorization: "Bearer tok" },
         },
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         mcpServers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcpServers["my-server"]!;
@@ -458,7 +461,7 @@ describe("claude target", () => {
           oauth: { clientId: "abc", scopes: ["read"] },
         },
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         mcpServers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcpServers["my-server"]!;
@@ -476,7 +479,7 @@ describe("claude target", () => {
           dev: { watch: "./src" },
         } as UniversalMCPServer,
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         mcpServers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcpServers["my-server"]!;
@@ -493,7 +496,7 @@ describe("claude target", () => {
           auth: { CLIENT_ID: "id", CLIENT_SECRET: "sec", scopes: ["read"] },
         } as UniversalMCPServer,
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         mcpServers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcpServers["my-server"]!;
@@ -502,7 +505,10 @@ describe("claude target", () => {
     });
 
     it("wraps output in mcpServers key", () => {
-      const result = config.transform({ s: { command: "node" } }) as Record<string, unknown>;
+      const result = config.transform({ s: { command: "node" } }, undefined, ctx) as Record<
+        string,
+        unknown
+      >;
       expect(result).toHaveProperty("mcpServers");
       expect(result).not.toHaveProperty("s");
     });

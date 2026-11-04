@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "command": "node",
+        "args": ["guard.js", "--mode", "strict mode"],
+        "matcher": "Bash"
+      },
+      { "type": "http", "url": "https://hooks.example.com/pre" },
+      { "type": "mcp_tool", "server": "audit", "tool": "log", "input": { "path": "${tool_input.file_path}" } },
+      { "type": "agent", "prompt": "Check the call" },
+      { "command": { "claude": "claude-only.sh" } }
+    ],
+    "sessionStart": [{ "type": "prompt", "prompt": "Say hi" }]
+  }
+}
