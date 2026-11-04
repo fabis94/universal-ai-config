@@ -35,8 +35,9 @@ Each category below is generic across tools. For every supported tool, the skill
 
 **Where in uac**
 
-- `src/targets/<tool>/index.ts` → `outputDir` and each `getOutputPath()` function
-- `src/core/writer.ts` → `CLEAN_PATHS` and `CLEAN_MCP_PATHS` constants
+- `src/targets/<tool>/index.ts` → `outputDir`, and each type config's `outputPath()`, `typeDir()` and `ownedPaths()`; hooks/MCP `outputPath(ctx)` and `mergeKey`
+- `src/core/plan/locate.ts` → the locator every emitter, path helper and clean goes through
+- `src/core/clean/` → what `uac clean` removes is derived from `ownedPaths` and the hooks/MCP paths (`entries.ts`), plus outputs older uac versions wrote (`legacy.ts`) and the AGENTS.md scan (`agents-files.ts`)
 
 **What to look for in docs**
 
@@ -75,7 +76,7 @@ For each template type the tool supports, the full set of accepted frontmatter f
 
 **Where in uac**
 
-- `src/targets/<tool>/index.ts` → `frontmatterMap` inside each `TemplateTypeConfig`
+- `src/targets/<tool>/index.ts` → `frontmatterMap` (and `frontmatterStyle`) inside each `TemplateTypeConfig`; targets with a non-markdown format build their output in `render` (Codex skills and agents)
 - `src/types.ts` → `UniversalFrontmatter` interface (universal field names)
 - Documentation that lists fields: `src/seed-types/meta-instructions/templates/docs/uac/frontmatter.md` (skills, agents, `codex.*`), the Instructions table in `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md`, `src/seed-types/meta-instructions/templates/docs/uac/hooks.md` (handler fields), `src/seed-types/meta-instructions/templates/docs/uac/mcp.md` (server fields)
 
@@ -90,6 +91,7 @@ Reference tables labeled "Frontmatter," "Metadata," "Configuration fields," "Pro
 **What to validate**
 
 - **Event names** — the canonical event name strings each tool accepts (e.g. PascalCase vs. camelCase, renames like `userPromptSubmit` → `userPromptSubmitted`).
+- **Handler types** — which of `command`, `http`, `mcp_tool`, `prompt`, `agent` the tool runs (and on which events).
 - **Handler field names** — the keys inside each handler object (e.g. `command` vs. `bash`, `timeout` vs. `timeoutSec`).
 - **Hook config file location** — single file vs. directory of files, wrapper key (e.g. `hooks`, `version`).
 - **Handler grouping/nesting** — whether handlers are flat arrays or grouped by matcher.
@@ -98,7 +100,8 @@ Reference tables labeled "Frontmatter," "Metadata," "Configuration fields," "Pro
 
 **Where in uac**
 
-- `src/targets/<tool>/index.ts` → `EVENT_NAME_MAP` constant, `transform*Hooks()` function, `hooks` config block
+- `src/targets/<tool>/index.ts` → the `hooks` config block: `events` (universal → native names), `handlerTypes`, `transform`, `outputPath`
+- `src/core/generate/hooks.ts` → handler-type filtering and required fields per handler type
 - `src/types.ts` → `UniversalHookHandler` interface
 
 **What to look for in docs**
@@ -134,7 +137,7 @@ Pages titled "Tools," "Tool reference," "Available tools," "Permission rules." A
 
 **What to validate**
 
-- **Config file location** (e.g. `.mcp.json`, `.vscode/mcp.json`, `.cursor/mcp.json`).
+- **Config file location** (e.g. `.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml`), and which legacy locations the tool has stopped reading.
 - **Wrapper key** at the top of the file (e.g. `mcpServers`, `servers`).
 - **Per-server fields** — `type`, `command`, `args`, `env`, `url`, `headers`, plus any new fields (`envFile`, `cwd`, `sandbox`, etc.).
 - **Transport types supported** — stdio, sse, http, streamable-http.
@@ -144,7 +147,7 @@ Pages titled "Tools," "Tool reference," "Available tools," "Permission rules." A
 
 **Where in uac**
 
-- `src/targets/<tool>/index.ts` → `transform*MCP()` function and `mcp` config block
+- `src/targets/<tool>/index.ts` → the `mcp` config block (`transform`, `outputPath`, `mergeKey`/`format`)
 - `src/types.ts` → `UniversalMCPServer` and `UniversalMCPInput` interfaces
 
 **What to look for in docs**
@@ -203,9 +206,13 @@ Pages titled "Permissions," "Permission modes," "Safety," "Auto-approve," "Trust
 - Import/include syntax for chaining context files (e.g. `@import`).
 - Whether the tool has adopted the cross-vendor `AGENTS.md` open standard.
 
+- **AGENTS.md loading mechanics** — root vs. nested files, when nested ones load (session start, on read, on edit, only on the launch path), size budgets, and what makes a tool skip `AGENTS.md` (e.g. Claude with a non-empty `CLAUDE.md`).
+
 **Where in uac**
 
-- This is largely outside uac's current scope (uac doesn't currently manage CLAUDE.md / AGENTS.md), but changes here often signal new template types worth supporting.
+- `src/core/agents-md/` → AGENTS.md routing and the `nested` / `concatenate` / `index` layouts; `src/core/generate/agents-md.ts` → the CLAUDE.md and 32 KiB checks
+- `src/targets/<tool>/index.ts` → `reads.instructions` (whether the tool reads AGENTS.md) and `instructions: "agentsMd"` (Codex: reads nothing else)
+- `src/seed-types/meta-instructions/templates/docs/uac/config.md` and `codex.md` → the documented per-tool behavior
 
 **What to look for in docs**
 
@@ -217,8 +224,8 @@ Pages titled "Memory," "Context," "AGENTS.md," "Project instructions," "Reposito
 
 **What to validate**
 
-- **The full list of currently-accepted model identifier constants per target.** Enumerate every string a user could put in a `model:` field today — aliases (`sonnet`, `opus`, `haiku`, `inherit`) AND fully-qualified IDs (`claude-sonnet-4-6`, `claude-opus-4-7`, `gpt-5.5`, etc.). This list is the most volatile piece in this whole document: vendors add and retire models multiple times per quarter.
-- Per-target identifier syntax conventions. Same underlying model has different syntax on different targets (Anthropic uses hyphens like `claude-sonnet-4-6`; Copilot/Cursor use dots like `claude-sonnet-4.6`). Note any divergence.
+- **The full list of currently-accepted model identifier constants per target.** Enumerate every string a user could put in a `model:` field today — aliases (`sonnet`, `opus`, `haiku`, `fable`, `inherit`) AND fully-qualified IDs (`claude-sonnet-5-5`, `claude-opus-5-5`, `gpt-6.1-sol`, `composer-2.5`, etc.). This list is the most volatile piece in this whole document: vendors add and retire models multiple times per quarter.
+- Per-target identifier syntax conventions. Same underlying model has different syntax on different targets (Claude Code and Cursor use hyphens like `claude-sonnet-5-5`; Copilot uses dots like `claude-sonnet-5.5`). Note any divergence.
 - Where model can be specified (agent frontmatter, skill frontmatter, settings file, CLI flag, env var, slash command).
 - Whether aliases are accepted alongside fully-qualified IDs.
 - Inheritance keywords (e.g. `inherit`, `default`).
@@ -282,6 +289,30 @@ Anything in a tool's docs that has no analog in the other tools' docs is a candi
 
 ---
 
+### 1.13 Cross-tool discovery
+
+**What to validate**
+
+Which other tools' outputs each tool also loads, per template type — and what it does when it finds its own copy too. uac decides what to generate from these facts, so a stale one means duplicated or missing config.
+
+- **Instructions:** does the tool read root and nested `AGENTS.md` (and when)? Does it read other tools' rule folders?
+- **Skills / agents:** does it scan `.claude/skills`, `.claude/agents`, `.agents/skills`, `.codex/*`? Which copy wins on a name clash?
+- **Hooks:** does it run another tool's hook file (e.g. `.claude/settings.json`)? Does it dedupe identical commands, run both, or reject the whole file over handler types it can't parse? Which events does it import?
+- **MCP:** does it read another tool's server file (e.g. root `.mcp.json`)?
+- **Reconcile mode:** `loads-both` (both copies load), `same-file` (both targets write the same path), `dedupes-identical` (identical entries collapse), `prefers-own`.
+
+**Where in uac**
+
+- `src/targets/<tool>/index.ts` → `reads` (one `ForeignRead` per type: `from`, `reconcile`, `loses`, and for hooks `events` / `onlyWithMatcher` / `rejectsHandlerTypes`)
+- `src/core/plan/build-plan.ts` → the single policy that turns those facts into which outputs are generated
+- `src/seed-types/meta-instructions/templates/docs/uac/config.md` → the documented shared-output table, and README "Shared Outputs"
+
+**What to look for in docs**
+
+"Compatibility," "third-party configs," "Claude Code compatibility," "reads `.claude/…`," "AGENTS.md support," and precedence/dedupe notes in skills, agents, hooks and MCP pages. Docs are often silent or wrong on dedupe and precedence; confirm with [Part 6](#part-6-investigating-tool-internals-when-docs-are-unclear).
+
+---
+
 ## Part 2: Documentation Sources per Tool
 
 Each tool's section follows the same template:
@@ -307,7 +338,8 @@ Each tool's section follows the same template:
 
 #### Tier 2 — Announcements & change history
 
-- Official changelog page: https://code.claude.com/docs/en/changelog
+- Official changelog page: https://code.claude.com/docs/en/changelog — about 1.1 MB; fetch the `.md` variant, build a version→date index from the `**x.y.z**` and date lines, then grep by keyword
+- Weekly digests: https://code.claude.com/docs/en/whats-new/index
 - Raw CHANGELOG.md in repo: https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
 - GitHub releases (tagged): https://github.com/anthropics/claude-code/releases
 - Anthropic news: https://www.anthropic.com/news
@@ -322,19 +354,21 @@ Each tool's section follows the same template:
 
 #### Per-feature index
 
-| Feature category                                                  | URL(s)                                                                                                                                                                                                                         |
-| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| File locations & naming                                           | https://code.claude.com/docs/en/features-overview, https://code.claude.com/docs/en/settings                                                                                                                                    |
-| Frontmatter — instructions/memory                                 | https://code.claude.com/docs/en/memory                                                                                                                                                                                         |
-| Frontmatter — skills                                              | https://code.claude.com/docs/en/skills, https://code.claude.com/docs/en/agent-sdk/slash-commands, https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices                                             |
-| Frontmatter — agents                                              | https://code.claude.com/docs/en/sub-agents, https://platform.claude.com/docs/en/agent-sdk/subagents                                                                                                                            |
-| Hooks (events, fields, matchers)                                  | https://code.claude.com/docs/en/hooks                                                                                                                                                                                          |
-| MCP                                                               | https://code.claude.com/docs/en/mcp, https://code.claude.com/docs/en/agent-sdk/mcp                                                                                                                                             |
-| Tool system (incl. MCP tool reference syntax `mcp__server__tool`) | https://code.claude.com/docs/en/settings, https://code.claude.com/docs/en/sub-agents, https://platform.claude.com/docs/en/agent-sdk/permissions, https://platform.claude.com/docs/en/agent-sdk/mcp                             |
-| Permission modes                                                  | https://code.claude.com/docs/en/permission-modes                                                                                                                                                                               |
-| Memory scopes                                                     | https://code.claude.com/docs/en/memory                                                                                                                                                                                         |
-| Model identifiers                                                 | **Full catalog:** https://docs.claude.com/en/docs/about-claude/models/overview. **Where used:** https://code.claude.com/docs/en/sub-agents, https://code.claude.com/docs/en/permission-modes. Plus changelog for new releases. |
-| Plugins (affects MCP, skills, hooks scoping)                      | https://code.claude.com/docs/en/plugins, https://code.claude.com/docs/en/plugins-reference                                                                                                                                     |
+| Feature category                                                  | URL(s)                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File locations & naming                                           | https://code.claude.com/docs/en/features-overview, https://code.claude.com/docs/en/settings                                                                                                                             |
+| Frontmatter — instructions/memory                                 | https://code.claude.com/docs/en/memory                                                                                                                                                                                  |
+| Frontmatter — all file types (fastest full check)                 | https://code.claude.com/docs/en/claude-directory ("Frontmatter fields by file")                                                                                                                                         |
+| Frontmatter — skills                                              | https://code.claude.com/docs/en/skills, https://code.claude.com/docs/en/agent-sdk/skills, https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices                                              |
+| Frontmatter — agents                                              | https://code.claude.com/docs/en/sub-agents, https://code.claude.com/docs/en/agent-sdk/subagents                                                                                                                         |
+| Hooks (events, fields, matchers)                                  | https://code.claude.com/docs/en/hooks                                                                                                                                                                                   |
+| MCP                                                               | https://code.claude.com/docs/en/mcp, https://code.claude.com/docs/en/agent-sdk/mcp                                                                                                                                      |
+| Tool system (incl. MCP tool reference syntax `mcp__server__tool`) | https://code.claude.com/docs/en/tools-reference (canonical built-in tool table), https://code.claude.com/docs/en/settings, https://code.claude.com/docs/en/agent-sdk/permissions                                        |
+| Permission modes                                                  | https://code.claude.com/docs/en/permission-modes                                                                                                                                                                        |
+| Memory scopes, AGENTS.md                                          | https://code.claude.com/docs/en/memory (incl. `#agents-md`)                                                                                                                                                             |
+| Model identifiers                                                 | **Full catalog:** https://platform.claude.com/docs/en/models/overview. **Retirements:** https://platform.claude.com/docs/en/about-claude/model-deprecations. **Aliases:** https://code.claude.com/docs/en/model-config. |
+| Settings (all keys)                                               | https://code.claude.com/docs/en/settings-reference                                                                                                                                                                      |
+| Plugins (affects MCP, skills, hooks scoping)                      | https://code.claude.com/docs/en/plugins/overview, https://code.claude.com/docs/en/plugins/manifest-reference, https://code.claude.com/docs/en/plugins/components                                                        |
 
 ---
 
@@ -342,16 +376,22 @@ Each tool's section follows the same template:
 
 #### Tier 1 — Authoritative reference docs
 
-- GitHub Copilot docs home: https://docs.github.com/en/copilot
-- VS Code Copilot docs home: https://code.visualstudio.com/docs/copilot/overview
-- VS Code docs source repo (good for raw diffs): https://github.com/microsoft/vscode-docs
+- GitHub Copilot docs home: https://docs.github.com/en/copilot (fetch any article as markdown via `https://docs.github.com/api/article/body?pathname=/en/<path>`)
+- Copilot CLI reference (skills, custom-agent and MCP field tables, runtime model IDs): https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference
+- Hooks reference (Copilot harness, CLI and cloud agent): https://docs.github.com/en/copilot/reference/hooks-reference
+- Customization cheat sheet: https://docs.github.com/en/copilot/reference/customization-cheat-sheet
+- VS Code agents docs home: https://code.visualstudio.com/docs/agents/overview
+- VS Code agent harnesses: https://code.visualstudio.com/docs/agents/run/agent-harnesses
+- Local → Copilot harness schema deltas (best single page): https://code.visualstudio.com/docs/agent-customization/migrate-customizations
+- VS Code docs source repo (good for raw diffs): https://github.com/microsoft/vscode-docs — `docs/copilot/**` no longer exists; content is under `docs/agent-customization/*.md` (how-tos) and `docs/agents/**` (reference/run/concepts)
 
 #### Tier 2 — Announcements & change history
 
 - GitHub changelog filtered to Copilot: https://github.blog/changelog/label/copilot/
 - GitHub changelog top-level: https://github.blog/changelog/
 - GitHub blog (product news): https://github.blog/news-insights/product-news/
-- VS Code monthly release notes index (Copilot section per release): https://code.visualstudio.com/updates
+- VS Code release notes index (now **weekly**; raw files at `release-notes/v1_NNN.md` in vscode-docs): https://code.visualstudio.com/updates
+- GitHub changelog RSS (scan by page): https://github.blog/changelog/label/copilot/feed/?paged=N
 - VS Code blog (deeper feature posts): https://code.visualstudio.com/blogs
 - Visual Studio (IDE) Copilot what's new on Microsoft Learn: https://learn.microsoft.com/en-us/visualstudio/ide/
 
@@ -362,19 +402,19 @@ Each tool's section follows the same template:
 
 #### Per-feature index
 
-| Feature category                                                                                            | URL(s)                                                                                                                                                                                                                                                                                                                                                                                        |
-| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| File locations & naming                                                                                     | https://docs.github.com/en/copilot/reference/custom-instructions-support, https://docs.github.com/en/copilot/how-tos/configure-custom-instructions                                                                                                                                                                                                                                            |
-| Frontmatter — instructions                                                                                  | https://docs.github.com/copilot/customizing-copilot/adding-custom-instructions-for-github-copilot, https://code.visualstudio.com/docs/copilot/customization/custom-instructions                                                                                                                                                                                                               |
-| Frontmatter — skills                                                                                        | https://code.visualstudio.com/docs/copilot/customization/agent-skills, https://docs.github.com/en/copilot/concepts/agents/about-agent-skills, https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/create-skills                                                                                                                                                        |
-| Frontmatter — agents                                                                                        | https://code.visualstudio.com/docs/copilot/customization/custom-agents, https://docs.github.com/en/copilot/reference/custom-agents-configuration, https://code.visualstudio.com/docs/copilot/agents/subagents                                                                                                                                                                                 |
-| Hooks                                                                                                       | Folded into agent plugins docs under https://code.visualstudio.com/docs/copilot — search "hooks" in left nav; verify against latest monthly release notes at https://code.visualstudio.com/updates                                                                                                                                                                                            |
-| MCP                                                                                                         | https://code.visualstudio.com/docs/copilot/customization/mcp-servers, https://code.visualstudio.com/docs/copilot/reference/mcp-configuration, https://learn.microsoft.com/en-us/visualstudio/ide/mcp-servers                                                                                                                                                                                  |
-| Tool system (incl. MCP tool reference syntax `server/tool` for cloud agents, `server/*` for VS Code agents) | https://code.visualstudio.com/docs/copilot/customization/custom-agents, https://code.visualstudio.com/docs/copilot/customization/agent-skills, https://code.visualstudio.com/docs/copilot/agents/subagents, https://docs.github.com/en/copilot/reference/custom-agents-configuration, https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/extend-coding-agent-with-mcp |
-| Permission / agent modes                                                                                    | https://code.visualstudio.com/docs/copilot/agents/overview, https://learn.microsoft.com/en-us/visualstudio/ide/copilot-agent-mode                                                                                                                                                                                                                                                             |
-| Memory / AGENTS.md                                                                                          | https://docs.github.com/en/copilot/reference/custom-instructions-support, https://code.visualstudio.com/docs/copilot/customization/custom-instructions                                                                                                                                                                                                                                        |
-| Model identifiers                                                                                           | **Full catalog:** https://docs.github.com/en/copilot/reference/ai-models/supported-models. Per-release notes at https://code.visualstudio.com/updates.                                                                                                                                                                                                                                        |
-| Coding (cloud) agent                                                                                        | https://code.visualstudio.com/docs/copilot/copilot-cloud-agent, https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/create-custom-agents                                                                                                                                                                                                                               |
+| Feature category                                                                                            | URL(s)                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File locations & naming                                                                                     | https://docs.github.com/en/copilot/reference/custom-instructions-support, https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions                                                                                                                                                              |
+| Frontmatter — instructions                                                                                  | https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/add-custom-instructions/add-repository-instructions, https://code.visualstudio.com/docs/agent-customization/custom-instructions, https://code.visualstudio.com/docs/agents/reference/custom-instructions-reference                                             |
+| Frontmatter — skills                                                                                        | https://code.visualstudio.com/docs/agent-customization/agent-skills, https://docs.github.com/en/copilot/concepts/customizations/agent-skills, https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills                                                                                 |
+| Frontmatter — agents                                                                                        | https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference, https://docs.github.com/en/copilot/reference/custom-agents-configuration, https://code.visualstudio.com/docs/agents/run/subagents, https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/create-custom-agents |
+| Hooks                                                                                                       | https://docs.github.com/en/copilot/reference/hooks-reference (authoritative for the Copilot harness, CLI and cloud agent), https://code.visualstudio.com/docs/agent-customization/hooks, https://code.visualstudio.com/docs/agents/reference/hooks-reference (legacy Local harness only)                                                      |
+| MCP                                                                                                         | https://code.visualstudio.com/docs/agent-customization/mcp-servers, https://code.visualstudio.com/docs/agents/reference/mcp-configuration, https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers, https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/configure-mcp-servers     |
+| Tool system (incl. MCP tool reference syntax `server/tool` for cloud agents, `server/*` for VS Code agents) | https://code.visualstudio.com/docs/agents/reference/tools-reference (Local harness names), https://code.visualstudio.com/docs/agents/reference/custom-agent-file-reference, https://docs.github.com/en/copilot/reference/custom-agents-configuration                                                                                          |
+| Permission / agent modes                                                                                    | https://code.visualstudio.com/docs/agents/overview, https://learn.microsoft.com/en-us/visualstudio/ide/copilot-agent-mode?view=visualstudio                                                                                                                                                                                                   |
+| Memory / AGENTS.md                                                                                          | https://docs.github.com/en/copilot/reference/custom-instructions-support, https://code.visualstudio.com/docs/agent-customization/custom-instructions                                                                                                                                                                                          |
+| Model identifiers                                                                                           | **Full catalog:** https://docs.github.com/en/copilot/reference/ai-models/supported-models. Runtime IDs in the CLI reference. Per-release notes at https://code.visualstudio.com/updates.                                                                                                                                                      |
+| Coding (cloud) agent                                                                                        | https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/create-custom-agents                                                                                                                                                                                                                     |
 
 ---
 
@@ -382,13 +422,15 @@ Each tool's section follows the same template:
 
 #### Tier 1 — Authoritative reference docs
 
-- Cursor docs home: https://cursor.com/docs
-- Older mirror (still active): https://docs.cursor.com
+- Cursor docs home: https://cursor.com/docs (every page has a `.md` variant, e.g. https://cursor.com/docs/rules.md — usually more complete)
+- Doc index: https://cursor.com/llms.txt
+- Customization overview: https://cursor.com/docs/customize-cursor.md
 
 #### Tier 2 — Announcements & change history
 
-- Cursor changelog (primary): https://cursor.com/changelog
-- Legacy changelog (pre-1.0 / 0.x history): https://changelog.cursor.sh
+- Release notes, all products (from about July 2026; RSS at https://cursor.com/docs/release-notes/rss.xml): https://cursor.com/docs/release-notes.md
+- CLI changelog (dated entries back to January 2026): https://cursor.com/docs/cli/changelog.md
+- Changelog index (only ~5 recent posts; per-version posts at https://cursor.com/changelog/<major>-<minor>): https://cursor.com/changelog
 - Cursor blog: https://cursor.com/blog
 - Forum announcements: https://forum.cursor.com/c/announcements
 
@@ -401,15 +443,18 @@ Each tool's section follows the same template:
 
 #### Per-feature index
 
-| Feature category                                                                                                       | URL(s)                                                                                                                                                                           |
-| ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| File locations & naming                                                                                                | https://cursor.com/docs/context/rules, https://cursor.com/docs                                                                                                                   |
-| Frontmatter — rules/instructions                                                                                       | https://cursor.com/docs/context/rules                                                                                                                                            |
-| Frontmatter — skills                                                                                                   | https://cursor.com/docs/skills (linked from docs home navigation)                                                                                                                |
-| Hooks (all events, handler fields, matchers)                                                                           | https://cursor.com/docs/hooks, https://cursor.com/docs/hooks.md (markdown view often more complete)                                                                              |
-| MCP                                                                                                                    | https://cursor.com/docs/mcp, https://cursor.com/docs/cli/mcp, https://cursor.com/docs/context/mcp-extension-api                                                                  |
-| Tool system (incl. MCP hook matcher syntax `MCP:tool_name`; dedicated `beforeMCPExecution`/`afterMCPExecution` events) | https://cursor.com/docs/hooks, https://cursor.com/docs/hooks.md, https://cursor.com/docs/context/mcp-extension-api                                                               |
-| Model identifiers                                                                                                      | **Full catalog:** https://cursor.com/docs/models (display names, not config-grade IDs — Cursor selects via UI picker). Model launches announced at https://cursor.com/changelog. |
+| Feature category                                                                                                       | URL(s)                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File locations & naming                                                                                                | https://cursor.com/docs/rules.md, https://cursor.com/docs/customize-cursor.md                                                                                                                                    |
+| Frontmatter — rules/instructions                                                                                       | https://cursor.com/docs/rules.md                                                                                                                                                                                 |
+| Frontmatter — skills                                                                                                   | https://cursor.com/docs/skills.md                                                                                                                                                                                |
+| Frontmatter — agents (subagents)                                                                                       | https://cursor.com/docs/subagents.md                                                                                                                                                                             |
+| Hooks (all events, handler fields, matchers)                                                                           | https://cursor.com/docs/hooks.md, https://cursor.com/docs/reference/third-party-hooks.md (Claude Code hooks Cursor runs)                                                                                         |
+| MCP                                                                                                                    | https://cursor.com/docs/mcp.md, https://cursor.com/docs/cli/mcp, https://cursor.com/docs/extension-api                                                                                                           |
+| Tool system (incl. MCP hook matcher syntax `MCP:tool_name`; dedicated `beforeMCPExecution`/`afterMCPExecution` events) | https://cursor.com/docs/hooks.md, https://cursor.com/docs/cli/reference/permissions.md                                                                                                                           |
+| Permission & safety                                                                                                    | https://cursor.com/docs/cli/reference/permissions.md, https://cursor.com/docs/agent/security/run-modes.md                                                                                                        |
+| Plugins                                                                                                                | https://cursor.com/docs/plugins.md, https://cursor.com/docs/reference/plugins.md                                                                                                                                 |
+| Model identifiers                                                                                                      | **Catalog:** https://cursor.com/docs/models-and-pricing, per-model pages at https://cursor.com/docs/models/<slug>.md. Subagent `model:` takes config-grade IDs (e.g. `composer-2.5`). Launches in release notes. |
 
 ---
 
@@ -417,11 +462,11 @@ Each tool's section follows the same template:
 
 These open standards are increasingly adopted across vendors. Changes here affect multiple tools at once.
 
-- **Agent Skills open standard:** https://agentskills.io
-- **AGENTS.md cross-vendor spec:** https://github.com/agentsmd/agents.md
-- **Model Context Protocol (MCP) spec:** https://modelcontextprotocol.io
-- **MCP reference servers:** https://github.com/modelcontextprotocol/servers
-- **Anthropic skills reference repo (cross-vendor compatible):** https://github.com/anthropics/skills
+- **Agent Skills open standard:** https://agentskills.io/specification, https://agentskills.io/client-implementation/adding-skills-support (the `.agents/skills/` discovery convention). Tier 2: https://github.com/agentskills/agentskills/commits/main and its PRs list.
+- **AGENTS.md cross-vendor spec:** https://github.com/agentsmd/agents.md — its compatibility list lags (it omits Claude Code); verify adoption against vendor docs.
+- **Model Context Protocol (MCP) spec:** https://modelcontextprotocol.io (revision 2026-07-28). Tier 2: https://modelcontextprotocol.io/specification/latest/changelog and the deprecated-features registry https://modelcontextprotocol.io/specification/2026-07-28/deprecated. Extensions (Skills, Apps, Client Credentials) live outside core: https://modelcontextprotocol.io/docs/extensions/overview
+- **MCP reference servers:** https://github.com/modelcontextprotocol/servers — many former reference servers (github, postgres, …) are archived and their npm packages deprecated; don't use them in uac examples.
+- **Anthropic skills reference repo (cross-vendor compatible):** https://github.com/anthropics/skills — useful as a binary-asset test case (`canvas-design` fonts).
 
 ---
 
@@ -432,15 +477,15 @@ Codex differs structurally from Claude Code, Copilot, and Cursor in ways that af
 | Structural aspect     | Claude Code / Copilot / Cursor                                      | Codex                                                                                                                                                      |
 | --------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Config file format    | JSON / YAML frontmatter / `.mdc`                                    | **TOML** (`~/.codex/config.toml` and `<project>/.codex/config.toml`)                                                                                       |
-| MCP config location   | Separate file (`.mcp.json`, `.vscode/mcp.json`, etc.)               | **Inside `config.toml`** as `[mcp_servers.<name>]` tables                                                                                                  |
+| MCP config location   | Separate file (`.mcp.json`, `.cursor/mcp.json`)                     | **Inside `config.toml`** as `[mcp_servers.<name>]` tables                                                                                                  |
 | Hooks config location | Separate file (`.claude/settings.json`, `.cursor/hooks.json`, etc.) | **`.codex/hooks.json`** (or inline `[hooks]` in `config.toml`)                                                                                             |
-| Instructions format   | Frontmatter + markdown body                                         | **Free-form `AGENTS.md`** — no frontmatter, no structured fields                                                                                           |
+| Instructions format   | Frontmatter + markdown body                                         | **Free-form `AGENTS.md`** only — no frontmatter; root→launch-folder chain, one combined 32 KiB budget                                                      |
 | Rules / exec policy   | No direct equivalent                                                | **Starlark `.rules` files** — Codex-only, pattern-match command prefixes                                                                                   |
 | Skills                | SKILL.md with YAML frontmatter                                      | **SKILL.md** — same Agent Skills open standard, compatible format. UI/policy/dependency metadata lives in a sidecar `agents/openai.yaml` next to SKILL.md. |
 | Subagents             | Per-target files                                                    | **Standalone `.codex/agents/<role>.toml`** files (auto-discovered) or inline `[agents.<role>]` tables in `config.toml`                                     |
-| Hook event casing     | Claude: PascalCase; Copilot/Cursor: camelCase                       | **PascalCase** (same as Claude Code): `SessionStart`, `PreToolUse`, etc. — but a strict subset of Claude's events                                          |
+| Hook event casing     | Claude: PascalCase; Copilot/Cursor: camelCase                       | **PascalCase** (same as Claude Code): `SessionStart`, `PreToolUse`, etc., plus Codex-only `PreModelRequest`, `PostModelRequest`, `Interrupt`               |
 
-uac's Codex target supports skills (same SKILL.md standard), instructions (consolidated into `AGENTS.md` / `AGENTS.override.md`), agents (standalone TOML files), hooks (dedicated `.codex/hooks.json`), and MCP servers (`[mcp_servers.*]` tables in `.codex/config.toml`, sharing the file with user-managed sections). Codex-only features like Starlark `.rules` and plugins are not implemented but users can hand-author them in `.codex/config.toml` and uac preserves the user-managed sections.
+uac's Codex target supports skills (same SKILL.md standard, rendered by the target's `render`), instructions (`instructions: "agentsMd"` — the shared AGENTS.md output from `src/core/agents-md/`), agents (standalone TOML files), hooks (dedicated `.codex/hooks.json`), and MCP servers (`[mcp_servers.*]` tables in `.codex/config.toml`, sharing the file with user-managed sections). Codex-only features like Starlark `.rules` and plugins are not implemented but users can hand-author them, and uac preserves the user-managed sections of `.codex/config.toml`.
 
 ---
 
@@ -448,71 +493,72 @@ uac's Codex target supports skills (same SKILL.md standard), instructions (conso
 
 ### Tier 1 — Authoritative reference docs
 
-- Docs home: https://developers.openai.com/codex
-- Full LLM-readable docs (single-file): https://developers.openai.com/codex/llms-full.txt
-- Config basics: https://developers.openai.com/codex/config-basic
-- Config reference (all keys, types, defaults): https://developers.openai.com/codex/config-reference
-- Advanced config (profiles, providers, sandbox, notifications): https://developers.openai.com/codex/config-advanced
-- Sample config (annotated example): https://developers.openai.com/codex/config-sample
-- Customization overview (AGENTS.md + skills + MCP + subagents — hierarchy explained): https://developers.openai.com/codex/concepts/customization
-- Open-source repo (Rust CLI, issues, discussions): https://github.com/openai/codex
+The Codex docs moved from `developers.openai.com/codex` to `learn.chatgpt.com/docs` (WebFetch won't follow that cross-host redirect, so use these URLs directly). Pages hold per-surface blocks (`<ContentModeSwitch group="codex-surface" id="app|web|cli|ide">`); prefer the `cli`/`ide` surface.
+
+- Docs home: https://learn.chatgpt.com/docs
+- LLM-readable docs: https://learn.chatgpt.com/docs/llms-full.txt (curated index: https://learn.chatgpt.com/docs/llms.txt)
+- Config basics: https://learn.chatgpt.com/docs/config-file/config-basic
+- Config reference (all keys, types, defaults): https://learn.chatgpt.com/docs/config-file/config-reference
+- Advanced config (profiles, providers, sandbox, notifications): https://learn.chatgpt.com/docs/config-file/config-advanced
+- Sample config (annotated example): https://learn.chatgpt.com/docs/config-file/config-sample
+- Customization overview (AGENTS.md + skills + MCP + subagents): https://learn.chatgpt.com/docs/customization/overview
+- Open-source repo (Rust CLI, issues, discussions): https://github.com/openai/codex — `codex-rs/models-manager/models.json` has the exact model slugs
 
 ### Tier 2 — Announcements & change history
 
-- Official changelog (dated, monthly sections): https://developers.openai.com/codex/changelog
-- GitHub releases (tagged, release notes per version): https://github.com/openai/codex/releases
+- Official changelog: https://learn.chatgpt.com/docs/changelog (weekly digest: https://learn.chatgpt.com/docs/whats-new)
+- GitHub releases: https://github.com/openai/codex/releases — most entries are `-alpha` prereleases; via the REST API use `per_page=50` and filter `prerelease==false`
 - GitHub discussions (feature requests, community): https://github.com/openai/codex/discussions
 - OpenAI blog (product announcements): https://openai.com/blog
-- OpenAI newsroom: https://openai.com/news
+- Retirement notices: https://learn.chatgpt.com/docs/enterprise/workspace-model-availability
 
 ### Tier 3 — Community & adjacent resources
 
-- Official community forum / Discord: links from https://developers.openai.com/codex/open-source navigation
 - GitHub issues (bug reports, feature tracking): https://github.com/openai/codex/issues
-- Codex for Open Source program: https://developers.openai.com/codex/open-source
+- Codex for Open Source program: https://learn.chatgpt.com/docs/open-source
 
 ### Per-feature index
 
-| Feature category (from Part 1)                                                                                                         | Most relevant URL(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| File locations & naming                                                                                                                | https://developers.openai.com/codex/config-basic, https://developers.openai.com/codex/config-reference                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Frontmatter — instructions (AGENTS.md)                                                                                                 | https://developers.openai.com/codex/guides/agents-md — no frontmatter; scoping via directory placement. Config keys `project_doc_max_bytes`, `project_doc_fallback_filenames`, `model_instructions_file`, `project_root_markers`                                                                                                                                                                                                                                                                           |
-| Frontmatter — skills (SKILL.md)                                                                                                        | https://developers.openai.com/codex/skills + https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview — same Agent Skills open standard. Required: `name`, `description`. Optional: `version`, `author`. Sidecar `agents/openai.yaml` for UI/policy/dependency metadata.                                                                                                                                                                                                                 |
-| Frontmatter — agents/subagents                                                                                                         | https://developers.openai.com/codex/subagents — defined in `[agents.<role>]` TOML tables in `config.toml` OR standalone `.codex/agents/<role>.toml` files. Key fields: `name`, `description`, `developer_instructions`, `model`, `model_reasoning_effort`, `sandbox_mode`, `mcp_servers`, `skills.config`, `nickname_candidates`                                                                                                                                                                           |
-| Hooks (events, fields, matchers)                                                                                                       | https://developers.openai.com/codex/hooks — six events PascalCase (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`). Handler fields: `type` (only `command` runs), `command` (single shell string — not split into args), `matcher`, `timeout`, `statusMessage`.                                                                                                                                                                                              |
-| MCP                                                                                                                                    | https://developers.openai.com/codex/mcp, https://developers.openai.com/codex/config-reference — `[mcp_servers.<name>]` tables inside `config.toml`. Fields: `command`, `args`, `env`, `url`, `cwd`, `env_vars`, `http_headers`, `bearer_token_env_var`, `env_http_headers`, `startup_timeout_sec`, `startup_timeout_ms`, `tool_timeout_sec`, `enabled`, `required`, `enabled_tools`, `disabled_tools`, `oauth_resource`, `scopes`, `experimental_environment`. Transport inferred from `command` vs `url`. |
-| Tool system (incl. MCP hook matcher syntax `mcp__server__tool` / `mcp__server__.*` regex; per-server `enabled_tools`/`disabled_tools`) | https://developers.openai.com/codex/hooks, https://developers.openai.com/codex/agent-approvals-security, https://developers.openai.com/codex/subagents — hook matchers use `mcp__server__.*` regex (formalised in hooks docs). No agent-level allow/deny list; restriction lives per-MCP-server via `enabled_tools` / `disabled_tools`.                                                                                                                                                                    |
-| Variable interpolation & secrets                                                                                                       | https://developers.openai.com/codex/mcp, https://developers.openai.com/codex/config-reference — env values via `env`; env-var forwarding via `env_vars`; bearer tokens via `bearer_token_env_var`; HTTP headers via `http_headers` (static) and `env_http_headers` (env-pulled). No `${VAR}` template syntax.                                                                                                                                                                                              |
-| Permission & safety / approval                                                                                                         | https://developers.openai.com/codex/agent-approvals-security, https://developers.openai.com/codex/concepts/sandboxing, https://developers.openai.com/codex/config-reference — `approval_policy` (`untrusted` / `on-request` / `never` / granular), `sandbox_mode` (`read-only` / `workspace-write` / `danger-full-access`), `approvals_reviewer` (`user` / `auto_review`). Named profiles: `:read-only`, `:workspace`, `:danger-no-sandbox`.                                                               |
-| Rules (Codex-only feature)                                                                                                             | https://developers.openai.com/codex/rules — `.rules` files using Starlark `prefix_rule()`. Fields: `pattern`, `decision` (`allow`/`prompt`/`forbidden`), `justification`, `match`, `not_match`. **Not implemented in uac** — no universal equivalent.                                                                                                                                                                                                                                                      |
-| Memory & context scoping                                                                                                               | https://developers.openai.com/codex/guides/agents-md, https://developers.openai.com/codex/config-reference — config layers: system → user (`~/.codex/config.toml`) → project (`.codex/config.toml`, trusted only) → worktree. AGENTS.md walks up directory tree. `[memories]` feature off-by-default.                                                                                                                                                                                                      |
-| Model identifiers                                                                                                                      | **Full catalog:** https://developers.openai.com/codex/models. Also https://developers.openai.com/codex/cli/slash-commands and https://developers.openai.com/codex/changelog. Pair with `model_reasoning_effort` (`minimal`/`low`/`medium`/`high`/`xhigh`) and `model_reasoning_summary` from the config reference.                                                                                                                                                                                         |
-| Plugins (Codex-only)                                                                                                                   | https://developers.openai.com/codex/plugins, https://developers.openai.com/codex/plugins/build — bundles skills + MCP + apps. Manifest at `.codex-plugin/plugin.json`. **Not implemented in uac** — no universal equivalent.                                                                                                                                                                                                                                                                               |
-| Versioning, status, beta features                                                                                                      | https://developers.openai.com/codex/changelog, https://developers.openai.com/codex/config-reference — Profiles: experimental in config-advanced but treated stable in main reference. Memories: off-by-default. `features.*` flag table per key.                                                                                                                                                                                                                                                           |
+| Feature category (from Part 1)                                                                                                         | Most relevant URL(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File locations & naming                                                                                                                | https://learn.chatgpt.com/docs/config-file/config-basic, https://learn.chatgpt.com/docs/config-file/config-reference                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Frontmatter — instructions (AGENTS.md)                                                                                                 | https://learn.chatgpt.com/docs/agent-configuration/agents-md — no frontmatter; scoping via directory placement. Config keys `project_doc_max_bytes`, `project_doc_fallback_filenames`, `model_instructions_file`, `project_root_markers`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Frontmatter — skills (SKILL.md)                                                                                                        | https://learn.chatgpt.com/docs/build-skills + https://agentskills.io/specification — Codex reads only `name` and `description`; `version`/`author` are no longer documented (uac writes them under `metadata`). Sidecar `agents/openai.yaml` for UI/policy/dependency metadata.                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Frontmatter — agents/subagents                                                                                                         | https://learn.chatgpt.com/docs/agent-configuration/subagents — standalone `.codex/agents/<role>.toml` files. Honoured keys: `name`, `description`, `developer_instructions`, `model`, `model_reasoning_effort`, `model_reasoning_summary`, `model_verbosity`, `personality`, `service_tier`, `features.*` (disable-only), `skills.*` (disable-only `[[skills.config]]`, `skills.bundled`, `skills.include_instructions`). `sandbox_mode` and `mcp_servers` are ignored; an unknown key or blank description/body drops the role. `nickname_candidates` is undocumented.                                                                                                                                                                           |
+| Hooks (events, fields, matchers)                                                                                                       | https://learn.chatgpt.com/docs/hooks — 14 PascalCase events (incl. Codex-only `PreModelRequest`, `PostModelRequest`, `Interrupt`). `command` and `mcp_tool` handlers run; `prompt`/`agent` are parsed but skipped. Command fields: `command` (single shell string), `commandWindows`, `timeout`, `async`, `statusMessage`, `additionalContextLimit`. Trust is a per-hook hash tied to position.                                                                                                                                                                                                                                                                                                                                                   |
+| MCP                                                                                                                                    | https://learn.chatgpt.com/docs/extend/mcp?surface=cli, https://learn.chatgpt.com/docs/config-file/config-reference — `[mcp_servers.<name>]` tables inside `config.toml`. Fields: `command`, `args`, `env`, `url`, `cwd`, `env_vars` (names or `{name, source}`), `http_headers`, `http_headers_helper`, `bearer_token_env_var`, `env_http_headers`, `startup_timeout_sec`/`_ms`, `startup_readiness`, `tool_timeout_sec`, `enabled`, `required`, `enabled_tools`, `disabled_tools`, `oauth_resource`, `scopes`, `oauth.*`, `auth`, `environment_id`, `supports_parallel_tool_calls`, `tool_input_schema_max_bytes`, `omit_tools_from`, `default_tools_approval_mode`, `tools.<tool>.*`, `identity.*`. Transport inferred from `command` vs `url`. |
+| Tool system (incl. MCP hook matcher syntax `mcp__server__tool` / `mcp__server__.*` regex; per-server `enabled_tools`/`disabled_tools`) | https://learn.chatgpt.com/docs/hooks, https://learn.chatgpt.com/docs/agent-approvals-security, https://learn.chatgpt.com/docs/agent-configuration/subagents — hook matchers match Claude-style tool names (`Bash`) and `mcp__server__.*` regex. No agent-level allow/deny list; restriction lives per-MCP-server via `enabled_tools` / `disabled_tools`.                                                                                                                                                                                                                                                                                                                                                                                          |
+| Variable interpolation & secrets                                                                                                       | https://learn.chatgpt.com/docs/extend/mcp?surface=cli, https://learn.chatgpt.com/docs/config-file/config-reference — env values via `env`; env-var forwarding via `env_vars`; bearer tokens via `bearer_token_env_var`; HTTP headers via `http_headers` (static), `env_http_headers` (env-pulled) and `http_headers_helper` (command). No `${VAR}` template syntax.                                                                                                                                                                                                                                                                                                                                                                               |
+| Permission & safety / approval                                                                                                         | https://learn.chatgpt.com/docs/agent-approvals-security, https://learn.chatgpt.com/docs/sandboxing, https://learn.chatgpt.com/docs/config-file/config-reference — `approval_policy` (`on-request` / `never` / granular; `untrusted` unsupported, `on-failure` deprecated), `sandbox_mode`, `approvals_reviewer`. Built-in permission profiles: `:read-only`, `:workspace`, `:danger-full-access`.                                                                                                                                                                                                                                                                                                                                                 |
+| Rules (Codex-only feature)                                                                                                             | https://learn.chatgpt.com/docs/agent-configuration/rules — `.rules` files using Starlark `prefix_rule()`. **Not implemented in uac** — no universal equivalent.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Memory & context scoping                                                                                                               | https://learn.chatgpt.com/docs/agent-configuration/agents-md, https://learn.chatgpt.com/docs/config-file/config-reference — config layers: system → user (`~/.codex/config.toml`) → project (`.codex/config.toml`, trusted only). AGENTS.md: root → launch folder only; untrusted projects load none.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Model identifiers                                                                                                                      | **Full catalog:** https://learn.chatgpt.com/docs/models. Also https://learn.chatgpt.com/docs/developer-commands?surface=cli and the changelog. `model_reasoning_effort`: `low`/`medium`/`high`/`xhigh`/`max`/`ultra` (per model).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Plugins (Codex-only)                                                                                                                   | https://learn.chatgpt.com/docs/plugins, https://developers.openai.com/plugins/build/plugins — **Not implemented in uac**.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Versioning, status, beta features                                                                                                      | https://learn.chatgpt.com/docs/changelog, https://learn.chatgpt.com/docs/config-file/config-reference — `features.*` flag table per key (e.g. `features.codex_hooks` was renamed `features.hooks`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 ### Additional Codex-specific pages to monitor
 
 These pages don't map cleanly to Part 1 feature categories but are highly change-sensitive:
 
-| Page                                                 | Why to monitor                                                                                                                      |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| https://developers.openai.com/codex/config-reference | The single most change-sensitive page — any new config key, renamed field, or removed option appears here first                     |
-| https://developers.openai.com/codex/hooks            | Hook event additions/removals, new handler fields, matcher semantics changes                                                        |
-| https://developers.openai.com/codex/skills           | SKILL.md spec changes, invocation policy, `agents/openai.yaml` schema                                                               |
-| https://developers.openai.com/codex/plugins/build    | Plugin manifest schema; changes affect future bundling of skills + MCP                                                              |
-| https://developers.openai.com/codex/subagents        | Subagent config schema changes (`[agents.*]` table structure, standalone TOML file fields)                                          |
-| https://developers.openai.com/codex/rules            | Starlark rule format changes, new `decision` values, `execpolicy` preview → stable graduation                                       |
-| https://github.com/openai/codex/releases             | Binary releases; check for deprecation notices in release notes (e.g. `--full-auto` was deprecated in favor of permission profiles) |
+| Page                                                         | Why to monitor                                                                                                  |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| https://learn.chatgpt.com/docs/config-file/config-reference  | The single most change-sensitive page — any new config key, renamed field, or removed option appears here first |
+| https://learn.chatgpt.com/docs/hooks                         | Hook event additions/removals, new handler fields, matcher semantics changes                                    |
+| https://learn.chatgpt.com/docs/build-skills                  | SKILL.md spec changes, invocation policy, `agents/openai.yaml` schema                                           |
+| https://learn.chatgpt.com/docs/agent-configuration/subagents | Agent role file schema (honoured keys, disable-only `features.*` / `skills.*`)                                  |
+| https://learn.chatgpt.com/docs/agent-configuration/rules     | Starlark rule format changes, new `decision` values                                                             |
+| https://learn.chatgpt.com/docs/import                        | `/import` from Claude Code and Cursor — signals which foreign config Codex now understands                      |
+| https://github.com/openai/codex/releases                     | Deprecation notices in release notes (`--full-auto` is no longer supported)                                     |
 
 ### Deferred uac coverage (not implemented, users can hand-author)
 
 The Codex target in uac (v1) doesn't have first-class universal-template plumbing for these Codex-only surfaces. Users can hand-author them directly in `.codex/config.toml` and uac preserves those sections across regenerates (only `[mcp_servers.*]` is uac-owned):
 
-- Profile system (`[profiles.<name>]`)
+- Profiles (now separate `$CODEX_HOME/<name>.config.toml` files, selected with `codex --profile <name>`; `[profiles.<name>]` tables are no longer read)
 - Model providers (`[model_providers.<id>]`)
 - Permissions profiles (`[permissions.<name>]`)
 - Shell environment policy (`shell_environment_policy.*`)
-- Personality / verbosity / reasoning summary (`personality`, `model_verbosity`, `model_reasoning_summary`, `plan_mode_reasoning_effort`, `service_tier`)
+- Session-level personality / verbosity / reasoning summary (`personality`, `model_verbosity`, `model_reasoning_summary`, `plan_mode_reasoning_effort`, `service_tier`) — per agent, uac emits these from the agent template's `codex` block
 - Memories (`[memories]`)
 - Web search (`web_search`, `tools.web_search`)
 - Feature flags (`features.*`)
@@ -522,11 +568,11 @@ The Codex target in uac (v1) doesn't have first-class universal-template plumbin
 - Auto-review (`review_model`, `auto_review.policy`, `approvals_reviewer`)
 - OAuth callback config (`mcp_oauth_callback_port`, `mcp_oauth_callback_url`, `mcp_oauth_credentials_store`)
 - AGENTS.md loader knobs (`project_doc_max_bytes`, `project_doc_fallback_filenames`, `project_root_markers`, `model_instructions_file`)
-- Agents global (`agents.max_threads`, `agents.max_depth`, `agents.job_max_runtime_seconds`)
+- Agents global (`agents.max_concurrent_threads_per_session` — `agents.max_threads` is a legacy alias — `agents.default_subagent_model`, `agents.default_subagent_reasoning_effort`, `agents.interrupt_message`)
 - Starlark `.rules` files (Codex-only experimental exec policy)
 - Plugins (`.codex-plugin/plugin.json` bundling format)
 
-A follow-up PR could add a `codex: { ... }` block to the uac config schema for first-class universal-template plumbing of these features — the existing `mergeTomlKey` mechanism handles preserving user-authored content alongside future uac-managed keys.
+A follow-up PR could add a `codex: { ... }` block to the uac config schema for first-class universal-template plumbing of these features — the writer's `mergeKey` support for TOML files already preserves user-authored content alongside uac-managed keys.
 
 ---
 
@@ -634,10 +680,10 @@ A new tool entry is considered usable by the validation skill once it has:
 
 When the skill runs, it should be aware of these recurring documentation quality issues observed during research:
 
-- **Beta APIs change without changelog entries.** Cursor's hooks page explicitly warns that the API is beta and may change. Same caveat applies to some Copilot agent/hook features. If a finding involves a beta feature, lower confidence.
+- **Beta APIs change without changelog entries.** Some Copilot agent/hook features and Claude Code's `experimental.*` agent options carry preview labels. If a finding involves a beta feature, lower confidence.
 - **Some features are documented only inside in-product UIs**, not in published docs. Notably: Copilot's exact tool-alias inventory and Cursor's internal tool-name list. The skill should flag these as "documentation-incomplete" and recommend manual verification inside the product.
 - **Vendor terminology drifts.** "Subagent," "agent," "custom agent," "cloud agent," and "background agent" all refer to overlapping-but-distinct concepts depending on the vendor and the release. Normalize against uac's universal `agents` type only when functionality matches.
-- **Multiple doc surfaces per vendor.** Copilot in particular splits docs across `docs.github.com` (cloud / GitHub.com surface) and `code.visualstudio.com` (IDE surface) with significant overlap and occasional contradictions. When they disagree, prefer the IDE-specific surface for IDE behavior and the GitHub surface for cloud-agent behavior.
+- **Multiple doc surfaces per vendor.** Copilot has three behavioral surfaces: VS Code's legacy **Local** harness (`code.visualstudio.com` "Local" sections), the **Copilot harness** shared by VS Code, the CLI and the app (schema in the `docs.github.com` CLI and hooks references — uac targets this one), and the **cloud agent** (a subset of the CLI schema, plus repository-settings MCP). When the docs disagree, check which harness each statement describes. Codex pages switch per surface (`app`/`web`/`cli`/`ide`); prefer `cli`/`ide`.
 - **Stale examples in docs.** Code examples in vendor docs sometimes use deprecated model IDs or field names. Always cross-reference the formal reference tables, not the prose examples.
 - **Docs describe intended behavior, not the exact mechanics.** Triggers, precedence, dedupe and size budgets often differ from the prose. Real examples from 2026-11:
   - Claude Code loads a nested `AGENTS.md` only on the Read tool, not on Write or Edit.

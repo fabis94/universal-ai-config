@@ -4,7 +4,7 @@ description: Exercises all skill fields
 disableAutoInvocation: true
 userInvocable: true
 allowedTools: ["Bash", "Read"]
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 subagentType: general-purpose
 forkContext: true
 argumentHint: "<target>"

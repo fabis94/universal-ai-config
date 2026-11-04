@@ -225,19 +225,23 @@ describe("programmatic API parity", () => {
       });
       await writeGeneratedFiles(files, tempDir);
 
-      // User adds a [profiles.dev] section to config.toml after generate
+      // User adds their own settings to config.toml after generate
       const { writeFile } = await import("node:fs/promises");
       const configPath = join(tempDir, ".codex/config.toml");
       const existing = await readFile(configPath, "utf-8");
-      await writeFile(configPath, existing + '\n[profiles.dev]\nmodel = "gpt-5.4"\n', "utf-8");
+      await writeFile(
+        configPath,
+        'model = "gpt-6.1-sol"\n' + existing + '\n[tui]\ntheme = "dark"\n',
+        "utf-8",
+      );
 
       await cleanTargetFiles(tempDir, ["codex"]);
 
-      // Config still exists; mcp_servers gone, profiles.dev preserved
+      // Config still exists; mcp_servers gone, the user's keys preserved
       const after = await readFile(configPath, "utf-8");
       expect(after).not.toContain("[mcp_servers.");
-      expect(after).toContain("[profiles.dev]");
-      expect(after).toContain('model = "gpt-5.4"');
+      expect(after).toContain('model = "gpt-6.1-sol"');
+      expect(after).toContain("[tui]");
     });
 
     it("type-scoped clean gates the config.toml mcp_servers special-case", async () => {

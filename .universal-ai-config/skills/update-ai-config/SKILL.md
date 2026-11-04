@@ -5,7 +5,7 @@ description: Create, update, or manage AI configuration templates. Analyzes what
 
 # Manage AI Config Templates
 
-**IMPORTANT:** This project uses universal-ai-config (`uac`). All AI configuration lives in the `<%= config.templatesDir %>/` directory as universal templates. NEVER edit generated target-specific files (e.g. `.claude/`, `.github/copilot-instructions.md`, `.cursor/`, `.codex/`, `AGENTS.md` at root, `.agents/skills/`) directly — those are overwritten on every `uac generate` run. Always modify the source templates in `<%= config.templatesDir %>/`.
+**IMPORTANT:** This project uses universal-ai-config (`uac`). All AI configuration lives in the `<%= config.templatesDir %>/` directory as universal templates. NEVER edit generated target-specific files (e.g. `.claude/`, `.github/copilot-instructions.md`, `.cursor/`, `.codex/`, `AGENTS.md` files, `.agents/`, `.mcp.json`) directly — those are overwritten on every `uac generate` run. Always modify the source templates in `<%= config.templatesDir %>/`.
 
 When the user wants to add or change AI configuration for this project, follow these steps:
 
@@ -44,11 +44,11 @@ Read the detailed guide for the chosen template type and follow its instructions
 - **Hooks** → `<%= skillPath('update-hook') %>`
 - **MCP** → `<%= skillPath('update-mcp') %>`
 
-These skills primarily create or modify files inside `<%= config.templatesDir %>/`. They may also modify files in directories listed under `additionalTemplateDirs` in the config — but only with explicit user confirmation, since those are shared templates that may affect other projects. Never edit generated output files in `.claude/`, `.cursor/`, `.github/`, `.codex/`, `AGENTS.md` at root, `.agents/skills/`, or similar target-specific directories — those are regenerated from templates and any direct changes will be lost.
+These skills primarily create or modify files inside `<%= config.templatesDir %>/`. They may also modify files in directories listed under `additionalTemplateDirs` in the config — but only with explicit user confirmation, since those are shared templates that may affect other projects. Never edit generated output files in `.claude/`, `.cursor/`, `.github/`, `.codex/`, `.agents/`, any `AGENTS.md`, `.mcp.json`, or similar target-specific locations — those are regenerated from templates and any direct changes will be lost.
 
 ## Additional Template Directories
 
-This project may have additional template directories configured via `additionalTemplateDirs`. To find them, search the project root for **all** config files matching `universal-ai-config.*` (e.g. `universal-ai-config.config.ts`, `universal-ai-config.overrides.config.ts`, and any other variants) and read the `additionalTemplateDirs` field from each. If the user asks to update a template that doesn't exist in the main templates directory, or explicitly refers to shared/global/external templates:
+This project may have additional template directories configured via `additionalTemplateDirs`. To find them, search the project root for **all** config files matching `universal-ai-config.*` (e.g. `universal-ai-config.config.ts`, `universal-ai-config.overrides.ts` or `universal-ai-config.overrides.config.ts`, and any other variants) and read the `additionalTemplateDirs` field from each. If the user asks to update a template that doesn't exist in the main templates directory, or explicitly refers to shared/global/external templates:
 
 1. Read all `universal-ai-config.*` config files in the project root to find `additionalTemplateDirs` paths
 2. Search those directories for the relevant template

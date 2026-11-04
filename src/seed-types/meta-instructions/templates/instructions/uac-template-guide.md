@@ -32,7 +32,7 @@ Specialized AI personas with scoped tools and permissions that run in isolated c
 
 **Use for:** dedicated reviewers, debuggers, data analysts — any task needing restricted capabilities or a focused system prompt.
 
-**Note:** Agents are supported by Claude, Copilot, and Codex (not Cursor). Codex emits each agent as a standalone `.codex/agents/<name>.toml` file (body becomes `developer_instructions`); see [Codex](#codex) below.
+**Note:** Every target supports agents. Codex emits each agent as a standalone `.codex/agents/<name>.toml` file (body becomes `developer_instructions`); see [Codex](#codex) below.
 
 ### Hooks (`<%%= hookTemplatePath() %>/*.json`)
 
@@ -80,8 +80,9 @@ Template bodies support EJS for conditional content.
 
 **Variables:**
 
-- `<%%%= target %>` — current target ("claude", "copilot", "cursor")
-- `<%%%= type %>` — template type ("instructions", "skills", "agents", "hooks")
+- `<%%%= target %>` — current target ("claude", "copilot", "cursor", "codex")
+- `<%%%= type %>` — template type ("instructions", "skills", "agents")
+- `<%%%= consumers %>` — every target that will read this output: `[target]`, or several for a shared file (e.g. AGENTS.md, rendered once with `target` set to codex or the first reader)
 - `<%%%= config.templatesDir %>` — templates directory path
 - Custom variables from config are also available
 
@@ -92,7 +93,7 @@ Template bodies support EJS for conditional content.
 - `<%%%= skillDirPath('name') %>` — output directory of a skill (the directory containing `SKILL.md`)
 - `<%%%= skillDirPath('name', 'reference.md') %>` — file inside a skill's directory, sibling of `SKILL.md` (use this to link to supporting files like references, scripts, examples)
 - `<%%%= agentPath('name') %>` — output path for an agent
-- `<%%%= instructionPath() %>` — output directory for instructions (e.g. `.claude/rules`)
+- `<%%%= instructionPath() %>` — output directory for instructions (e.g. `.claude/rules`), or `AGENTS.md` for a target that reads the AGENTS.md output
 
 **Template path helpers** — resolve to the source template path. Omit the name to get the directory:
 
@@ -137,15 +138,15 @@ And `<%%%= agentPath('reviewer') %>` renders to:
 
 - Claude: `.claude/agents/reviewer.md`
 - Copilot: `.github/agents/reviewer.agent.md`
-- Cursor: not supported (Cursor has no agents)
+- Cursor: `.cursor/agents/reviewer.md`
 - Codex: `.codex/agents/reviewer.toml`
 
 And `<%%%= instructionPath('coding-style') %>` renders to:
 
 - Claude: `.claude/rules/coding-style.md`
-- Copilot: `.github/instructions/coding-style.instructions.md`
+- Copilot: `.github/instructions/coding-style.instructions.md` (`.github/copilot-instructions.md` when `alwaysApply`)
 - Cursor: `.cursor/rules/coding-style.mdc`
-- Codex: depends on the template's `alwaysApply` / `globs` — `AGENTS.md` for alwaysApply/no-glob/leading-wildcard templates, or the first `<dir>/AGENTS.override.md` (alpha-sorted) for resolvable-prefix templates. If the named template isn't known, falls back to `AGENTS.md`. See [Codex](#codex) below.
+- Codex, and every target while AGENTS.md is generated: the AGENTS.md file the template lands in — root `AGENTS.md`, its folder's `<dir>/AGENTS.md`, or its index file, depending on its `globs` and `agentsMd.variation` (see [AGENTS.md](#agentsmd)).
 
 **Always use path helpers when referencing other templates** — never hardcode target-specific paths.
 
@@ -155,11 +156,11 @@ Any frontmatter field can have per-target values:
 
 ```yaml
 model:
-  claude: claude-sonnet-4-5-20250929
-  copilot: gpt-4o
-  cursor: claude-3-5-sonnet
-  codex: gpt-5.4
-  default: gpt-4o
+  claude: claude-sonnet-5-5
+  copilot: claude-sonnet-5.5
+  cursor: composer-2.5
+  codex: gpt-6.1-sol
+  default: claude-sonnet-5-5
 ```
 
 A target with no matching key and no `default` drops the field for that target. Per-target values work the same way inside hook handlers and MCP server configs.
@@ -185,7 +186,17 @@ Files under `<%%= config.templatesDir %>/docs/` (or `docs/` in any `additionalTe
 | `name`         | Display name shown in the UI (Copilot only — defaults to file name)                                                            |
 | `excludeAgent` | Exclude from specific agents: `"code-review"` or `"cloud-agent"` (GitHub Copilot cloud only, not VS Code Copilot Chat locally) |
 
-`alwaysApply` instructions are loaded into **every** session on every target (Codex concatenates them into root `AGENTS.md`), so keep them short and move detail into [reference docs](#reference-docs).
+`alwaysApply` instructions are loaded into **every** session on every target (they go in the root `AGENTS.md` when AGENTS.md is generated), so keep them short and move detail into [reference docs](#reference-docs).
+
+### AGENTS.md
+
+When `codex` is a target, or `agentsMd.enable` is true, instructions are written to AGENTS.md files instead, and **every target that reads AGENTS.md (Claude, Cursor, Copilot) skips its own instruction files** — so `globs`, `excludeAgent` and Cursor's agent-decided rules lose their effect there. `agentsMd.variation` picks the layout:
+
+- `nested` (default): folder-scoped `globs` (`packages/web/**`) → `packages/web/AGENTS.md`; everything else → root `AGENTS.md`.
+- `concatenate`: everything in root `AGENTS.md`, with a scope note on scoped sections.
+- `index`: root `AGENTS.md` lists folders and the file to read for each (`<indexDir>/<name>.md`).
+
+Run `uac generate --clean` after changing `globs` or the variation. Generate only the targets you use (`targets` in `universal-ai-config.overrides.ts`) to keep each tool on its own mechanism. Details and what each target loses: `<%%= docPath('uac/config') %>`
 
 ### Skills
 
@@ -195,7 +206,7 @@ All skill fields with per-target support, including Codex `codex.*` UI metadata:
 
 ### Agents
 
-Most-used fields: `name`, `description` (when to delegate), `model`, `tools`, `skills`, `mcpServers`. Cursor has no agents.
+Most-used fields: `name`, `description` (when to delegate), `model`, `tools`, `skills`, `mcpServers`. Cursor agents take only `name`, `description`, `model`, `readonly` and `background`.
 
 All agent fields with per-target support: `<%%= docPath('uac/frontmatter') %>`
 
@@ -212,10 +223,11 @@ Hooks are JSON files; every file in `hooks/` merges into one output per target:
 ```
 
 - Use **camelCase universal event names** — `sessionStart`, `sessionEnd`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `stop`, and more. uac maps them to each target's name and silently drops events a target doesn't support.
-- Core handler fields: `command`, `matcher` (regex), `timeout` (seconds), `description`. `type` defaults to `command`; Claude also supports `http`, `mcp_tool`, `prompt`, `agent`. Codex supports only `command`.
+- Core handler fields: `command`, `matcher`, `timeout` (seconds). `type` defaults to `command`; other types run only where supported (Claude: all; Copilot: `http`, `prompt`; Cursor: `prompt`; Codex: `mcp_tool`).
 - Handler fields accept per-target values. A handler whose `command` resolves to nothing for a target is skipped there, and identical handlers from different files are emitted once.
+- With claude and copilot in one run, only Claude's hooks are written (Copilot runs them).
 
-Full handler fields, the event mapping table per target, and matcher patterns: `<%%= docPath('uac/hooks') %>`
+Full handler fields, the event mapping table per target, matcher patterns, and per-target caveats: `<%%= docPath('uac/hooks') %>`
 
 ## Variables in JSON Templates
 
@@ -247,8 +259,9 @@ MCP templates are JSON files in `mcp/`:
 - Server fields accept per-target values.
 - All `mcp/*.json` files merge by server name; the first declaration wins.
 - `mcp.forceOptIn` + `mcp.mcpServers` in the config limit which servers each target gets.
+- Claude and Copilot share the root `.mcp.json`; with both in one run it is rendered for Claude.
 
-Target-only fields (Claude `oauth`, Copilot `sandbox`, Codex `enabledTools`, …), Copilot `inputs`, output paths, and opt-in filtering: `<%%= docPath('uac/mcp') %>`
+Target-only fields (Claude `alwaysLoad`, Copilot `deferTools`, Codex `enabledTools`, …), output paths, and opt-in filtering: `<%%= docPath('uac/mcp') %>`
 
 ## Template Precedence
 
@@ -262,7 +275,7 @@ The `tools`, `allowedTools`, and `disallowedTools` fields take tool names, which
 
 - Claude uses PascalCase names (`Read`, `Edit`, `Bash`) and `mcp__server__tool`.
 - Copilot uses aliases (`read`, `edit`, `search`, `execute`) and `server/tool`.
-- Cursor doesn't support tool restriction.
+- Cursor has no tool lists (Cursor agents have `readonly`).
 - Codex has no agent-level tool list; it restricts tools per MCP server (`enabledTools`).
 
 So always give tool lists per target:
@@ -279,14 +292,13 @@ Full tool lists per target and common combinations: `<%%= docPath('uac/tools') %
 
 Codex differs most from the other targets:
 
-- `alwaysApply`, no-glob, and leading-wildcard (`**/*.ts`) instructions are concatenated into root `AGENTS.md`. Directory-scoped `globs` go to `<dir>/AGENTS.override.md`, so run `uac generate --clean` after changing `globs`.
+- Instructions are the [AGENTS.md](#agentsmd) output; Codex loads nested AGENTS.md files only on the path it was launched in.
 - Agents become `.codex/agents/<name>.toml`, and skills go to `.agents/skills/<name>/`.
-- Hooks support only `command` handlers and a subset of events.
-- `tools`, `permissionMode`, and `claude-*` model values don't carry over. Use per-target overrides (`sandboxMode` for Codex).
+- Agents can't set `tools`, `permissionMode`, `skills` or `mcpServers` (they inherit the session's); those are dropped with a warning, and `claude-*` models need a per-target override.
 - `.codex/config.toml` is shared with user content; uac owns only `[mcp_servers.*]`.
 
 Output paths, caveats, and every value uac can't translate: `<%%= docPath('uac/codex') %>`
 
 ## Models
 
-Model IDs differ per target even for the same model. Claude Code uses `claude-sonnet-4-6`, Copilot uses `claude-sonnet-4.6`, and uac doesn't translate between them, so set `model` per target. Current IDs per target: `<%%= docPath('uac/models') %>`
+Model IDs differ per target even for the same model. Claude Code and Cursor use `claude-sonnet-5-5`, Copilot uses `claude-sonnet-5.5`, and uac doesn't translate between them, so set `model` per target. Current IDs per target: `<%%= docPath('uac/models') %>`

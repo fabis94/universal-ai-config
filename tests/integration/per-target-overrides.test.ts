@@ -144,7 +144,7 @@ describe("per-target overrides", () => {
       const c = agent!.content;
 
       expectYamlField(c, "description", "Copilot code reviewer");
-      expectYamlField(c, "model", "gpt-4o");
+      expectYamlField(c, "model", "gpt-6.1-sol");
       // tools falls back to default for copilot
       expect(c).toContain("tools:");
       expect(c).toContain("  - ");

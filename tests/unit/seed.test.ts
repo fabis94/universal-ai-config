@@ -68,7 +68,7 @@ describe("seed meta-instructions", () => {
 
     const agent = await readFile(join(templatesDir, "skills/update-agent/SKILL.md"), "utf-8");
     expect(agent).toContain("name: update-agent");
-    expect(agent).toContain("Cursor does not support agents");
+    expect(agent).toContain("Every target supports agents");
 
     const hook = await readFile(join(templatesDir, "skills/update-hook/SKILL.md"), "utf-8");
     expect(hook).toContain("name: update-hook");

@@ -82,8 +82,13 @@ describe("claude target", () => {
       expect(config.frontmatterMap.disableAutoInvocation).toBe("disable-model-invocation");
     });
 
-    it("maps userInvocable to user-invocable", () => {
-      expect(config.frontmatterMap.userInvocable).toBe("user-invocable");
+    it("maps userInvocable to user-invocable, booleans only", () => {
+      expect(mapFrontmatter({ userInvocable: false }, config)).toEqual({ "user-invocable": false });
+      const { ctx, diagnostics } = collectingContext();
+      expect(mapFrontmatter({ userInvocable: "/x" as unknown as boolean }, config, ctx)).toEqual(
+        {},
+      );
+      expect(diagnostics.map((d) => d.code)).toEqual(["suspicious-value"]);
     });
 
     it("maps allowedTools to allowed-tools", () => {
@@ -320,7 +325,7 @@ describe("claude target", () => {
         preToolUse: [
           { type: "http", url: "https://example.com/hook", allowedEnvVars: ["TOKEN"] },
           { type: "mcp_tool", server: "my-server", tool: "run", input: { key: "val" } },
-          { type: "prompt", prompt: "Summarize the change", model: "claude-opus-4-7" },
+          { type: "prompt", prompt: "Summarize the change", model: "claude-opus-5-5" },
           {
             command: "check.sh",
             async: true,
@@ -350,7 +355,7 @@ describe("claude target", () => {
       expect(entries[2]).toEqual({
         type: "prompt",
         prompt: "Summarize the change",
-        model: "claude-opus-4-7",
+        model: "claude-opus-5-5",
       });
       expect(entries[3]).toMatchObject({
         type: "command",

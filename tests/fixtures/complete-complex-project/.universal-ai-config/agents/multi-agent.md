@@ -7,7 +7,7 @@ description:
 model:
   default: sonnet
   claude: opus
-  copilot: gpt-4o
+  copilot: gpt-6.1-sol
 tools:
   default: ["read", "grep", "glob"]
   claude: ["Read", "Grep", "Glob"]

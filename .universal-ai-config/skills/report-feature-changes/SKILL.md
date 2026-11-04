@@ -27,7 +27,7 @@ If no arguments are provided, ask the user with AskUserQuestion whether they wan
 
 Read [upstream-validation-reference.md](upstream-validation-reference.md) — the companion file in this skill directory. It defines:
 
-- **Part 1** — the feature categories to validate (file locations, frontmatter, hooks, tools, MCP, permissions, models, etc.) and where each is implemented in uac (`src/targets/<tool>/index.ts`, etc.).
+- **Part 1** — the feature categories to validate (file locations, frontmatter, hooks, tools, MCP, permissions, models, cross-tool discovery, etc.) and where each is implemented in uac (`src/targets/<tool>/index.ts`, etc.).
 - **Part 2** — per-tool documentation URLs grouped by tier. **Tier 1 is authoritative** (vendor reference docs). Tier 2 is for dating changes (changelogs). Tier 3 is community/supporting evidence only.
 - **Part 5** — known documentation quality caveats (beta-API churn, in-product-only docs, vendor terminology drift, multiple doc surfaces).
 - **Part 6** — how to investigate a tool's internals (isolated install, headless runs, where to see what was loaded, how to read its shipped code) when the docs don't settle a question.
@@ -38,10 +38,10 @@ Treat this reference as the source of truth for _what to check and where to look
 
 Before fetching any docs, read uac's current implementation for each tool in scope so you have a concrete baseline to compare against. For each tool:
 
-- `src/targets/<tool>/index.ts` — `outputDir`, `supportedTypes`, `frontmatterMap` for each template type, `EVENT_NAME_MAP`, `transform*Hooks()`, `transform*MCP()`.
+- `src/targets/<tool>/index.ts` — `outputDir`, `supportedTypes`, `reads` (what the tool also loads from other targets and AGENTS.md), and per template type `frontmatterMap`, `outputPath`/`ownedPaths` and any `render`; the hooks block (`events`, `handlerTypes`, `transform`) and the MCP `transform`.
 - `src/types.ts` — `UniversalFrontmatter`, `UniversalHookHandler`, `UniversalMCPServer`, `UniversalMCPInput`, `TemplateType` union.
 - `src/seed-types/meta-instructions/templates/docs/uac/*.md` — the full reference docs: `frontmatter.md` (skill/agent fields), `hooks.md` (event mapping + handler fields), `mcp.md` (server fields), `tools.md`, `models.md`, `codex.md`, `cli.md`, `config.md`. Plus the core summaries in `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md`. Drift in any of these is a finding too.
-- `src/core/writer.ts` — `CLEAN_PATHS`, `CLEAN_MCP_PATHS`.
+- `src/core/plan/build-plan.ts` — how `reads` decide which outputs are generated; `src/core/agents-md/` — AGENTS.md routing and layouts; `src/core/clean/` — what clean removes (derived from `ownedPaths`, plus `legacy.ts`).
 
 Note specific identifiers (event names, frontmatter field names, tool names, output paths) so the comparison in Step 3 can be exact, not vague.
 

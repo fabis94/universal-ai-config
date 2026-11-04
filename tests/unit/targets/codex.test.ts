@@ -373,19 +373,19 @@ describe("codex target", () => {
 
     it("model passes through", async () => {
       const files = await consolidate(
-        makeInput([makeTemplate("a", { description: "A", model: "gpt-5.4" }, "Body")]),
+        makeInput([makeTemplate("a", { description: "A", model: "gpt-6.1-sol" }, "Body")]),
       );
       const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
-      expect(parsed.model).toBe("gpt-5.4");
+      expect(parsed.model).toBe("gpt-6.1-sol");
     });
 
     it("Claude-shaped model emits warning but value still passes through", async () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
       const files = await consolidate(
-        makeInput([makeTemplate("a", { description: "A", model: "claude-sonnet-4-6" }, "Body")]),
+        makeInput([makeTemplate("a", { description: "A", model: "claude-sonnet-5-5" }, "Body")]),
       );
       const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
-      expect(parsed.model).toBe("claude-sonnet-4-6");
+      expect(parsed.model).toBe("claude-sonnet-5-5");
       warnSpy.mockRestore();
     });
 
