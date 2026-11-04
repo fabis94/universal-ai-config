@@ -10,3 +10,11 @@ export function expectYamlField(content: string, key: string, value: string) {
   const regex = new RegExp(`${key}:\\s*["']?${escapedValue}["']?`);
   expect(content).toMatch(regex);
 }
+
+/** A generated file's content as UTF-8 text, whether it was emitted as a string or as bytes. */
+export function text(file: { content: string | Uint8Array } | undefined): string {
+  if (!file) throw new Error("expected a generated file, got undefined");
+  return typeof file.content === "string"
+    ? file.content
+    : Buffer.from(file.content).toString("utf-8");
+}

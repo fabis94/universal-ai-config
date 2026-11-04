@@ -76,8 +76,15 @@ export interface ResolvedConfig {
 }
 
 export interface GeneratedFile {
+  /** Root-relative output path */
   path: string;
-  content: string;
+  /**
+   * File content. Text outputs are strings; a skill's non-markdown extra files
+   * are copied byte for byte as a `Uint8Array`, so binary assets stay intact.
+   */
+  content: string | Uint8Array;
+  /** Permission bits to apply after writing (set when the source file was executable). */
+  mode?: number;
   target: Target;
   type: TemplateType;
   sourcePath: string;
@@ -188,8 +195,10 @@ export interface UniversalMCPInput {
 export interface InMemoryExtraFile {
   /** Path relative to the skill directory, e.g. "references/example.md" */
   relativePath: string;
-  /** File content */
-  content: string;
+  /** File content: `.md` files are EJS-rendered, everything else is copied as-is */
+  content: string | Uint8Array;
+  /** Permission bits for the written file, e.g. `0o755` for a script */
+  mode?: number;
 }
 
 export interface InMemoryTemplate {

@@ -1,8 +1,19 @@
-import { access, mkdir, readFile, readdir, writeFile, rm, rmdir, stat } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  mkdir,
+  readFile,
+  readdir,
+  writeFile,
+  rm,
+  rmdir,
+  stat,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { consola } from "consola";
 import { targets } from "../targets/index.js";
 import { CODEX_OVERRIDE_FILENAME } from "../targets/codex/instruction-routing.js";
+import { asText } from "./generate/read-cache.js";
 import { safePath } from "./safe-path.js";
 import { parseToml, stringifyToml } from "./toml.js";
 import { createPreserveMatcher } from "./preserve-on-clean.js";
@@ -100,14 +111,18 @@ export async function writeGeneratedFiles(
     await mkdir(dirname(fullPath), { recursive: true });
 
     if (file.mergeKey) {
+      const text = asText(file.content);
       const merged =
         file.mergeFormat === "toml"
-          ? await mergeTomlKey(fullPath, file.content, file.mergeKey)
-          : await mergeJsonKey(fullPath, file.content, file.mergeKey);
+          ? await mergeTomlKey(fullPath, text, file.mergeKey)
+          : await mergeJsonKey(fullPath, text, file.mergeKey);
       await writeFile(fullPath, merged, "utf-8");
-    } else {
+    } else if (typeof file.content === "string") {
       await writeFile(fullPath, file.content, "utf-8");
+    } else {
+      await writeFile(fullPath, file.content);
     }
+    if (file.mode !== undefined) await chmod(fullPath, file.mode);
 
     if (options?.verbose) {
       const inputs =

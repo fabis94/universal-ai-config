@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
 import { generate } from "../../src/core/generate/index.js";
-import { expectYamlField } from "../test-helpers.js";
+import { expectYamlField, text } from "../test-helpers.js";
 import type { InMemoryTemplate } from "../../src/types.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/basic-project");
@@ -89,7 +89,7 @@ describe("in-memory templates", () => {
     // Extra non-.md file — should be raw
     const config = files.find((f) => f.path.includes("data/config.txt"));
     expect(config).toBeDefined();
-    expect(config!.content).toBe("raw data content");
+    expect(text(config)).toBe("raw data content");
   });
 
   it("works alongside file-discovered templates", async () => {

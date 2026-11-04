@@ -6,7 +6,7 @@ import type { GenerateRun } from "./context.js";
 import { buildDocsIndex, discoverTemplates } from "./discover.js";
 import { generateHooksFiles } from "./hooks.js";
 import { generateMCPFiles } from "./mcp.js";
-import { TemplateReader } from "./read-cache.js";
+import { FileReader } from "./read-cache.js";
 import { resolveWinners } from "./select.js";
 import { buildTemplatesIndexes, generateTemplateFiles } from "./templates.js";
 
@@ -49,7 +49,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
   const slots = await discoverTemplates(root, config, options.templates);
   resolveWinners(slots, config.targets, config, run.shadow);
 
-  const reader = new TemplateReader();
+  const reader = new FileReader();
   // Docs are target-independent, so every target shares one index and one
   // missing-name set (a broken link warns once, not once per target).
   const docs = await buildDocsIndex(root, config);

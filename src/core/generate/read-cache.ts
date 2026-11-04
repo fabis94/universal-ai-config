@@ -1,19 +1,36 @@
 import { readFile } from "node:fs/promises";
-import type { DiscoveredTemplate } from "./discover.js";
+
+/** Decode bytes as UTF-8 text (strings pass through). */
+export function asText(content: string | Uint8Array): string {
+  return typeof content === "string" ? content : Buffer.from(content).toString("utf-8");
+}
 
 /**
- * Reads template content once per file path, so a template that wins for
- * several targets is still read from disk exactly once.
+ * Reads each file from disk once per run. A template that wins for several
+ * targets, or an extra file copied into several targets, is read exactly
+ * once. Files are read as bytes; callers decode only what they render.
  */
-export class TemplateReader {
-  private readonly cache = new Map<string, string>();
+export class FileReader {
+  private readonly cache = new Map<string, Promise<Buffer>>();
 
-  async read(template: Pick<DiscoveredTemplate, "filePath" | "content">): Promise<string> {
-    if (template.content !== undefined) return template.content;
-    const cached = this.cache.get(template.filePath);
-    if (cached !== undefined) return cached;
-    const content = await readFile(template.filePath, "utf-8");
-    this.cache.set(template.filePath, content);
-    return content;
+  /** Raw bytes of a file, or of the in-memory content when one is given. */
+  bytes(source: { filePath: string; content?: string | Uint8Array }): Promise<Uint8Array> {
+    if (source.content !== undefined) {
+      return Promise.resolve(
+        typeof source.content === "string" ? Buffer.from(source.content, "utf-8") : source.content,
+      );
+    }
+    let cached = this.cache.get(source.filePath);
+    if (!cached) {
+      cached = readFile(source.filePath);
+      this.cache.set(source.filePath, cached);
+    }
+    return cached;
+  }
+
+  /** UTF-8 text of a file, or the in-memory content when one is given. */
+  async text(source: { filePath: string; content?: string | Uint8Array }): Promise<string> {
+    if (typeof source.content === "string") return source.content;
+    return asText(await this.bytes(source));
   }
 }

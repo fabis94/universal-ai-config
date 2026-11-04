@@ -328,6 +328,7 @@ function consolidateCodexSkills({ templates }: ConsolidateInput): GeneratedFile[
       files.push({
         path: `${skillDir}/${extra.relativePath}`,
         content: extra.content,
+        mode: extra.mode,
         target: "codex",
         type: "skills",
         sourcePath: t.sourcePath,

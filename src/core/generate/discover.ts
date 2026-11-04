@@ -20,7 +20,9 @@ export interface ExtraFile {
   /** Absolute path to the file on disk ("" for in-memory files) */
   filePath: string;
   /** In-memory content — when present, the file is not read from disk */
-  content?: string;
+  content?: string | Uint8Array;
+  /** Permission bits, recorded only when the source is executable */
+  mode?: number;
 }
 
 export interface DiscoveredTemplate {
@@ -74,6 +76,14 @@ export interface JsonSlot {
   candidates: DiscoveredJsonFile[];
 }
 
+/**
+ * The permission bits to carry over to the output, or `undefined` when the
+ * file has no exec bit — plain files are written with the default mode.
+ */
+function executableMode(mode: number): number | undefined {
+  return (mode & 0o111) !== 0 ? mode & 0o777 : undefined;
+}
+
 /** Recursively collect all files in a directory, returning paths relative to the base dir */
 async function collectFiles(dir: string, base: string = dir): Promise<ExtraFile[]> {
   const results: ExtraFile[] = [];
@@ -87,6 +97,7 @@ async function collectFiles(dir: string, base: string = dir): Promise<ExtraFile[
       results.push({
         relativePath: toPosix(relative(base, fullPath)),
         filePath: fullPath,
+        mode: executableMode(stats.mode),
       });
     }
   }
@@ -247,6 +258,7 @@ export async function discoverTemplates(
         relativePath: ef.relativePath,
         filePath: "",
         content: ef.content,
+        mode: ef.mode,
       })),
     });
   }

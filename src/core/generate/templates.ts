@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { parseFrontmatter, parseTemplate, renderEjs, type TemplatesIndex } from "../parser.js";
 import { resolveOverrides } from "../resolve-overrides.js";
@@ -14,7 +13,7 @@ import type {
 import type { GenerateRun } from "./context.js";
 import type { TemplateSlot } from "./discover.js";
 import { mapFrontmatter, renderMarkdown } from "./frontmatter.js";
-import type { TemplateReader } from "./read-cache.js";
+import { asText, type FileReader } from "./read-cache.js";
 
 /**
  * Build a per-target index of instruction template name → resolved
@@ -25,7 +24,7 @@ import type { TemplateReader } from "./read-cache.js";
 export async function buildTemplatesIndexes(
   run: GenerateRun,
   slots: Map<string, TemplateSlot>,
-  reader: TemplateReader,
+  reader: FileReader,
   docs: Map<string, string>,
   missingDocs: Set<string>,
 ): Promise<Map<Target, TemplatesIndex>> {
@@ -43,7 +42,7 @@ export async function buildTemplatesIndexes(
 
       let frontmatter = winner.filePath ? frontmatterCache.get(winner.filePath) : undefined;
       if (!frontmatter) {
-        frontmatter = parseFrontmatter(await reader.read(winner)).frontmatter as Record<
+        frontmatter = parseFrontmatter(await reader.text(winner)).frontmatter as Record<
           string,
           unknown
         >;
@@ -70,7 +69,7 @@ interface ConsolidateBuffer {
 export async function generateTemplateFiles(
   run: GenerateRun,
   slots: Map<string, TemplateSlot>,
-  reader: TemplateReader,
+  reader: FileReader,
   indexes: Map<Target, TemplatesIndex>,
 ): Promise<GeneratedFile[]> {
   const { root, config, sink } = run;
@@ -84,7 +83,7 @@ export async function generateTemplateFiles(
       // candidate for this name was excluded for this target.
       const template = slot.winnerByTarget.get(targetName);
       if (!template) continue;
-      const content = await reader.read(template);
+      const content = await reader.text(template);
 
       const targetDef = targets[targetName];
       if (!targetDef) continue;
@@ -117,16 +116,18 @@ export async function generateTemplateFiles(
       ) as UniversalFrontmatter;
       const outputDir = config.outputDirs[targetName] ?? targetDef.outputDir;
 
-      // Extra files of a skill: `.md` files go through EJS, everything else is copied raw
+      // Extra files of a skill: `.md` files go through EJS, everything else
+      // is copied byte for byte (binary assets, scripts) with its exec bits.
       const extraFiles: Array<InMemoryExtraFile & { filePath: string }> = [];
       for (const extra of template.extraFiles ?? []) {
-        const extraContent = extra.content ?? (await readFile(extra.filePath, "utf-8"));
+        const bytes = await reader.bytes(extra);
         extraFiles.push({
           relativePath: extra.relativePath,
           filePath: extra.filePath,
           content: extra.relativePath.endsWith(".md")
-            ? renderEjs(extraContent, renderContext)
-            : extraContent,
+            ? renderEjs(asText(bytes), renderContext)
+            : bytes,
+          mode: extra.mode,
         });
       }
 
@@ -152,7 +153,11 @@ export async function generateTemplateFiles(
           body: parsed.body,
           extraFiles:
             extraFiles.length > 0
-              ? extraFiles.map(({ relativePath, content }) => ({ relativePath, content }))
+              ? extraFiles.map(({ relativePath, content, mode }) => ({
+                  relativePath,
+                  content,
+                  mode,
+                }))
               : undefined,
         });
         continue;
@@ -171,6 +176,7 @@ export async function generateTemplateFiles(
         generatedFiles.push({
           path: join(outputDir, `skills/${template.name}`, extra.relativePath),
           content: extra.content,
+          mode: extra.mode,
           target: targetName,
           type: template.type,
           sourcePath: extra.filePath ? relative(root, extra.filePath) : extra.relativePath,

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
 import { generate } from "../../src/core/generate/index.js";
-import { expectYamlField } from "../test-helpers.js";
+import { expectYamlField, text } from "../test-helpers.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/basic-project");
 
@@ -133,7 +133,8 @@ describe("generate", () => {
       const extraTxt = files.find((f) => f.path.includes("data/sample.txt"));
       expect(extraTxt).toBeDefined();
       expect(extraTxt!.path).toBe(".claude/skills/test-gen/references/data/sample.txt");
-      expect(extraTxt!.content).toBe(
+      expect(extraTxt!.content).toBeInstanceOf(Uint8Array);
+      expect(text(extraTxt)).toBe(
         "This is raw sample data.\nIt should be copied as-is with no processing.\n",
       );
     });
