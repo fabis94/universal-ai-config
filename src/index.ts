@@ -35,7 +35,7 @@ export type {
   HookHandlerType,
   PerTargetValue,
 } from "./types.js";
-export type { CleanOptions } from "./core/writer.js";
+export type { CleanOptions, WriteReport } from "./core/writer.js";
 export type {
   Diagnostic,
   DiagnosticCode,

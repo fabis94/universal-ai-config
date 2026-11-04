@@ -63,75 +63,65 @@ const CLEAN_ENTRIES: Record<string, CleanEntry[]> = {
   ],
 };
 
-async function mergeJsonKey(fullPath: string, content: string, mergeKey: string): Promise<string> {
-  const newData = JSON.parse(content) as Record<string, unknown>;
-  const mergeValue = newData[mergeKey];
+/** What `writeGeneratedFiles` did, per root-relative path. */
+export interface WriteReport {
+  /** Files created or whose content changed */
+  written: string[];
+  /** Files that already had exactly this content — left untouched */
+  unchanged: string[];
+}
 
-  let existing: Record<string, unknown> = {};
-  try {
-    const existingContent = await readFile(fullPath, "utf-8");
-    existing = JSON.parse(existingContent) as Record<string, unknown>;
-  } catch {
-    // File doesn't exist yet, start fresh
-  }
-
-  existing[mergeKey] = mergeValue;
-  return JSON.stringify(existing, null, 2) + "\n";
+async function readExisting(fullPath: string): Promise<Buffer | undefined> {
+  return readFile(fullPath).catch(() => undefined);
 }
 
 /**
- * TOML twin of `mergeJsonKey`. Replaces only `mergeKey` of the existing TOML
- * file at `fullPath`, leaving all other top-level keys untouched. Used by
- * Codex to write the `mcp_servers` table into `.codex/config.toml` while
- * preserving any user-authored `[profiles.*]`, `personality`, etc.
+ * Replace one top-level key of an existing JSON or TOML file, keeping every
+ * other key. Used for outputs that share a file with user settings (Claude
+ * hooks in settings.json, Codex MCP servers in config.toml).
  */
-async function mergeTomlKey(fullPath: string, content: string, mergeKey: string): Promise<string> {
-  const newData = parseToml(content);
-  const mergeValue = newData[mergeKey];
-
-  let existing: Record<string, unknown> = {};
-  try {
-    const existingContent = await readFile(fullPath, "utf-8");
-    existing = parseToml(existingContent);
-  } catch {
-    // File doesn't exist yet, start fresh
-  }
-
-  existing[mergeKey] = mergeValue;
-  return stringifyToml(existing) + "\n";
+function mergeKeyInto(
+  existing: Buffer | undefined,
+  content: string,
+  mergeKey: string,
+  format: "json" | "toml",
+): string {
+  const parse =
+    format === "toml" ? parseToml : (text: string) => JSON.parse(text) as Record<string, unknown>;
+  const data = existing ? parse(existing.toString("utf-8")) : {};
+  data[mergeKey] = parse(content)[mergeKey];
+  return format === "toml" ? stringifyToml(data) + "\n" : JSON.stringify(data, null, 2) + "\n";
 }
 
+/**
+ * Write generated files under `root`: raw bytes for binary content, the
+ * file's `mode` when set, and only `mergeKey` for files shared with user
+ * settings. Files whose content is already identical are not rewritten.
+ */
 export async function writeGeneratedFiles(
   files: GeneratedFile[],
   root: string,
-  options?: { verbose?: boolean },
-): Promise<void> {
+): Promise<WriteReport> {
+  const report: WriteReport = { written: [], unchanged: [] };
   for (const file of files) {
     const fullPath = safePath(root, file.path);
-    await mkdir(dirname(fullPath), { recursive: true });
+    const existing = await readExisting(fullPath);
+    const content: string | Uint8Array = file.mergeKey
+      ? mergeKeyInto(existing, asText(file.content), file.mergeKey, file.mergeFormat ?? "json")
+      : file.content;
+    const bytes =
+      typeof content === "string" ? Buffer.from(content, "utf-8") : Buffer.from(content);
 
-    if (file.mergeKey) {
-      const text = asText(file.content);
-      const merged =
-        file.mergeFormat === "toml"
-          ? await mergeTomlKey(fullPath, text, file.mergeKey)
-          : await mergeJsonKey(fullPath, text, file.mergeKey);
-      await writeFile(fullPath, merged, "utf-8");
-    } else if (typeof file.content === "string") {
-      await writeFile(fullPath, file.content, "utf-8");
+    if (existing?.equals(bytes)) {
+      report.unchanged.push(file.path);
     } else {
-      await writeFile(fullPath, file.content);
+      await mkdir(dirname(fullPath), { recursive: true });
+      await writeFile(fullPath, bytes);
+      report.written.push(file.path);
     }
     if (file.mode !== undefined) await chmod(fullPath, file.mode);
-
-    if (options?.verbose) {
-      const inputs =
-        file.inputCount !== undefined
-          ? ` (from ${file.inputCount} input${file.inputCount === 1 ? "" : "s"})`
-          : "";
-      consola.success(`Generated ${file.path}${inputs}`);
-    }
   }
+  return report;
 }
 
 async function cleanClaudeHooks(

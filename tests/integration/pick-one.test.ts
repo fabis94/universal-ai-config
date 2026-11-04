@@ -178,6 +178,12 @@ describe("pick one: hook checks that need a custom project", () => {
     );
   });
 
+  it("reports a switch-over only for types that have templates", async () => {
+    const root = await projectWithHooks({ stop: [{ command: "stop.sh" }] });
+    const { servedBy } = await run(["claude", "copilot"], ["hooks", "mcp"], { root });
+    expect(servedBy).toEqual([["copilot", "hooks", "claude"]]);
+  });
+
   it("warns when Copilot would reject Claude's whole hook file", async () => {
     const root = await projectWithHooks({
       sessionStart: [{ type: "prompt", prompt: "hello" }],

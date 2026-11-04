@@ -23,8 +23,8 @@ export interface GenerateResult {
   plan: OutputPlan;
 }
 
-/** Report the plan's decisions: outputs a target skips, and a forced AGENTS.md. */
-function reportPlan(run: GenerateRun, plan: OutputPlan): void {
+/** Warn when `agentsMd.enable: false` is overridden by codex being a target. */
+function reportForcedAgentsMd(run: GenerateRun, plan: OutputPlan): void {
   if (plan.agentsMd?.forced && run.config.agentsMd.enable === false) {
     run.sink.report({
       code: "agents-md-forced",
@@ -34,7 +34,19 @@ function reportPlan(run: GenerateRun, plan: OutputPlan): void {
       detail: { enable: false },
     });
   }
+}
+
+/**
+ * Report each output a target skipped because it reads another one — only
+ * where that other output was actually generated, so a project without, say,
+ * MCP templates hears nothing about MCP.
+ */
+function reportServedBy(run: GenerateRun, plan: OutputPlan, files: GeneratedFile[]): void {
   for (const served of plan.servedBy) {
+    const shared = files.some(
+      (file) => file.type === served.type && (file.consumers ?? []).includes(served.target),
+    );
+    if (!shared) continue;
     const source =
       served.by === "agentsMd"
         ? "the AGENTS.md files"
@@ -93,7 +105,7 @@ export async function generateProject(options: GenerateOptions = {}): Promise<Ge
         detail: event,
       }),
   };
-  reportPlan(run, plan);
+  reportForcedAgentsMd(run, plan);
 
   const slots = await discoverTemplates(root, config, options.templates);
   resolveWinners(slots, config.targets, config, run.shadow);
@@ -119,7 +131,9 @@ export async function generateProject(options: GenerateOptions = {}): Promise<Ge
   if (config.types.includes("hooks")) files.push(...(await generateHooksFiles(run, plan)));
   if (config.types.includes("mcp")) files.push(...(await generateMCPFiles(run, plan)));
 
-  return { files: assertNoPathCollisions(files), diagnostics: sink.items, plan };
+  const merged = assertNoPathCollisions(files);
+  reportServedBy(run, plan, merged);
+  return { files: merged, diagnostics: sink.items, plan };
 }
 
 /** Generate every output for a project. Same as `generateProject()`, returning only the files. */
