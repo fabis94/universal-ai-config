@@ -14,7 +14,7 @@ function toPosix(p: string): string {
   return sep === "/" ? p : p.split(sep).join("/");
 }
 
-export interface ExtraFile {
+interface ExtraFile {
   /** Path relative to the skill directory, e.g. "references/example.md" */
   relativePath: string;
   /** Absolute path to the file on disk ("" for in-memory files) */
