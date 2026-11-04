@@ -64,17 +64,18 @@ See the **Instructions** section in `<%%= instructionPath('uac-template-guide') 
 - Use `globs` to scope instructions to specific file types or directories (e.g. `["src/api/**"]` for API-specific rules)
 - If neither is set, the instruction may still be applied by some targets based on relevance
 
+### Keep always-on instructions short
+
+`alwaysApply` instructions load into every session on every target. When an instruction needs long reference material (full tables, API details, edge cases), put that material in a reference doc under `<%%= config.templatesDir %>/docs/` and link it with `<%%%= docPath('name') %>`, so agents read it only when they need it. See **Reference Docs** in `<%%= instructionPath('uac-template-guide') %>`.
+
 ### Codex routing
 
-For Codex, multiple instruction templates consolidate into a single `AGENTS.md` at the project root or per-directory `AGENTS.override.md` files (see the "Codex caveats" section in `<%%= instructionPath('uac-template-guide') %>`). Routing rules:
+Codex has no per-rule frontmatter, so instructions consolidate:
 
-- `alwaysApply: true` → root `AGENTS.md`
+- `alwaysApply: true`, leading-wildcard `globs`, or no `globs` → root `AGENTS.md`
 - `globs` with a resolvable directory prefix (e.g. `packages/frontend/**`) → `<dir>/AGENTS.override.md`
-- Leading-wildcard or absent `globs` → root `AGENTS.md`
 
-If you want a template to land at a specific directory in Codex but not affect other targets, use a per-target glob override: `globs: { codex: ["src/api/**"], default: ["**/*.ts"] }`.
-
-**Editing `globs` moves the Codex output file.** Changing `packages/frontend/**` to `packages/api/**` emits `packages/api/AGENTS.override.md` and leaves the old `packages/frontend/AGENTS.override.md` behind, where Codex keeps reading it. Run `uac generate --clean` (not plain `uac generate`) after any glob change — clean scans the project tree for that basename and removes the orphan.
+**Editing `globs` moves the Codex output file**, so run `uac generate --clean` (not plain `uac generate`) after any glob change. Per-target glob overrides and the full routing rules: `<%%= docPath('uac/codex') %>`.
 
 ### Example
 

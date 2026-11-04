@@ -1,11 +1,17 @@
 import { readFile, readdir, stat } from "node:fs/promises";
-import { join, basename, relative, sep } from "node:path";
+import { join, basename, isAbsolute, relative, sep } from "node:path";
 import { consola } from "consola";
 import { stringify as stringifyYAML } from "yaml";
 import { loadProjectConfig } from "../config/loader.js";
 import { createExcludeMatcher } from "./exclude.js";
 import { filterMCPServers } from "./filter-mcp-servers.js";
-import { parseFrontmatter, parseTemplate, renderEjs, type TemplatesIndex } from "./parser.js";
+import {
+  normalizeDocName,
+  parseFrontmatter,
+  parseTemplate,
+  renderEjs,
+  type TemplatesIndex,
+} from "./parser.js";
 import { resolveJsonVariables } from "./resolve-json-variables.js";
 import { resolveOverrides } from "./resolve-overrides.js";
 import {
@@ -169,6 +175,36 @@ async function collectFiles(dir: string, base: string = dir): Promise<ExtraFile[
     }
   }
   return results;
+}
+
+/**
+ * Index the reference docs under each template source's `docs/` folder for
+ * `docPath()`. Docs are never generated or loaded automatically — agents read
+ * them on demand through the links `docPath()` renders. The first source to
+ * declare a name wins, the same precedence as every template type.
+ */
+async function buildDocsIndex(root: string, config: ResolvedConfig): Promise<Map<string, string>> {
+  const docs = new Map<string, string>();
+  for (const source of resolveTemplateSources(root, config)) {
+    const docsDir = join(source.dir, "docs");
+    const dirStats = await stat(docsDir).catch(() => undefined);
+    if (!dirStats?.isDirectory()) continue;
+
+    const files = await collectFiles(docsDir);
+    files.sort((a, b) => (a.relativePath < b.relativePath ? -1 : 1));
+    for (const file of files) {
+      const key = normalizeDocName(file.relativePath);
+      if (docs.has(key)) continue;
+      const fromRoot = relative(root, file.filePath);
+      const insideRoot =
+        fromRoot !== "" &&
+        fromRoot !== ".." &&
+        !fromRoot.startsWith(`..${sep}`) &&
+        !isAbsolute(fromRoot);
+      docs.set(key, insideRoot ? normalizePath(fromRoot) : file.filePath);
+    }
+  }
+  return docs;
 }
 
 /**
@@ -810,9 +846,15 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
   // per-target winner, so path helpers see what will actually be generated.
   const frontmatterCache = new Map<string, Record<string, unknown>>();
   const templatesIndexByTarget = new Map<Target, TemplatesIndex>();
+  // Docs are target-independent, so every target shares one index and one
+  // missing-name set (a broken link warns once, not once per target).
+  const docs = await buildDocsIndex(root, config);
+  const missingDocs = new Set<string>();
   for (const targetName of config.targets) {
     templatesIndexByTarget.set(targetName as Target, {
       instructions: new Map<string, UniversalFrontmatter>(),
+      docs,
+      missingDocs,
     });
   }
   for (const slot of slots.values()) {
@@ -968,6 +1010,12 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
         }
       }
     }
+  }
+
+  for (const name of missingDocs) {
+    consola.warn(
+      `[uac] docPath('${name}') matched no file under docs/ in templatesDir or any additionalTemplateDirs entry`,
+    );
   }
 
   // Invoke consolidate functions with the buffered template lists. Each

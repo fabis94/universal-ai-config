@@ -1,11 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { join } from "node:path";
-import { mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
+import { access, mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { runCommand } from "citty";
+import { consola } from "consola";
 import seedCommand from "../../src/commands/seed.js";
-import { collectSkillTemplates } from "../../src/seed-types/shared.js";
+import { collectDocTemplates, collectSkillTemplates } from "../../src/seed-types/shared.js";
+import { getTemplates } from "../../src/seed-types/meta-instructions/index.js";
 import { generate } from "../../src/core/generate.js";
+
+const UAC_DOCS = ["cli", "codex", "config", "frontmatter", "hooks", "mcp", "models", "tools"];
 
 describe("seed meta-instructions", () => {
   let tempDir: string;
@@ -18,7 +22,7 @@ describe("seed meta-instructions", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it("creates all 8 template files", async () => {
+  it("creates the meta-instruction templates", async () => {
     await runCommand(seedCommand, { rawArgs: ["meta-instructions", "--root", tempDir] });
 
     const templatesDir = join(tempDir, ".universal-ai-config");
@@ -190,6 +194,88 @@ describe("seed meta-instructions", () => {
     // Tags outside the EJS Templating section still resolve to real values.
     expect(content).toContain("Templates live in `.universal-ai-config/`");
     expect(content).toContain("### Instructions (`.universal-ai-config/instructions/*.md`)");
+  });
+  it("seeds the uac reference docs into docs/uac/", async () => {
+    await runCommand(seedCommand, { rawArgs: ["meta-instructions", "--root", tempDir] });
+
+    for (const name of UAC_DOCS) {
+      const doc = await readFile(
+        join(tempDir, `.universal-ai-config/docs/uac/${name}.md`),
+        "utf-8",
+      );
+      expect(doc, name).toMatch(/^# /);
+    }
+  });
+
+  it("renders docs once at seed time — no EJS tags survive and templatesDir is resolved", () => {
+    // Docs are never touched by `uac generate`, so the seed render is their only
+    // pass. Any tag left in a seeded doc would reach the reader verbatim.
+    for (const templatesDir of [".universal-ai-config", "custom-ai-config"]) {
+      const docs = getTemplates(templatesDir).filter((t) => t.relativePath.startsWith("docs/"));
+      expect(docs.map((d) => d.relativePath).sort()).toEqual(
+        UAC_DOCS.map((name) => `docs/uac/${name}.md`),
+      );
+      for (const doc of docs) {
+        expect(doc.content, doc.relativePath).not.toContain("<%");
+        expect(doc.content, doc.relativePath).not.toContain("%>");
+      }
+      const cli = docs.find((d) => d.relativePath === "docs/uac/cli.md")!;
+      expect(cli.content).toContain(`\`${templatesDir}/skills/<name>/\``);
+    }
+  });
+
+  it("every docPath() link in seeded instructions and skills points at a seeded doc", () => {
+    const templates = getTemplates(".universal-ai-config");
+    const seededDocs = new Set(
+      templates
+        .filter((t) => t.relativePath.startsWith("docs/"))
+        .map((t) => t.relativePath.replace(/^docs\//, "").replace(/\.md$/, "")),
+    );
+
+    // Real links are single-escaped after seeding; literal `<%%= docPath(...) %>`
+    // examples in the guide don't match this pattern.
+    const linked = new Set<string>();
+    for (const t of templates) {
+      if (t.relativePath.startsWith("docs/")) continue;
+      for (const match of t.content.matchAll(/<%=\s*docPath\('([^']+)'\)\s*%>/g)) {
+        linked.add(match[1]!);
+      }
+    }
+
+    expect(linked.size).toBeGreaterThan(0);
+    for (const name of linked) expect(seededDocs, `broken link: ${name}`).toContain(name);
+    for (const name of seededDocs) expect(linked, `unlinked doc: ${name}`).toContain(name);
+  });
+
+  it("keeps the always-applied uac-usage instruction small", () => {
+    // uac-usage is loaded into every session on every target (and into Codex's
+    // root AGENTS.md). Put detail in docs/uac/ instead of growing it.
+    const usage = getTemplates(".universal-ai-config").find(
+      (t) => t.relativePath === "instructions/uac-usage.md",
+    )!;
+    expect(Buffer.byteLength(usage.content)).toBeLessThan(5 * 1024);
+  });
+
+  it("generated doc links resolve to seeded files on disk, without warnings", async () => {
+    await runCommand(seedCommand, { rawArgs: ["meta-instructions", "--root", tempDir] });
+    const warn = vi.spyOn(consola, "warn").mockImplementation(() => {});
+
+    const files = await generate({ root: tempDir, targets: ["claude", "codex"] });
+
+    const linkedPaths = new Set<string>();
+    for (const file of files) {
+      for (const match of file.content.matchAll(/\.universal-ai-config\/docs\/[\w/.-]+\.md/g)) {
+        linkedPaths.add(match[0]);
+      }
+    }
+    expect([...linkedPaths].sort()).toEqual(
+      UAC_DOCS.map((name) => `.universal-ai-config/docs/uac/${name}.md`),
+    );
+    for (const path of linkedPaths) {
+      await expect(access(join(tempDir, path)), path).resolves.toBeUndefined();
+    }
+    expect(warn.mock.calls.filter((call) => String(call[0]).includes("docPath("))).toHaveLength(0);
+    warn.mockRestore();
   });
 });
 
@@ -386,5 +472,39 @@ describe("collectSkillTemplates", () => {
     expect(templates.find((t) => t.relativePath === "skills/flat-skill/SKILL.md")).toBeDefined();
     expect(templates.find((t) => t.relativePath === "skills/dir-skill/SKILL.md")).toBeDefined();
     expect(templates.find((t) => t.relativePath === "skills/dir-skill/extra.txt")).toBeDefined();
+  });
+});
+
+describe("collectDocTemplates", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "uac-doc-templates-"));
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it("copies nested docs under docs/, rendering .md files once and copying others raw", async () => {
+    await mkdir(join(tempDir, "uac/deep"), { recursive: true });
+    await writeFile(
+      join(tempDir, "uac/deep/a.md"),
+      "Dir: <%= templatesDir %> literal: <%%= target %>",
+      "utf-8",
+    );
+    await writeFile(join(tempDir, "diagram.svg"), "<svg><%= raw %></svg>", "utf-8");
+
+    const templates = collectDocTemplates(tempDir, { templatesDir: ".uac" });
+    expect(templates.map((t) => t.relativePath).sort()).toEqual([
+      "docs/diagram.svg",
+      "docs/uac/deep/a.md",
+    ]);
+    expect(templates.find((t) => t.relativePath === "docs/uac/deep/a.md")!.content).toBe(
+      "Dir: .uac literal: <%= target %>",
+    );
+    expect(templates.find((t) => t.relativePath === "docs/diagram.svg")!.content).toBe(
+      "<svg><%= raw %></svg>",
+    );
   });
 });

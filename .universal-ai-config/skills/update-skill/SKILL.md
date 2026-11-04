@@ -26,11 +26,11 @@ List directories in `<%= skillTemplatePath() %>/` to discover existing skills. E
 
 ### Frontmatter Fields
 
-See the **Skills** section in `<%= instructionPath('uac-template-guide') %>` for the complete field reference and per-target override syntax. Key fields: `name`, `description`, `disableAutoInvocation`, `userInvocable`, `allowedTools`, `model`, `hooks`, `version`, `author`, `codex`.
+Key fields: `name`, `description`, `disableAutoInvocation`, `userInvocable`, `allowedTools`, `model`, `hooks`, `version`, `author`, `codex`. Every field with its per-target support: `<%= docPath('uac/frontmatter') %>`. Per-target override syntax: `<%= instructionPath('uac-template-guide') %>`.
 
 ### Codex-specific UI metadata
 
-For Codex-only UI metadata (display name, icons, brand color, invocation policy, MCP tool dependencies), use the nested `codex.*` frontmatter object. uac emits a sidecar `agents/openai.yaml` next to `SKILL.md` automatically when any `codex.*` field — or `disableAutoInvocation` — is set. See the **Codex skill metadata** sub-table in `<%= instructionPath('uac-template-guide') %>`.
+For Codex-only UI metadata (display name, icons, brand color, invocation policy, MCP tool dependencies), use the nested `codex.*` frontmatter object. uac emits a sidecar `agents/openai.yaml` next to `SKILL.md` automatically when any `codex.*` field — or `disableAutoInvocation` — is set. The full `codex.*` key list is in `<%= docPath('uac/frontmatter') %>`.
 
 ### Supporting Files
 

@@ -8,7 +8,7 @@ userInvocable: false
 
 Agents are specialized AI personas with scoped tools and permissions that run in isolated contexts.
 
-**Important:** Agents are supported by Claude, Copilot, and Codex. Cursor does not support agents — consider using a skill with `forkContext: true` as an alternative for Cursor. Codex emits each agent as a standalone `.codex/agents/<name>.toml` file (body becomes `developer_instructions`); see the "Codex caveats" section in `<%= instructionPath('uac-template-guide') %>`.
+**Important:** Agents are supported by Claude, Copilot, and Codex. Cursor does not support agents — consider using a skill with `forkContext: true` as an alternative for Cursor. Codex emits each agent as a standalone `.codex/agents/<name>.toml` file (body becomes `developer_instructions`); see `<%= docPath('uac/codex') %>`.
 
 ## Finding Existing Agents
 
@@ -28,15 +28,11 @@ List files in `<%= agentTemplatePath() %>/` to discover existing agent templates
 
 ### Frontmatter Fields
 
-See the **Agents** section in `<%= instructionPath('uac-template-guide') %>` for the complete field reference and per-target override syntax. Key fields: `name`, `description`, `model`, `tools`, `permissionMode`, `hooks`, plus Codex-specific `nicknameCandidates` and `sandboxMode`.
+Key fields: `name`, `description`, `model`, `tools`, `permissionMode`, `hooks`, plus Codex-specific `nicknameCandidates` and `sandboxMode`. Every field with its per-target support: `<%= docPath('uac/frontmatter') %>`. Per-target override syntax: `<%= instructionPath('uac-template-guide') %>`.
 
 ### Cross-target gotchas for agents
 
-When targeting Codex alongside Claude/Copilot, three fields require special attention because their vocabularies don't align (see "Cross-target value gotchas" in `<%= instructionPath('uac-template-guide') %>`):
-
-- **`model`**: Use a per-target override. Claude takes `claude-*` model IDs; Codex takes `gpt-5.4`, `gpt-4.1`, etc.
-- **`permissionMode` vs `sandboxMode`**: `permissionMode` is Claude-specific (`acceptEdits`, `bypassPermissions`, `plan`). For Codex, set `sandboxMode: { codex: "workspace-write" }` (values: `read-only`, `workspace-write`, `danger-full-access`).
-- **`tools`**: Codex has no agent-level tool restriction — configure per-server `enabledTools` on the MCP server config instead. Universal `tools` is dropped for Codex with a warning.
+`model`, `permissionMode`, and `tools` don't carry over between targets. Set `model` per target, use `sandboxMode` for Codex instead of `permissionMode`, and restrict Codex tools per MCP server (`enabledTools`) instead of `tools`. Details: `<%= docPath('uac/codex') %>`. Model IDs per target: `<%= docPath('uac/models') %>`. Tool names per target: `<%= docPath('uac/tools') %>`.
 
 ### Example
 
