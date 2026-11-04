@@ -1,7 +1,7 @@
 export { defineConfig } from "./config/schema.js";
 export { mergeField } from "./config/merge-field.js";
 export { loadProjectConfig } from "./config/loader.js";
-export { generate } from "./core/generate.js";
+export { generate } from "./core/generate/index.js";
 export { writeGeneratedFiles, cleanTargetFiles } from "./core/writer.js";
 export { fetchSkills, installSkill } from "./core/add-skill.js";
 export { parseSkillSource } from "./core/skill-source.js";

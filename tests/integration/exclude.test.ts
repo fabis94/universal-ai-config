@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
-import { generate } from "../../src/core/generate.js";
+import { generate } from "../../src/core/generate/index.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/exclude-project");
 

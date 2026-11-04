@@ -7,7 +7,7 @@ import { consola } from "consola";
 import seedCommand from "../../src/commands/seed.js";
 import { collectDocTemplates, collectSkillTemplates } from "../../src/seed-types/shared.js";
 import { getTemplates } from "../../src/seed-types/meta-instructions/index.js";
-import { generate } from "../../src/core/generate.js";
+import { generate } from "../../src/core/generate/index.js";
 
 const UAC_DOCS = ["cli", "codex", "config", "frontmatter", "hooks", "mcp", "models", "tools"];
 

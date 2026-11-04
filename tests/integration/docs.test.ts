@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { consola } from "consola";
-import { generate } from "../../src/core/generate.js";
+import { generate } from "../../src/core/generate/index.js";
 import type { Target } from "../../src/types.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/docs-project");

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { join, resolve } from "node:path";
-import { generate } from "../../src/core/generate.js";
+import { generate } from "../../src/core/generate/index.js";
 import type { GenerateOptions, ShadowEvent } from "../../src/types.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/precedence-project");

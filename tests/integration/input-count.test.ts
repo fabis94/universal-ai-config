@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
 import { consola } from "consola";
-import { generate } from "../../src/core/generate.js";
+import { generate } from "../../src/core/generate/index.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/input-count-project");
 

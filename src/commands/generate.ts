@@ -1,7 +1,7 @@
 import { defineCommand } from "citty";
 import { consola } from "consola";
 import pc from "picocolors";
-import { generate } from "../core/generate.js";
+import { generate } from "../core/generate/index.js";
 import { writeGeneratedFiles } from "../core/writer.js";
 import { runClean } from "./run-clean.js";
 import { resolveCliRoot } from "./resolve-root.js";
