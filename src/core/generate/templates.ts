@@ -1,17 +1,18 @@
-import { join, relative } from "node:path";
+import { posix, relative } from "node:path";
 import { parseFrontmatter, parseTemplate, renderEjs, type TemplatesIndex } from "../parser.js";
+import type { Locator } from "../plan/locate.js";
+import { toPosixPath } from "../plan/locate.js";
 import { resolveOverrides } from "../resolve-overrides.js";
 import { targets } from "../../targets/index.js";
-import type { ConsolidateInput, TemplateTypeConfig } from "../../targets/define-target.js";
 import type {
-  GeneratedFile,
-  InMemoryExtraFile,
-  Target,
-  TemplateType,
-  UniversalFrontmatter,
-} from "../../types.js";
+  CombineEntry,
+  MarkdownTemplateType,
+  RenderedFile,
+  TemplateTypeConfig,
+} from "../../targets/define-target.js";
+import type { GeneratedFile, Target, UniversalFrontmatter } from "../../types.js";
 import type { GenerateRun } from "./context.js";
-import type { TemplateSlot } from "./discover.js";
+import type { DiscoveredTemplate, TemplateSlot } from "./discover.js";
 import { mapFrontmatter, renderMarkdown } from "./frontmatter.js";
 import { asText, type FileReader } from "./read-cache.js";
 
@@ -33,20 +34,18 @@ export async function buildTemplatesIndexes(
     indexes.set(targetName, { instructions: new Map(), docs, missingDocs });
   }
 
-  const frontmatterCache = new Map<string, Record<string, unknown>>();
+  const frontmatterCache = new Map<DiscoveredTemplate, Record<string, unknown>>();
   for (const slot of slots.values()) {
     if (slot.type !== "instructions") continue;
     for (const targetName of run.config.targets) {
       const winner = slot.winnerByTarget.get(targetName);
       if (!winner) continue;
 
-      let frontmatter = winner.filePath ? frontmatterCache.get(winner.filePath) : undefined;
+      let frontmatter = frontmatterCache.get(winner);
       if (!frontmatter) {
-        frontmatter = parseFrontmatter(await reader.text(winner)).frontmatter as Record<
-          string,
-          unknown
-        >;
-        if (winner.filePath) frontmatterCache.set(winner.filePath, frontmatter);
+        const parsed = parseFrontmatter(await reader.text(winner));
+        frontmatter = parsed.frontmatter as Record<string, unknown>;
+        frontmatterCache.set(winner, frontmatter);
       }
 
       const resolved = resolveOverrides(frontmatter, targetName) as UniversalFrontmatter;
@@ -56,13 +55,66 @@ export async function buildTemplatesIndexes(
   return indexes;
 }
 
-/** Templates buffered for a type config that emits through `consolidate`. */
-interface ConsolidateBuffer {
-  targetName: Target;
-  type: TemplateType;
-  outputDir: string;
-  consolidateFn: NonNullable<TemplateTypeConfig["consolidate"]>;
-  templates: ConsolidateInput["templates"];
+/** One rendered file of one template, before same-path templates are combined. */
+interface PendingFile extends RenderedFile {
+  target: Target;
+  type: MarkdownTemplateType;
+  sourcePath: string;
+  /** Set for a template's main files (not skill extras) — what `combine` receives */
+  entry?: Omit<CombineEntry, "content">;
+}
+
+/** Join files of one target that landed on the same path, via the type's `combine`. */
+function combinePending(
+  pending: PendingFile[],
+  locator: Locator,
+  run: GenerateRun,
+): GeneratedFile[] {
+  const groups = new Map<string, PendingFile[]>();
+  for (const file of pending) {
+    const key = `${file.target}\u0000${file.path}`;
+    const group = groups.get(key);
+    if (group) group.push(file);
+    else groups.set(key, [file]);
+  }
+
+  const files: GeneratedFile[] = [];
+  for (const group of groups.values()) {
+    const [first] = group;
+    if (!first) continue;
+    if (group.length === 1) {
+      files.push({
+        path: first.path,
+        content: first.content,
+        mode: first.mode,
+        target: first.target,
+        type: first.type,
+        sourcePath: first.sourcePath,
+      });
+      continue;
+    }
+
+    const typeConfig: TemplateTypeConfig | undefined = locator.typeConfig(first.target, first.type);
+    const entries = group.flatMap((file) =>
+      file.entry && file.type === first.type
+        ? [{ ...file.entry, content: asText(file.content) }]
+        : [],
+    );
+    if (!typeConfig?.combine || entries.length !== group.length) {
+      const sources = group.map((file) => file.sourcePath).join(", ");
+      throw new Error(
+        `${first.target}: several templates render to ${first.path} (${sources}). Rename one of them.`,
+      );
+    }
+    files.push({
+      path: first.path,
+      content: typeConfig.combine(entries, { report: run.sink.scoped(first.target, first.type) }),
+      target: first.target,
+      type: first.type,
+      sourcePath: group.map((file) => file.sourcePath).join(","),
+    });
+  }
+  return files;
 }
 
 /** Render every winning instruction, skill and agent template for every target. */
@@ -71,129 +123,96 @@ export async function generateTemplateFiles(
   slots: Map<string, TemplateSlot>,
   reader: FileReader,
   indexes: Map<Target, TemplatesIndex>,
+  locator: Locator,
 ): Promise<GeneratedFile[]> {
   const { root, config, sink } = run;
-  const generatedFiles: GeneratedFile[] = [];
-  // Keyed by `${target}:${type}`; flushed after the loop in one call per key.
-  const consolidateBuffers = new Map<string, ConsolidateBuffer>();
+  const pending: PendingFile[] = [];
 
   for (const slot of slots.values()) {
+    const type = slot.type as MarkdownTemplateType;
     for (const targetName of config.targets) {
       // The winner already accounts for `exclude`; no winner means every
       // candidate for this name was excluded for this target.
       const template = slot.winnerByTarget.get(targetName);
       if (!template) continue;
-      const content = await reader.text(template);
 
       const targetDef = targets[targetName];
       if (!targetDef) continue;
-
-      if (!targetDef.supportedTypes.includes(template.type)) {
+      if (!targetDef.supportedTypes.includes(type)) {
         sink.report({
           code: "unsupported",
           target: targetName,
-          type: template.type,
+          type,
           source: template.relativePath,
-          message: `does not support "${template.type}" — skipping ${template.relativePath}`,
-          detail: { kind: "type", name: template.type },
+          message: `does not support "${type}" — skipping ${template.relativePath}`,
+          detail: { kind: "type", name: type },
         });
         continue;
       }
-
-      const typeConfig = targetDef[template.type] as TemplateTypeConfig | undefined;
+      const typeConfig = locator.typeConfig(targetName, type);
       if (!typeConfig) continue;
 
       const renderContext = {
         target: targetName,
-        type: template.type,
+        type,
         config,
         templatesIndex: indexes.get(targetName),
+        locator,
       };
-      const parsed = parseTemplate(content, renderContext);
-      const resolvedFm = resolveOverrides(
+      const parsed = parseTemplate(await reader.text(template), renderContext);
+      const frontmatter = resolveOverrides(
         parsed.frontmatter as Record<string, unknown>,
         targetName,
       ) as UniversalFrontmatter;
-      const outputDir = config.outputDirs[targetName] ?? targetDef.outputDir;
+      const outputPath = locator.templatePath(targetName, type, template.name, frontmatter);
+      const sourcePath = toPosixPath(template.relativePath);
 
-      // Extra files of a skill: `.md` files go through EJS, everything else
-      // is copied byte for byte (binary assets, scripts) with its exec bits.
-      const extraFiles: Array<InMemoryExtraFile & { filePath: string }> = [];
+      const rendered = typeConfig.render
+        ? typeConfig.render(
+            { name: template.name, sourcePath, frontmatter, body: parsed.body, outputPath },
+            { report: sink.scoped(targetName, type) },
+          )
+        : [
+            {
+              path: outputPath,
+              content: renderMarkdown(
+                mapFrontmatter(frontmatter, typeConfig),
+                parsed.body,
+                typeConfig.frontmatterStyle,
+              ),
+            },
+          ];
+      for (const file of rendered) {
+        pending.push({
+          ...file,
+          path: toPosixPath(file.path),
+          target: targetName,
+          type,
+          sourcePath,
+          entry: { name: template.name, sourcePath, frontmatter, body: parsed.body },
+        });
+      }
+
+      // Extra files of a skill sit next to its main file. `.md` files go
+      // through EJS; everything else is copied byte for byte with its mode.
+      const extraDir = posix.dirname(outputPath);
       for (const extra of template.extraFiles ?? []) {
         const bytes = await reader.bytes(extra);
-        extraFiles.push({
-          relativePath: extra.relativePath,
-          filePath: extra.filePath,
+        pending.push({
+          path: posix.join(extraDir, extra.relativePath),
           content: extra.relativePath.endsWith(".md")
             ? renderEjs(asText(bytes), renderContext)
             : bytes,
           mode: extra.mode,
-        });
-      }
-
-      // A `consolidate` type config owns all path/content emission: buffer
-      // the parsed template for one batched call after the loop.
-      if (typeConfig.consolidate) {
-        const key = `${targetName}:${template.type}`;
-        let buf = consolidateBuffers.get(key);
-        if (!buf) {
-          buf = {
-            targetName,
-            type: template.type,
-            outputDir,
-            consolidateFn: typeConfig.consolidate,
-            templates: [],
-          };
-          consolidateBuffers.set(key, buf);
-        }
-        buf.templates.push({
-          name: template.name,
-          sourcePath: template.relativePath,
-          frontmatter: resolvedFm,
-          body: parsed.body,
-          extraFiles:
-            extraFiles.length > 0
-              ? extraFiles.map(({ relativePath, content, mode }) => ({
-                  relativePath,
-                  content,
-                  mode,
-                }))
-              : undefined,
-        });
-        continue;
-      }
-
-      // Default 1:1 emit path (claude/copilot/cursor).
-      generatedFiles.push({
-        path: join(outputDir, typeConfig.getOutputPath(template.name, resolvedFm)),
-        content: renderMarkdown(mapFrontmatter(resolvedFm, typeConfig), parsed.body),
-        target: targetName,
-        type: template.type,
-        sourcePath: template.relativePath,
-      });
-
-      for (const extra of extraFiles) {
-        generatedFiles.push({
-          path: join(outputDir, `skills/${template.name}`, extra.relativePath),
-          content: extra.content,
-          mode: extra.mode,
           target: targetName,
-          type: template.type,
-          sourcePath: extra.filePath ? relative(root, extra.filePath) : extra.relativePath,
+          type,
+          sourcePath: extra.filePath
+            ? toPosixPath(relative(root, extra.filePath))
+            : extra.relativePath,
         });
       }
     }
   }
 
-  for (const buf of consolidateBuffers.values()) {
-    const files = await buf.consolidateFn({
-      templates: buf.templates,
-      outputDir: buf.outputDir,
-      root,
-      report: sink.scoped(buf.targetName, buf.type),
-    });
-    generatedFiles.push(...files);
-  }
-
-  return generatedFiles;
+  return combinePending(pending, locator, run);
 }

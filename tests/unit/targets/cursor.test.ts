@@ -51,7 +51,9 @@ describe("cursor target", () => {
 
     it("generates .mdc output path", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("my-rule", fm)).toBe("rules/my-rule.mdc");
+      expect(config.outputPath("my-rule", fm, { outputDir: ".cursor" })).toBe(
+        ".cursor/rules/my-rule.mdc",
+      );
     });
   });
 
@@ -96,7 +98,9 @@ describe("cursor target", () => {
 
     it("generates correct output path", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("test-gen", fm)).toBe("skills/test-gen/SKILL.md");
+      expect(config.outputPath("test-gen", fm, { outputDir: ".cursor" })).toBe(
+        ".cursor/skills/test-gen/SKILL.md",
+      );
     });
   });
 
@@ -104,7 +108,7 @@ describe("cursor target", () => {
     const config = cursor.hooks!;
 
     it("has correct output path and no merge key", () => {
-      expect(config.outputPath).toBe("hooks.json");
+      expect(config.outputPath({ outputDir: ".cursor" })).toBe(".cursor/hooks.json");
       expect(config.mergeKey).toBeUndefined();
     });
 
@@ -276,7 +280,7 @@ describe("cursor target", () => {
     const config = cursor.mcp!;
 
     it("has correct output path", () => {
-      expect(config.outputPath).toBe(".cursor/mcp.json");
+      expect(config.outputPath({ outputDir: ".cursor" })).toBe(".cursor/mcp.json");
     });
 
     it("passes through all basic fields", () => {

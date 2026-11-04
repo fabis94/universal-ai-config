@@ -132,7 +132,9 @@ export default defineTarget({
         return {};
       },
     },
-    getOutputPath: (name) => `rules/${name}.md`,
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/rules/${name}.md`,
+    typeDir: ({ outputDir }) => `${outputDir}/rules`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/rules`],
   },
 
   skills: {
@@ -153,7 +155,9 @@ export default defineTarget({
       skillPaths: "paths",
       skillShell: "shell",
     },
-    getOutputPath: (name) => `skills/${name}/SKILL.md`,
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/skills/${name}/SKILL.md`,
+    typeDir: ({ outputDir }) => `${outputDir}/skills`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/skills`],
   },
 
   agents: {
@@ -175,18 +179,22 @@ export default defineTarget({
       color: "color",
       initialPrompt: "initialPrompt",
     },
-    getOutputPath: (name) => `agents/${name}.md`,
+    // Cursor also reads `.claude/agents/` with a line-based parser
+    frontmatterStyle: "line-safe",
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/agents/${name}.md`,
+    typeDir: ({ outputDir }) => `${outputDir}/agents`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/agents`],
   },
 
   hooks: {
     handlerTypes: ["command", "http", "mcp_tool", "prompt", "agent"],
     transform: transformClaudeHooks,
-    outputPath: "settings.json",
+    outputPath: ({ outputDir }) => `${outputDir}/settings.json`,
     mergeKey: "hooks",
   },
 
   mcp: {
     transform: transformClaudeMCP,
-    outputPath: ".mcp.json",
+    outputPath: () => ".mcp.json",
   },
 });

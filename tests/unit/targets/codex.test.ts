@@ -3,19 +3,24 @@ import type { DiagnosticInput } from "../../../src/core/diagnostics.js";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYAML } from "yaml";
 import codex, { globRootDir } from "../../../src/targets/codex/index.js";
-import type { ConsolidateInput, TemplateTypeConfig } from "../../../src/targets/define-target.js";
+import { posix } from "node:path";
+import type { RenderedFile, TemplateTypeConfig } from "../../../src/targets/define-target.js";
 import type {
   UniversalFrontmatter,
   UniversalHookHandler,
   UniversalMCPServer,
 } from "../../../src/types.js";
 
-/** Build a ConsolidateInput template entry. Test helper. */
-function makeTemplate(
-  name: string,
-  frontmatter: UniversalFrontmatter,
-  body: string,
-): ConsolidateInput["templates"][number] {
+interface TestTemplate {
+  name: string;
+  sourcePath: string;
+  frontmatter: UniversalFrontmatter;
+  body: string;
+  extraFiles?: Array<{ relativePath: string; content: string }>;
+}
+
+/** Build a template entry. Test helper. */
+function makeTemplate(name: string, frontmatter: UniversalFrontmatter, body: string): TestTemplate {
   return {
     name,
     sourcePath: `.universal-ai-config/instructions/${name}.md`,
@@ -24,11 +29,39 @@ function makeTemplate(
   };
 }
 
-function makeInput(
-  templates: ConsolidateInput["templates"],
-  outputDir = ".codex",
-): ConsolidateInput {
-  return { templates, outputDir, root: "/tmp/fixture", report: (d) => diagnostics.push(d) };
+function makeInput(templates: TestTemplate[], outputDir = ".codex") {
+  return { templates, outputDir };
+}
+
+/**
+ * Drive a type config the way the generate pipeline does: render each
+ * template at its outputPath, place skill extra files next to it, and join
+ * same-path renders with `combine`.
+ */
+function renderAll(typeConfig: TemplateTypeConfig) {
+  return ({ templates, outputDir }: { templates: TestTemplate[]; outputDir: string }) => {
+    const groups = new Map<string, Array<RenderedFile & { entry?: TestTemplate }>>();
+    const add = (file: RenderedFile & { entry?: TestTemplate }) => {
+      const group = groups.get(file.path) ?? [];
+      group.push(file);
+      groups.set(file.path, group);
+    };
+    for (const t of templates) {
+      const outputPath = typeConfig.outputPath(t.name, t.frontmatter, { outputDir });
+      for (const file of typeConfig.render!({ ...t, outputPath }, ctx)) add({ ...file, entry: t });
+      for (const extra of t.extraFiles ?? []) {
+        add({
+          path: posix.join(posix.dirname(outputPath), extra.relativePath),
+          content: extra.content,
+        });
+      }
+    }
+    return [...groups.entries()].map(([path, group]) => {
+      if (group.length === 1) return { path, content: group[0]!.content as string };
+      const entries = group.map((f) => ({ ...f.entry!, content: f.content as string }));
+      return { path, content: typeConfig.combine!(entries, ctx) };
+    });
+  };
 }
 
 /** Diagnostics reported by the last target call — reset before each test. */
@@ -45,19 +78,19 @@ describe("codex target", () => {
     expect(codex.supportedTypes).toEqual(["instructions", "skills", "agents", "hooks", "mcp"]);
   });
 
-  it("registers consolidate functions for instructions, skills, and agents", () => {
-    expect(codex.instructions?.consolidate).toBeTypeOf("function");
-    expect(codex.skills?.consolidate).toBeTypeOf("function");
-    expect(codex.agents?.consolidate).toBeTypeOf("function");
+  it("registers render functions for instructions, skills, and agents", () => {
+    expect(codex.instructions?.render).toBeTypeOf("function");
+    expect(codex.skills?.render).toBeTypeOf("function");
+    expect(codex.agents?.render).toBeTypeOf("function");
   });
 
   it("hooks output to .codex/hooks.json with no mergeKey (whole-file uac-managed)", () => {
-    expect(codex.hooks?.outputPath).toBe("hooks.json");
+    expect(codex.hooks?.outputPath({ outputDir: ".codex" })).toBe(".codex/hooks.json");
     expect(codex.hooks?.mergeKey).toBeUndefined();
   });
 
   it("mcp output to .codex/config.toml with mergeKey: mcp_servers and toml format", () => {
-    expect(codex.mcp?.outputPath).toBe(".codex/config.toml");
+    expect(codex.mcp?.outputPath({ outputDir: ".codex" })).toBe(".codex/config.toml");
     expect(codex.mcp?.mergeKey).toBe("mcp_servers");
     expect(codex.mcp?.format).toBe("toml");
   });
@@ -82,9 +115,7 @@ describe("codex target", () => {
   });
 
   describe("instructions consolidate", () => {
-    const consolidate = codex.instructions!.consolidate as NonNullable<
-      TemplateTypeConfig["consolidate"]
-    >;
+    const consolidate = renderAll(codex.instructions!);
 
     it("single alwaysApply: true → root AGENTS.md", async () => {
       const files = await consolidate(
@@ -223,7 +254,7 @@ describe("codex target", () => {
   });
 
   describe("skills consolidate", () => {
-    const consolidate = codex.skills!.consolidate as NonNullable<TemplateTypeConfig["consolidate"]>;
+    const consolidate = renderAll(codex.skills!);
 
     it("SKILL.md emitted at root-relative .agents/skills/<name>/SKILL.md", async () => {
       const files = await consolidate(
@@ -447,7 +478,7 @@ describe("codex target", () => {
     });
 
     it("extra files copied preserving path structure", async () => {
-      const template: ConsolidateInput["templates"][number] = {
+      const template: TestTemplate = {
         name: "with-refs",
         sourcePath: ".universal-ai-config/skills/with-refs/SKILL.md",
         frontmatter: { name: "with-refs", description: "Has refs" },
@@ -469,7 +500,7 @@ describe("codex target", () => {
   });
 
   describe("agents consolidate", () => {
-    const consolidate = codex.agents!.consolidate as NonNullable<TemplateTypeConfig["consolidate"]>;
+    const consolidate = renderAll(codex.agents!);
 
     it("standalone .codex/agents/<name>.toml emitted, valid TOML", async () => {
       const files = await consolidate(
@@ -621,7 +652,7 @@ describe("codex target", () => {
       expect(parsed.hooks).toBeUndefined();
     });
 
-    it("uses outputDir from ConsolidateInput when overriding default", async () => {
+    it("honours a custom outputDir", async () => {
       const files = await consolidate(
         makeInput([makeTemplate("a", { description: "A" }, "Body")], ".custom-codex"),
       );

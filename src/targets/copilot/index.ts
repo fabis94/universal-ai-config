@@ -95,31 +95,43 @@ function transformCopilotMCP(
   return output;
 }
 
+/** A mapper that emits nothing for always-on templates (they have no frontmatter in Copilot). */
+function scopedOnly(
+  mapper: (value: unknown) => Record<string, unknown>,
+): (value: unknown, fm: UniversalFrontmatter) => Record<string, unknown> {
+  return (value, fm) => (fm.alwaysApply ? {} : mapper(value));
+}
+
 export default defineTarget({
   name: "copilot",
   outputDir: ".github",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
 
   instructions: {
+    // Always-on instructions all go to copilot-instructions.md, a plain
+    // markdown file with no frontmatter, so they map no fields at all.
     frontmatterMap: {
-      description: "description",
-      globs: (value) => {
-        // Copilot uses applyTo as a comma-separated string
-        return { applyTo: normalizeGlobs(value).join(",") };
-      },
-      alwaysApply: () => {
-        // Handled by getOutputPath — alwaysApply templates go to copilot-instructions.md
-        return {};
-      },
-      excludeAgent: "excludeAgent",
-      name: "name",
+      description: scopedOnly((value) => ({ description: value })),
+      // Copilot uses applyTo as a comma-separated string
+      globs: scopedOnly((value) => ({ applyTo: normalizeGlobs(value).join(",") })),
+      excludeAgent: scopedOnly((value) => ({ excludeAgent: value })),
+      name: scopedOnly((value) => ({ name: value })),
     },
-    getOutputPath: (name: string, frontmatter: UniversalFrontmatter) => {
-      if (frontmatter.alwaysApply) {
-        return "copilot-instructions.md";
-      }
-      return `instructions/${name}.instructions.md`;
-    },
+    outputPath: (name, frontmatter, { outputDir }) =>
+      frontmatter.alwaysApply
+        ? `${outputDir}/copilot-instructions.md`
+        : `${outputDir}/instructions/${name}.instructions.md`,
+    typeDir: ({ outputDir }) => `${outputDir}/instructions`,
+    ownedPaths: ({ outputDir }) => [
+      `${outputDir}/copilot-instructions.md`,
+      `${outputDir}/instructions`,
+    ],
+    // Several always-on templates share copilot-instructions.md
+    combine: (entries) =>
+      [...entries]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((entry) => entry.body.trim())
+        .join("\n\n") + "\n",
   },
 
   skills: {
@@ -134,7 +146,9 @@ export default defineTarget({
       metadata: "metadata",
       forkContext: (value) => (value ? { context: "fork" } : {}),
     },
-    getOutputPath: (name) => `skills/${name}/SKILL.md`,
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/skills/${name}/SKILL.md`,
+    typeDir: ({ outputDir }) => `${outputDir}/skills`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/skills`],
   },
 
   agents: {
@@ -152,17 +166,19 @@ export default defineTarget({
       subAgents: "agents",
       hooks: "hooks",
     },
-    getOutputPath: (name) => `agents/${name}.agent.md`,
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/agents/${name}.agent.md`,
+    typeDir: ({ outputDir }) => `${outputDir}/agents`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/agents`],
   },
 
   hooks: {
     handlerTypes: ["command", "http", "prompt"],
     transform: transformCopilotHooks,
-    outputPath: "hooks/hooks.json",
+    outputPath: ({ outputDir }) => `${outputDir}/hooks/hooks.json`,
   },
 
   mcp: {
     transform: transformCopilotMCP,
-    outputPath: ".vscode/mcp.json",
+    outputPath: () => ".vscode/mcp.json",
   },
 });

@@ -1,8 +1,16 @@
+import { posix } from "node:path";
 import { stringify as stringifyYAML } from "yaml";
-import { defineTarget, type ConsolidateInput, type TargetContext } from "../define-target.js";
+import {
+  defineTarget,
+  type CombineEntry,
+  type RenderedFile,
+  type RenderInput,
+  type TargetContext,
+} from "../define-target.js";
+import { renderMarkdown } from "../../core/generate/frontmatter.js";
 import { flattenCommand } from "../../core/shell.js";
 import { stringifyToml } from "../../core/toml.js";
-import type { GeneratedFile, UniversalHookHandler, UniversalMCPServer } from "../../types.js";
+import type { UniversalHookHandler, UniversalMCPServer } from "../../types.js";
 import { getCodexInstructionEmissionPaths } from "./instruction-routing.js";
 
 export { globRootDir } from "./instruction-routing.js";
@@ -131,94 +139,28 @@ function transformCodexMCP(
 }
 
 /** Render an instruction body with a `## description` H2 header. */
-function renderInstructionSection(
-  name: string,
-  description: string | undefined,
-  body: string,
-): string {
-  const heading = description?.trim() ?? name;
+function renderInstructionSection(name: string, description: string | undefined, body: string) {
+  const heading = description?.trim() || name;
   return `## ${heading}\n\n${body.trim()}\n`;
 }
 
-/** Concatenate a bucket of instruction entries alpha-sorted into a single AGENTS.md/.override body. */
-function renderBucket(entries: InstructionEntry[]): string {
-  const sorted = [...entries].sort((a, b) => a.name.localeCompare(b.name));
-  return sorted
-    .map((e) => renderInstructionSection(e.name, e.description, e.body))
+/**
+ * One section per routed path. Several templates routed to the same path are
+ * joined by `combine`, alphabetically.
+ */
+function renderCodexInstruction({ name, frontmatter, body }: RenderInput): RenderedFile[] {
+  const section = renderInstructionSection(name, frontmatter.description, body);
+  return getCodexInstructionEmissionPaths(frontmatter).map((path) => ({ path, content: section }));
+}
+
+function combineCodexInstructions(entries: CombineEntry[]): string {
+  return [...entries]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((entry) => entry.content)
     .join("\n---\n\n");
 }
 
-interface InstructionEntry {
-  name: string;
-  description?: string | undefined;
-  body: string;
-  sourcePath: string;
-}
-
-function consolidateCodexInstructions({ templates }: ConsolidateInput): GeneratedFile[] {
-  const files: GeneratedFile[] = [];
-  const rootBucket: InstructionEntry[] = [];
-  const overrideBuckets = new Map<string, InstructionEntry[]>();
-
-  for (const t of templates) {
-    const entry: InstructionEntry = {
-      name: t.name,
-      description: t.frontmatter.description,
-      body: t.body,
-      sourcePath: t.sourcePath,
-    };
-
-    const paths = getCodexInstructionEmissionPaths(t.frontmatter);
-    for (const p of paths) {
-      if (p === "AGENTS.md") {
-        rootBucket.push(entry);
-      } else {
-        const dir = p.replace(/\/AGENTS\.override\.md$/, "");
-        const bucket = overrideBuckets.get(dir) ?? [];
-        bucket.push(entry);
-        overrideBuckets.set(dir, bucket);
-      }
-    }
-  }
-
-  if (rootBucket.length > 0) {
-    files.push({
-      path: "AGENTS.md",
-      content: renderBucket(rootBucket),
-      target: "codex",
-      type: "instructions",
-      sourcePath: rootBucket.map((e) => e.sourcePath).join(","),
-    });
-  }
-
-  for (const [dir, bucket] of overrideBuckets) {
-    files.push({
-      path: `${dir}/AGENTS.override.md`,
-      content: renderBucket(bucket),
-      target: "codex",
-      type: "instructions",
-      sourcePath: bucket.map((e) => e.sourcePath).join(","),
-    });
-  }
-
-  return files;
-}
-
-/** Serialize an object as YAML frontmatter + body. Uses the same shape generate.ts uses. */
-function serializeWithFrontmatter(frontmatter: Record<string, unknown>, body: string): string {
-  const filtered = Object.fromEntries(
-    Object.entries(frontmatter).filter(([, v]) => v !== undefined && v !== null),
-  );
-  if (Object.keys(filtered).length === 0) return body;
-  const fmStr = stringifyYAML(filtered, {
-    defaultStringType: "QUOTE_DOUBLE",
-    defaultKeyType: "PLAIN",
-    indent: 2,
-  }).trim();
-  return `---\n${fmStr}\n---\n${body}`;
-}
-
-/** Convert a camelCase object's keys to snake_case (one level deep + nested objects). */
+/** Convert a camelCase object's keys to snake_case (nested objects and arrays included). */
 function camelToSnakeKeys(input: unknown): unknown {
   if (Array.isArray(input)) return input.map(camelToSnakeKeys);
   if (input === null || typeof input !== "object") return input;
@@ -230,154 +172,116 @@ function camelToSnakeKeys(input: unknown): unknown {
   return result;
 }
 
-function consolidateCodexSkills({ templates }: ConsolidateInput): GeneratedFile[] {
-  const files: GeneratedFile[] = [];
-  for (const t of templates) {
-    const skillDir = `.agents/skills/${t.name}`;
-    const fm = t.frontmatter;
+/** SKILL.md with the Agent Skills spec fields, plus an `agents/openai.yaml` sidecar for Codex-only settings. */
+function renderCodexSkill({
+  name,
+  frontmatter: fm,
+  body,
+  outputPath,
+}: RenderInput): RenderedFile[] {
+  const skillFm: Record<string, unknown> = {
+    name: fm.name ?? name,
+    description: fm.description,
+    version: fm.version,
+    author: fm.author,
+    license: fm.license,
+    compatibility: fm.compatibility,
+    metadata: fm.metadata,
+  };
+  const files: RenderedFile[] = [{ path: outputPath, content: renderMarkdown(skillFm, body) }];
 
-    // SKILL.md frontmatter: minimal Codex/Agent-Skills-spec fields only.
-    const skillFm: Record<string, unknown> = {};
-    if (fm.name !== undefined || t.name) skillFm.name = fm.name ?? t.name;
-    if (fm.description !== undefined) skillFm.description = fm.description;
-    if (fm.version !== undefined) skillFm.version = fm.version;
-    if (fm.author !== undefined) skillFm.author = fm.author;
-    if (fm.license !== undefined) skillFm.license = fm.license;
-    if (fm.compatibility !== undefined) skillFm.compatibility = fm.compatibility;
-    if (fm.metadata !== undefined) skillFm.metadata = fm.metadata;
-
+  // agents/openai.yaml sidecar — emitted when any codex.* field or
+  // disableAutoInvocation is set.
+  const yamlObj: Record<string, unknown> = {};
+  if (fm.codex?.interface) yamlObj.interface = camelToSnakeKeys(fm.codex.interface);
+  if (fm.codex?.dependencies) yamlObj.dependencies = camelToSnakeKeys(fm.codex.dependencies);
+  // disableAutoInvocation (inverted) → policy.allow_implicit_invocation
+  if (fm.disableAutoInvocation !== undefined) {
+    yamlObj.policy = { allow_implicit_invocation: !fm.disableAutoInvocation };
+  }
+  if (Object.keys(yamlObj).length > 0) {
     files.push({
-      path: `${skillDir}/SKILL.md`,
-      content: serializeWithFrontmatter(skillFm, t.body),
-      target: "codex",
-      type: "skills",
-      sourcePath: t.sourcePath,
+      path: `${posix.dirname(outputPath)}/agents/openai.yaml`,
+      content: stringifyYAML(yamlObj, {
+        defaultStringType: "QUOTE_DOUBLE",
+        defaultKeyType: "PLAIN",
+        indent: 2,
+      }),
     });
-
-    // agents/openai.yaml sidecar — emit when any codex.* field OR
-    // disableAutoInvocation is set.
-    const yamlObj: Record<string, unknown> = {};
-    if (fm.codex?.interface) {
-      yamlObj.interface = camelToSnakeKeys(fm.codex.interface);
-    }
-    if (fm.codex?.dependencies) {
-      yamlObj.dependencies = camelToSnakeKeys(fm.codex.dependencies);
-    }
-    // Auto-map disableAutoInvocation (inverted) → policy.allow_implicit_invocation
-    if (fm.disableAutoInvocation !== undefined) {
-      yamlObj.policy = { allow_implicit_invocation: !fm.disableAutoInvocation };
-    }
-    if (Object.keys(yamlObj).length > 0) {
-      files.push({
-        path: `${skillDir}/agents/openai.yaml`,
-        content: stringifyYAML(yamlObj, {
-          defaultStringType: "QUOTE_DOUBLE",
-          defaultKeyType: "PLAIN",
-          indent: 2,
-        }),
-        target: "codex",
-        type: "skills",
-        sourcePath: t.sourcePath,
-      });
-    }
-
-    // Extra files (references, scripts, etc.) — already EJS-rendered by the
-    // generate loop before being handed to consolidate.
-    for (const extra of t.extraFiles ?? []) {
-      files.push({
-        path: `${skillDir}/${extra.relativePath}`,
-        content: extra.content,
-        mode: extra.mode,
-        target: "codex",
-        type: "skills",
-        sourcePath: t.sourcePath,
-      });
-    }
   }
   return files;
 }
 
-function consolidateCodexAgents({
-  templates,
-  outputDir,
-  report,
-}: ConsolidateInput): GeneratedFile[] {
-  const files: GeneratedFile[] = [];
-  for (const t of templates) {
-    const fm = t.frontmatter;
-    const tomlObj: Record<string, unknown> = {
-      name: t.name,
-      description: fm.description ?? "",
-      developer_instructions: t.body.trim(),
-    };
+/** A standalone `.codex/agents/<name>.toml` role file. */
+function renderCodexAgent(
+  { name, frontmatter: fm, body, sourcePath, outputPath }: RenderInput,
+  { report }: TargetContext,
+): RenderedFile[] {
+  const tomlObj: Record<string, unknown> = {
+    name,
+    description: fm.description ?? "",
+    developer_instructions: body.trim(),
+  };
 
-    if (fm.model !== undefined) {
-      tomlObj.model = fm.model;
-      if (typeof fm.model === "string" && fm.model.startsWith("claude-")) {
-        report({
-          code: "suspicious-value",
-          message: `agent "${t.name}": model "${fm.model}" looks Claude-shaped; use a per-target override for Codex (e.g. model: { codex: "gpt-5.4", default: "..." })`,
-          source: t.sourcePath,
-          detail: { field: "model", value: fm.model },
-        });
-      }
-    }
-
-    if (fm.sandboxMode !== undefined) tomlObj.sandbox_mode = fm.sandboxMode;
-
-    // Auto-map effort → model_reasoning_effort when value is in the overlap set.
-    if (fm.effort !== undefined) {
-      if (CODEX_REASONING_EFFORT.has(fm.effort)) {
-        tomlObj.model_reasoning_effort = fm.effort;
-      } else {
-        report({
-          code: "unsupported",
-          message: `agent "${t.name}": effort "${fm.effort}" has no Codex equivalent; dropped (use a per-target override for Codex)`,
-          source: t.sourcePath,
-          detail: { kind: "field", name: "effort" },
-        });
-      }
-    }
-
-    if (fm.nicknameCandidates !== undefined) tomlObj.nickname_candidates = fm.nicknameCandidates;
-    if (fm.mcpServers !== undefined) tomlObj.mcp_servers = fm.mcpServers;
-    if (fm.skills !== undefined) tomlObj["skills.config"] = fm.skills;
-
-    // Drop-with-warning: fields with no clean Codex translation.
-    if (fm.tools !== undefined) {
+  if (fm.model !== undefined) {
+    tomlObj.model = fm.model;
+    if (typeof fm.model === "string" && fm.model.startsWith("claude-")) {
       report({
-        code: "unsupported",
-        message: `agent "${t.name}": "tools" dropped (Codex uses per-MCP-server enabled_tools, not agent-level)`,
-        source: t.sourcePath,
-        detail: { kind: "field", name: "tools" },
+        code: "suspicious-value",
+        message: `agent "${name}": model "${fm.model}" looks Claude-shaped; use a per-target override for Codex (e.g. model: { codex: "gpt-5.4", default: "..." })`,
+        source: sourcePath,
+        detail: { field: "model", value: fm.model },
       });
     }
-    if (fm.disallowedTools !== undefined) {
-      report({
-        code: "unsupported",
-        message: `agent "${t.name}": disallowedTools dropped (Codex has no agent-level denylist)`,
-        source: t.sourcePath,
-        detail: { kind: "field", name: "disallowedTools" },
-      });
-    }
-    if (fm.permissionMode !== undefined) {
-      report({
-        code: "unsupported",
-        message: `agent "${t.name}": permissionMode dropped (use sandboxMode for Codex via per-target override)`,
-        source: t.sourcePath,
-        detail: { kind: "field", name: "permissionMode" },
-      });
-    }
+  }
 
-    files.push({
-      path: `${outputDir}/agents/${t.name}.toml`,
-      content: stringifyToml(tomlObj),
-      target: "codex",
-      type: "agents",
-      sourcePath: t.sourcePath,
+  if (fm.sandboxMode !== undefined) tomlObj.sandbox_mode = fm.sandboxMode;
+
+  // Auto-map effort → model_reasoning_effort when value is in the overlap set.
+  if (fm.effort !== undefined) {
+    if (CODEX_REASONING_EFFORT.has(fm.effort)) {
+      tomlObj.model_reasoning_effort = fm.effort;
+    } else {
+      report({
+        code: "unsupported",
+        message: `agent "${name}": effort "${fm.effort}" has no Codex equivalent; dropped (use a per-target override for Codex)`,
+        source: sourcePath,
+        detail: { kind: "field", name: "effort" },
+      });
+    }
+  }
+
+  if (fm.nicknameCandidates !== undefined) tomlObj.nickname_candidates = fm.nicknameCandidates;
+  if (fm.mcpServers !== undefined) tomlObj.mcp_servers = fm.mcpServers;
+  if (fm.skills !== undefined) tomlObj["skills.config"] = fm.skills;
+
+  // Drop-with-warning: fields with no clean Codex translation.
+  if (fm.tools !== undefined) {
+    report({
+      code: "unsupported",
+      message: `agent "${name}": "tools" dropped (Codex uses per-MCP-server enabled_tools, not agent-level)`,
+      source: sourcePath,
+      detail: { kind: "field", name: "tools" },
     });
   }
-  return files;
+  if (fm.disallowedTools !== undefined) {
+    report({
+      code: "unsupported",
+      message: `agent "${name}": disallowedTools dropped (Codex has no agent-level denylist)`,
+      source: sourcePath,
+      detail: { kind: "field", name: "disallowedTools" },
+    });
+  }
+  if (fm.permissionMode !== undefined) {
+    report({
+      code: "unsupported",
+      message: `agent "${name}": permissionMode dropped (use sandboxMode for Codex via per-target override)`,
+      source: sourcePath,
+      detail: { kind: "field", name: "permissionMode" },
+    });
+  }
+
+  return [{ path: outputPath, content: stringifyToml(tomlObj) }];
 }
 
 export default defineTarget({
@@ -387,31 +291,40 @@ export default defineTarget({
 
   instructions: {
     frontmatterMap: {},
-    getOutputPath: (name) => name,
-    consolidate: consolidateCodexInstructions,
+    outputPath: (_name, frontmatter) =>
+      getCodexInstructionEmissionPaths(frontmatter)[0] ?? "AGENTS.md",
+    typeDir: () => ".",
+    ownedPaths: () => ["AGENTS.md"],
+    render: renderCodexInstruction,
+    combine: combineCodexInstructions,
   },
 
   skills: {
     frontmatterMap: {},
-    getOutputPath: (name) => name,
-    consolidate: consolidateCodexSkills,
+    // The open Agent Skills location, outside the Codex output dir
+    outputPath: (name) => `.agents/skills/${name}/SKILL.md`,
+    typeDir: () => ".agents/skills",
+    ownedPaths: () => [".agents/skills"],
+    render: renderCodexSkill,
   },
 
   agents: {
     frontmatterMap: {},
-    getOutputPath: (name) => name,
-    consolidate: consolidateCodexAgents,
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/agents/${name}.toml`,
+    typeDir: ({ outputDir }) => `${outputDir}/agents`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/agents`],
+    render: renderCodexAgent,
   },
 
   hooks: {
     handlerTypes: ["command", "mcp_tool"],
     transform: transformCodexHooks,
-    outputPath: "hooks.json",
+    outputPath: ({ outputDir }) => `${outputDir}/hooks.json`,
   },
 
   mcp: {
     transform: transformCodexMCP,
-    outputPath: ".codex/config.toml",
+    outputPath: () => ".codex/config.toml",
     mergeKey: "mcp_servers",
     format: "toml",
   },

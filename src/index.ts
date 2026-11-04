@@ -41,4 +41,10 @@ export type {
   HooksTypeConfig,
   MCPTypeConfig,
   TargetContext,
+  PathContext,
+  RenderInput,
+  RenderedFile,
+  CombineEntry,
+  FrontmatterMapper,
+  FrontmatterStyle,
 } from "./targets/define-target.js";

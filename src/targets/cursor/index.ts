@@ -87,7 +87,9 @@ export default defineTarget({
       },
       alwaysApply: "alwaysApply",
     },
-    getOutputPath: (name) => `rules/${name}.mdc`,
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/rules/${name}.mdc`,
+    typeDir: ({ outputDir }) => `${outputDir}/rules`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/rules`],
   },
 
   skills: {
@@ -99,7 +101,9 @@ export default defineTarget({
       compatibility: "compatibility",
       metadata: "metadata",
     },
-    getOutputPath: (name) => `skills/${name}/SKILL.md`,
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/skills/${name}/SKILL.md`,
+    typeDir: ({ outputDir }) => `${outputDir}/skills`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/skills`],
   },
 
   // agents: not supported — cursor has no agent files
@@ -107,11 +111,11 @@ export default defineTarget({
   hooks: {
     handlerTypes: ["command", "prompt"],
     transform: transformCursorHooks,
-    outputPath: "hooks.json",
+    outputPath: ({ outputDir }) => `${outputDir}/hooks.json`,
   },
 
   mcp: {
     transform: transformCursorMCP,
-    outputPath: ".cursor/mcp.json",
+    outputPath: () => ".cursor/mcp.json",
   },
 });

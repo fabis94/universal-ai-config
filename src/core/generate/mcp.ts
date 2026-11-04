@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { posix } from "node:path";
+import { toPosixPath } from "../plan/locate.js";
 import { filterMCPServers } from "../filter-mcp-servers.js";
 import { resolveJsonVariables } from "../resolve-json-variables.js";
 import { resolveOverrides } from "../resolve-overrides.js";
@@ -115,7 +116,7 @@ export async function generateMCPFiles(run: GenerateRun): Promise<GeneratedFile[
   if (mcpSlots.size === 0) return [];
 
   const generatedFiles: GeneratedFile[] = [];
-  const mcpRelativePath = join(config.templatesDir, "mcp");
+  const mcpRelativePath = toPosixPath(posix.join(config.templatesDir, "mcp"));
 
   for (const targetName of config.targets) {
     const targetDef = targets[targetName];
@@ -168,7 +169,7 @@ export async function generateMCPFiles(run: GenerateRun): Promise<GeneratedFile[
         : JSON.stringify(transformed, null, 2) + "\n";
 
     generatedFiles.push({
-      path: mcpConfig.outputPath,
+      path: run.locator.mcpPath(targetName) ?? "",
       content,
       target: targetName,
       type: "mcp",

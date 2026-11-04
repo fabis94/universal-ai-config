@@ -1,5 +1,6 @@
 import { loadProjectConfig } from "../../config/loader.js";
 import { DiagnosticSink, printDiagnostic } from "../diagnostics.js";
+import { createLocator } from "../plan/locate.js";
 import { targets } from "../../targets/index.js";
 import type { GeneratedFile, GenerateOptions } from "../../types.js";
 import type { GenerateRun } from "./context.js";
@@ -36,6 +37,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
     root,
     config,
     sink,
+    locator: createLocator(config),
     shadow: (event) =>
       sink.report({
         code: "shadowed",
@@ -56,7 +58,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
   const missingDocs = new Set<string>();
   const indexes = await buildTemplatesIndexes(run, slots, reader, docs, missingDocs);
 
-  const generatedFiles = await generateTemplateFiles(run, slots, reader, indexes);
+  const generatedFiles = await generateTemplateFiles(run, slots, reader, indexes, run.locator);
 
   for (const name of missingDocs) {
     sink.report({

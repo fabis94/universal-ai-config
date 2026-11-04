@@ -201,18 +201,43 @@ describe("renderEjs", () => {
     expect(copilot).toBe("See .github/agents/reviewer.agent.md");
   });
 
-  it("path helpers use canonical outputDir regardless of config overrides", () => {
+  it("path helpers follow config.outputDirs, since that is where the files are written", () => {
     const config = {
       ...DEFAULT_CONFIG,
-      outputDirs: { ...DEFAULT_CONFIG.outputDirs, claude: "../custom-claude" },
+      outputDirs: { ...DEFAULT_CONFIG.outputDirs, claude: ".ai/claude", codex: ".ai/codex" },
     };
-    const template = `<%= skillPath('deploy') %>`;
-    const result = renderEjs(template, {
-      target: "claude",
-      type: "instructions",
-      config,
-    });
-    expect(result).toBe(".claude/skills/deploy/SKILL.md");
+    const claude = { target: "claude" as const, type: "instructions" as const, config };
+    expect(renderEjs("<%= skillPath('deploy') %>", claude)).toBe(
+      ".ai/claude/skills/deploy/SKILL.md",
+    );
+    expect(renderEjs("<%= instructionPath() %>", claude)).toBe(".ai/claude/rules");
+    expect(renderEjs("<%= agentPath('rev') %>", claude)).toBe(".ai/claude/agents/rev.md");
+
+    const codex = { ...claude, target: "codex" as const };
+    expect(renderEjs("<%= agentPath('rev') %>", codex)).toBe(".ai/codex/agents/rev.toml");
+    // Codex skills live in the shared .agents/skills location, not the output dir
+    expect(renderEjs("<%= skillPath('deploy') %>", codex)).toBe(".agents/skills/deploy/SKILL.md");
+  });
+
+  it("instructionPath routes Copilot always-on instructions to copilot-instructions.md", () => {
+    const templatesIndex = {
+      instructions: new Map([
+        ["general", { alwaysApply: true }],
+        ["frontend", { globs: ["src/**"] }],
+      ]),
+    };
+    const ctx = {
+      target: "copilot" as const,
+      type: "instructions" as const,
+      config: DEFAULT_CONFIG,
+      templatesIndex,
+    };
+    expect(renderEjs("<%= instructionPath('general') %>", ctx)).toBe(
+      ".github/copilot-instructions.md",
+    );
+    expect(renderEjs("<%= instructionPath('frontend') %>", ctx)).toBe(
+      ".github/instructions/frontend.instructions.md",
+    );
   });
 
   it("output path helpers return directory when called without name", () => {
@@ -469,10 +494,10 @@ describe("renderEjs", () => {
       ).toBe(".agents/skills/deploy/examples/foo.md");
     });
 
-    it("ignores config.outputDirs overrides (uses canonical outputDir)", () => {
+    it("follows config.outputDirs", () => {
       const config = {
         ...DEFAULT_CONFIG,
-        outputDirs: { ...DEFAULT_CONFIG.outputDirs, claude: "../custom-claude" },
+        outputDirs: { ...DEFAULT_CONFIG.outputDirs, claude: ".ai/claude" },
       };
       expect(
         renderEjs("<%= skillDirPath('deploy') %>", {
@@ -480,14 +505,14 @@ describe("renderEjs", () => {
           type: "skills",
           config,
         }),
-      ).toBe(".claude/skills/deploy");
+      ).toBe(".ai/claude/skills/deploy");
       expect(
         renderEjs("<%= skillDirPath('deploy', 'ref.md') %>", {
           target: "claude",
           type: "skills",
           config,
         }),
-      ).toBe(".claude/skills/deploy/ref.md");
+      ).toBe(".ai/claude/skills/deploy/ref.md");
     });
   });
 

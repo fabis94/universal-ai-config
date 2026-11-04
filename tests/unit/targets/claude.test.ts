@@ -63,7 +63,9 @@ describe("claude target", () => {
 
     it("generates correct output path", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("my-rule", fm)).toBe("rules/my-rule.md");
+      expect(config.outputPath("my-rule", fm, { outputDir: ".claude" })).toBe(
+        ".claude/rules/my-rule.md",
+      );
     });
   });
 
@@ -128,7 +130,9 @@ describe("claude target", () => {
 
     it("generates correct output path", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("test-gen", fm)).toBe("skills/test-gen/SKILL.md");
+      expect(config.outputPath("test-gen", fm, { outputDir: ".claude" })).toBe(
+        ".claude/skills/test-gen/SKILL.md",
+      );
     });
   });
 
@@ -173,7 +177,13 @@ describe("claude target", () => {
 
     it("generates correct output path", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("reviewer", fm)).toBe("agents/reviewer.md");
+      expect(config.outputPath("reviewer", fm, { outputDir: ".claude" })).toBe(
+        ".claude/agents/reviewer.md",
+      );
+    });
+
+    it("writes line-safe frontmatter, because Cursor also reads .claude/agents with a line parser", () => {
+      expect(config.frontmatterStyle).toBe("line-safe");
     });
   });
 
@@ -181,7 +191,7 @@ describe("claude target", () => {
     const config = claude.hooks!;
 
     it("has correct output path and merge key", () => {
-      expect(config.outputPath).toBe("settings.json");
+      expect(config.outputPath({ outputDir: ".claude" })).toBe(".claude/settings.json");
       expect(config.mergeKey).toBe("hooks");
     });
 
@@ -421,7 +431,7 @@ describe("claude target", () => {
     const config = claude.mcp!;
 
     it("has correct output path", () => {
-      expect(config.outputPath).toBe(".mcp.json");
+      expect(config.outputPath({ outputDir: ".claude" })).toBe(".mcp.json");
     });
 
     it("passes through all basic fields", () => {

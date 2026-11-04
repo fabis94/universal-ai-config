@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { posix } from "node:path";
+import { toPosixPath } from "../plan/locate.js";
 import { resolveJsonVariables } from "../resolve-json-variables.js";
 import { resolveOverrides } from "../resolve-overrides.js";
 import { stringifyToml } from "../toml.js";
@@ -141,7 +142,7 @@ export async function generateHooksFiles(run: GenerateRun): Promise<GeneratedFil
   if (hookSlots.size === 0) return [];
 
   const generatedFiles: GeneratedFile[] = [];
-  const hooksRelativePath = join(config.templatesDir, "hooks");
+  const hooksRelativePath = toPosixPath(posix.join(config.templatesDir, "hooks"));
 
   for (const targetName of config.targets) {
     const targetDef = targets[targetName];
@@ -165,8 +166,6 @@ export async function generateHooksFiles(run: GenerateRun): Promise<GeneratedFil
       report,
     );
     const transformed = hooksConfig.transform(resolvedHooks, { report });
-    const outputDir = config.outputDirs[targetName] ?? targetDef.outputDir;
-
     const hooksFormat = hooksConfig.format ?? "json";
     const content =
       hooksFormat === "toml"
@@ -174,7 +173,7 @@ export async function generateHooksFiles(run: GenerateRun): Promise<GeneratedFil
         : JSON.stringify(transformed, null, 2) + "\n";
 
     generatedFiles.push({
-      path: join(outputDir, hooksConfig.outputPath),
+      path: run.locator.hooksPath(targetName) ?? "",
       content,
       target: targetName,
       type: "hooks",

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { collectingContext } from "../../test-helpers.js";
+import { mapFrontmatter } from "../../../src/core/generate/frontmatter.js";
 import copilot from "../../../src/targets/copilot/index.js";
 import type {
   UniversalFrontmatter,
@@ -18,49 +19,65 @@ describe("copilot target", () => {
   describe("instructions", () => {
     const config = copilot.instructions!;
 
-    it("maps description directly", () => {
-      expect(config.frontmatterMap.description).toBe("description");
+    it("maps description, name and excludeAgent directly for scoped instructions", () => {
+      expect(
+        mapFrontmatter(
+          { description: "D", name: "N", excludeAgent: "code-review", globs: "src/**" },
+          config,
+        ),
+      ).toEqual({ description: "D", name: "N", excludeAgent: "code-review", applyTo: "src/**" });
     });
 
-    it("maps name directly", () => {
-      expect(config.frontmatterMap.name).toBe("name");
+    it("maps nothing for always-on instructions (copilot-instructions.md has no frontmatter)", () => {
+      expect(
+        mapFrontmatter(
+          { alwaysApply: true, description: "D", name: "N", excludeAgent: "x", globs: "src/**" },
+          config,
+        ),
+      ).toEqual({});
     });
 
-    it("maps excludeAgent directly", () => {
-      expect(config.frontmatterMap.excludeAgent).toBe("excludeAgent");
+    it("combines several always-on instructions alphabetically, bodies only", () => {
+      const entry = (name: string, body: string) => ({
+        name,
+        sourcePath: `i/${name}.md`,
+        frontmatter: { alwaysApply: true },
+        body,
+        content: body,
+      });
+      expect(config.combine!([entry("zeta", "\nZ body\n"), entry("alpha", "A body")], ctx)).toBe(
+        "A body\n\nZ body\n",
+      );
     });
 
     it("maps globs to comma-separated applyTo string", () => {
-      const mapper = config.frontmatterMap.globs as Function;
-      const result = mapper(["**/*.ts", "**/*.tsx"]);
-      expect(result).toEqual({ applyTo: "**/*.ts,**/*.tsx" });
+      expect(mapFrontmatter({ globs: ["**/*.ts", "**/*.tsx"] }, config)).toEqual({
+        applyTo: "**/*.ts,**/*.tsx",
+      });
     });
 
     it("maps single glob to applyTo string", () => {
-      const mapper = config.frontmatterMap.globs as Function;
-      const result = mapper("**/*.ts");
-      expect(result).toEqual({ applyTo: "**/*.ts" });
+      expect(mapFrontmatter({ globs: "**/*.ts" }, config)).toEqual({ applyTo: "**/*.ts" });
     });
 
     it("normalizes comma-separated globs string to applyTo", () => {
-      const mapper = config.frontmatterMap.globs as Function;
-      const result = mapper("**/*.ts,**/*.tsx");
-      expect(result).toEqual({ applyTo: "**/*.ts,**/*.tsx" });
-    });
-
-    it("alwaysApply mapper returns empty object (handled by getOutputPath)", () => {
-      const mapper = config.frontmatterMap.alwaysApply as Function;
-      expect(mapper(true)).toEqual({});
+      expect(mapFrontmatter({ globs: "**/*.ts,**/*.tsx" }, config)).toEqual({
+        applyTo: "**/*.ts,**/*.tsx",
+      });
     });
 
     it("routes alwaysApply templates to copilot-instructions.md", () => {
       const fm: UniversalFrontmatter = { alwaysApply: true };
-      expect(config.getOutputPath("my-rule", fm)).toBe("copilot-instructions.md");
+      expect(config.outputPath("my-rule", fm, { outputDir: ".github" })).toBe(
+        ".github/copilot-instructions.md",
+      );
     });
 
     it("routes normal templates to instructions/", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("my-rule", fm)).toBe("instructions/my-rule.instructions.md");
+      expect(config.outputPath("my-rule", fm, { outputDir: ".github" })).toBe(
+        ".github/instructions/my-rule.instructions.md",
+      );
     });
   });
 
@@ -83,7 +100,9 @@ describe("copilot target", () => {
 
     it("generates correct output path", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("test-gen", fm)).toBe("skills/test-gen/SKILL.md");
+      expect(config.outputPath("test-gen", fm, { outputDir: ".github" })).toBe(
+        ".github/skills/test-gen/SKILL.md",
+      );
     });
   });
 
@@ -154,7 +173,9 @@ describe("copilot target", () => {
 
     it("generates correct output path with .agent.md extension", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("reviewer", fm)).toBe("agents/reviewer.agent.md");
+      expect(config.outputPath("reviewer", fm, { outputDir: ".github" })).toBe(
+        ".github/agents/reviewer.agent.md",
+      );
     });
   });
 
@@ -162,7 +183,7 @@ describe("copilot target", () => {
     const config = copilot.hooks!;
 
     it("has correct output path and no merge key", () => {
-      expect(config.outputPath).toBe("hooks/hooks.json");
+      expect(config.outputPath({ outputDir: ".github" })).toBe(".github/hooks/hooks.json");
       expect(config.mergeKey).toBeUndefined();
     });
 
@@ -256,7 +277,7 @@ describe("copilot target", () => {
     const config = copilot.mcp!;
 
     it("has correct output path", () => {
-      expect(config.outputPath).toBe(".vscode/mcp.json");
+      expect(config.outputPath({ outputDir: ".github" })).toBe(".vscode/mcp.json");
     });
 
     it("passes through all basic fields", () => {
