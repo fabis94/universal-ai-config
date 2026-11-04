@@ -18,7 +18,7 @@ function isWithin(a: string, b: string): boolean {
  * index files must not land in any of them, or tools would load them
  * unconditionally and the index would be pointless (or duplicate them).
  */
-function toolLoadedDirs(config: Pick<ResolvedConfig, "outputDirs">): string[] {
+function toolLoadedDirs(config: Pick<ResolvedConfig, "outputDirs" | "agentsMd">): string[] {
   const dirs = new Set<string>([
     // Tool-scanned locations no uac target writes to
     ".codex/skills",
@@ -28,7 +28,7 @@ function toolLoadedDirs(config: Pick<ResolvedConfig, "outputDirs">): string[] {
   // Both the configured and the default output dirs: tools read the defaults
   // whatever uac's outputDirs say.
   for (const outputDirs of [config.outputDirs, DEFAULT_CONFIG.outputDirs]) {
-    const locator = createLocator({ outputDirs });
+    const locator = createLocator({ outputDirs, agentsMd: config.agentsMd });
     for (const target of Object.keys(targets) as Target[]) {
       for (const type of types) {
         if (!locator.typeConfig(target, type)) continue;

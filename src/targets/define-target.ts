@@ -147,12 +147,44 @@ export interface MCPTypeConfig {
 /** The template types rendered from markdown templates. */
 export type MarkdownTemplateType = "instructions" | "skills" | "agents";
 
+/**
+ * What a tool does when it finds both its own output and another one it reads:
+ *
+ * - `loads-both`: it loads both copies, so everything applies twice;
+ * - `same-file`: both targets write the very same file;
+ * - `dedupes-identical`: it skips the other copy's entries that are identical
+ *   to its own (Cursor and Claude hook commands);
+ * - `prefers-own`: it ignores the other copy when it has its own.
+ */
+export type Reconcile = "loads-both" | "same-file" | "dedupes-identical" | "prefers-own";
+
+/**
+ * A fact about a tool: for one template type, it also reads the output of
+ * another target (or AGENTS.md). The planner turns these facts into which
+ * outputs to generate; targets never encode that policy themselves.
+ */
+export interface ForeignRead {
+  /** The output read: another target's, or the AGENTS.md files */
+  from: Target | "agentsMd";
+  reconcile: Reconcile;
+  /** For `dedupes-identical` hooks: the universal events the tool imports from `from` */
+  events?: readonly string[];
+  /** What this target loses when it uses `from`'s output instead of its own — shown in warnings and docs */
+  loses: string;
+}
+
 export interface TargetDefinition {
   name: Target;
   /** Default output directory, relative to the project root */
   outputDir: string;
   supportedTypes: TemplateType[];
-  instructions?: TemplateTypeConfig;
+  /** Other outputs this tool reads, per type (see `ForeignRead`) */
+  reads?: Partial<Record<TemplateType, readonly ForeignRead[]>>;
+  /**
+   * Instruction output. `"agentsMd"` means the tool reads only AGENTS.md, so
+   * the shared AGENTS.md output is its instruction output (Codex).
+   */
+  instructions?: TemplateTypeConfig | "agentsMd";
   skills?: TemplateTypeConfig;
   agents?: TemplateTypeConfig;
   hooks?: HooksTypeConfig;

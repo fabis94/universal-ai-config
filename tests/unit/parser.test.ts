@@ -352,13 +352,13 @@ describe("renderEjs", () => {
       expect(result).toBe("AGENTS.md");
     });
 
-    it("instructionPath() with no name returns '.' for codex (no canonical dir)", () => {
+    it("instructionPath() with no name returns the root AGENTS.md for codex", () => {
       const result = renderEjs("<%= instructionPath() %>", {
         target: "codex",
         type: "instructions",
         config: DEFAULT_CONFIG,
       });
-      expect(result).toBe(".");
+      expect(result).toBe("AGENTS.md");
     });
 
     it("instructionPath routes alwaysApply templates to AGENTS.md", () => {
@@ -400,7 +400,7 @@ describe("renderEjs", () => {
       expect(result).toBe("AGENTS.md");
     });
 
-    it("instructionPath routes resolvable-prefix globs to <dir>/AGENTS.override.md", () => {
+    it("instructionPath routes folder globs to <dir>/AGENTS.md (nested, the default)", () => {
       const index = {
         instructions: new Map([["fe-rule", { globs: ["packages/frontend/**"] }]]),
       };
@@ -410,10 +410,10 @@ describe("renderEjs", () => {
         config: DEFAULT_CONFIG,
         templatesIndex: index,
       });
-      expect(result).toBe("packages/frontend/AGENTS.override.md");
+      expect(result).toBe("packages/frontend/AGENTS.md");
     });
 
-    it("instructionPath ignores leading-wildcard globs when a resolvable glob exists", () => {
+    it("instructionPath picks the folder file when a template also has folder-less globs", () => {
       const index = {
         instructions: new Map([["mixed", { globs: ["**/*.ts", "src/api/**"] }]]),
       };
@@ -423,10 +423,10 @@ describe("renderEjs", () => {
         config: DEFAULT_CONFIG,
         templatesIndex: index,
       });
-      expect(result).toBe("src/api/AGENTS.override.md");
+      expect(result).toBe("src/api/AGENTS.md");
     });
 
-    it("instructionPath returns the first (alpha-sorted) override path for multi-dir globs", () => {
+    it("instructionPath returns the first (alpha-sorted) folder file for multi-dir globs", () => {
       const index = {
         instructions: new Map([["multi", { globs: ["src/web/**", "src/api/**"] }]]),
       };
@@ -436,7 +436,27 @@ describe("renderEjs", () => {
         config: DEFAULT_CONFIG,
         templatesIndex: index,
       });
-      expect(result).toBe("src/api/AGENTS.override.md");
+      expect(result).toBe("src/api/AGENTS.md");
+    });
+
+    it("instructionPath follows agentsMd.variation", () => {
+      const templatesIndex = {
+        instructions: new Map([["fe", { globs: ["packages/frontend/**"] }]]),
+      };
+      const render = (agentsMd: typeof DEFAULT_CONFIG.agentsMd) =>
+        renderEjs("<%= instructionPath('fe') %>", {
+          target: "codex",
+          type: "instructions",
+          config: { ...DEFAULT_CONFIG, agentsMd },
+          templatesIndex,
+        });
+      expect(render({ variation: "concatenate", indexDir: ".agents/uac-instructions" })).toBe(
+        "AGENTS.md",
+      );
+      expect(render({ variation: "index", indexDir: ".agents/uac-instructions" })).toBe(
+        ".agents/uac-instructions/fe.md",
+      );
+      expect(render({ variation: "index", indexDir: "docs/scoped/" })).toBe("docs/scoped/fe.md");
     });
   });
 

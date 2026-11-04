@@ -1,8 +1,11 @@
 import { loadProjectConfig } from "../../config/loader.js";
-import { DiagnosticSink, printDiagnostic } from "../diagnostics.js";
+import { DiagnosticSink, printDiagnostic, type Diagnostic } from "../diagnostics.js";
+import { buildPlan, type OutputPlan } from "../plan/build-plan.js";
 import { createLocator } from "../plan/locate.js";
 import { targets } from "../../targets/index.js";
 import type { GeneratedFile, GenerateOptions } from "../../types.js";
+import { generateAgentsMdFiles } from "./agents-md.js";
+import { assertNoPathCollisions } from "./collisions.js";
 import type { GenerateRun } from "./context.js";
 import { buildDocsIndex, discoverTemplates } from "./discover.js";
 import { generateHooksFiles } from "./hooks.js";
@@ -11,7 +14,49 @@ import { FileReader } from "./read-cache.js";
 import { resolveWinners } from "./select.js";
 import { buildTemplatesIndexes, generateTemplateFiles } from "./templates.js";
 
-export async function generate(options: GenerateOptions = {}): Promise<GeneratedFile[]> {
+export interface GenerateResult {
+  /** Every file to write; nothing is on disk until `writeGeneratedFiles()` */
+  files: GeneratedFile[];
+  /** Every diagnostic of the run, in report order */
+  diagnostics: Diagnostic[];
+  /** What was generated for which target, and what was shared or skipped */
+  plan: OutputPlan;
+}
+
+/** Report the plan's decisions: outputs a target skips, and a forced AGENTS.md. */
+function reportPlan(run: GenerateRun, plan: OutputPlan): void {
+  if (plan.agentsMd?.forced && run.config.agentsMd.enable === false) {
+    run.sink.report({
+      code: "agents-md-forced",
+      type: "instructions",
+      message:
+        "agentsMd.enable is false, but codex is a target and reads only AGENTS.md, so AGENTS.md is generated anyway",
+      detail: { enable: false },
+    });
+  }
+  for (const served of plan.servedBy) {
+    const source =
+      served.by === "agentsMd"
+        ? "the AGENTS.md files"
+        : `${served.by}'s ${served.type === "mcp" ? "MCP config" : served.type}`;
+    run.sink.report({
+      code: "served-by",
+      target: served.target,
+      type: served.type,
+      message:
+        `${served.target} reads ${source} too, so uac skips ${served.target}'s own ${served.type} output. ` +
+        `Usually you only need one of these targets on a machine: set \`targets\` in universal-ai-config.overrides.ts. ` +
+        `${served.target} loses: ${served.loses}`,
+      detail: { by: served.by, loses: served.loses },
+    });
+  }
+}
+
+/**
+ * Generate every output for a project: the files, every diagnostic, and the
+ * plan that decided which target generates what.
+ */
+export async function generateProject(options: GenerateOptions = {}): Promise<GenerateResult> {
   const root = options.root ?? process.cwd();
 
   const config = await loadProjectConfig({
@@ -33,11 +78,12 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
     if (diagnostic.code === "shadowed") options.onShadowed?.(diagnostic.detail);
     (options.onDiagnostic ?? printDiagnostic)(diagnostic);
   });
+  const plan = buildPlan(config);
   const run: GenerateRun = {
     root,
     config,
     sink,
-    locator: createLocator(config),
+    locator: createLocator(config, plan),
     shadow: (event) =>
       sink.report({
         code: "shadowed",
@@ -47,6 +93,7 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
         detail: event,
       }),
   };
+  reportPlan(run, plan);
 
   const slots = await discoverTemplates(root, config, options.templates);
   resolveWinners(slots, config.targets, config, run.shadow);
@@ -56,9 +103,10 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
   // missing-name set (a broken link warns once, not once per target).
   const docs = await buildDocsIndex(root, config);
   const missingDocs = new Set<string>();
-  const indexes = await buildTemplatesIndexes(run, slots, reader, docs, missingDocs);
+  const indexes = await buildTemplatesIndexes(run, plan, slots, reader, docs, missingDocs);
 
-  const generatedFiles = await generateTemplateFiles(run, slots, reader, indexes, run.locator);
+  const files = await generateTemplateFiles(run, slots, reader, indexes, plan);
+  files.push(...(await generateAgentsMdFiles(run, plan, slots, reader, indexes)));
 
   for (const name of missingDocs) {
     sink.report({
@@ -68,8 +116,13 @@ export async function generate(options: GenerateOptions = {}): Promise<Generated
     });
   }
 
-  if (config.types.includes("hooks")) generatedFiles.push(...(await generateHooksFiles(run)));
-  if (config.types.includes("mcp")) generatedFiles.push(...(await generateMCPFiles(run)));
+  if (config.types.includes("hooks")) files.push(...(await generateHooksFiles(run, plan)));
+  if (config.types.includes("mcp")) files.push(...(await generateMCPFiles(run, plan)));
 
-  return generatedFiles;
+  return { files: assertNoPathCollisions(files), diagnostics: sink.items, plan };
+}
+
+/** Generate every output for a project. Same as `generateProject()`, returning only the files. */
+export async function generate(options: GenerateOptions = {}): Promise<GeneratedFile[]> {
+  return (await generateProject(options)).files;
 }

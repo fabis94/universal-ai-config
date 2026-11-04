@@ -68,3 +68,11 @@ describe("normalizeGlobs", () => {
     expect(normalizeGlobs(["**/*.ts", 123, null, "**/*.tsx"])).toEqual(["**/*.ts", "**/*.tsx"]);
   });
 });
+
+describe("normalizeGlobs with brace patterns", () => {
+  it("keeps commas inside braces", () => {
+    expect(normalizeGlobs("src/{a,b}/**")).toEqual(["src/{a,b}/**"]);
+    expect(normalizeGlobs("**/*.{ts,tsx}, docs/**")).toEqual(["**/*.{ts,tsx}", "docs/**"]);
+    expect(normalizeGlobs(["{a,{b,c}}/**,x/**"])).toEqual(["{a,{b,c}}/**", "x/**"]);
+  });
+});

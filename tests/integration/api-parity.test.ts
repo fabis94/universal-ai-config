@@ -267,15 +267,6 @@ describe("programmatic API parity", () => {
         );
       }
 
-      async function seedOverrides(tempDir: string): Promise<void> {
-        const files = await generate({
-          root: OVERRIDES_FIXTURE_DIR,
-          targets: ["codex"],
-          types: ["instructions"],
-        });
-        await writeGeneratedFiles(files, tempDir);
-      }
-
       /** Hand-write a file that no template derives — i.e. an orphan. */
       async function writeFileAt(tempDir: string, rel: string): Promise<string> {
         const full = join(tempDir, rel);
@@ -284,13 +275,24 @@ describe("programmatic API parity", () => {
         return full;
       }
 
-      it("removes override files emitted from glob-prefixed instructions", async () => {
-        const tempDir = await createTempDir();
-        await seedOverrides(tempDir);
+      it("generate writes plain nested AGENTS.md files, never overrides", async () => {
+        const files = await generate({
+          root: OVERRIDES_FIXTURE_DIR,
+          targets: ["codex"],
+          types: ["instructions"],
+        });
+        const paths = files.map((f) => f.path).sort();
+        expect(paths).toEqual([
+          "AGENTS.md",
+          "packages/app/lib/tests/AGENTS.md",
+          "packages/frontend/AGENTS.md",
+        ]);
+      });
 
-        // Sanity: both derived paths exist, at shallow and deep nesting
-        expect(await exists(join(tempDir, "packages/frontend/AGENTS.override.md"))).toBe(true);
-        expect(await exists(join(tempDir, "packages/app/lib/tests/AGENTS.override.md"))).toBe(true);
+      it("removes override files uac 2.x generated, at any depth", async () => {
+        const tempDir = await createTempDir();
+        await writeFileAt(tempDir, "packages/frontend/AGENTS.override.md");
+        await writeFileAt(tempDir, "packages/app/lib/tests/AGENTS.override.md");
 
         const cleaned = await cleanTargetFiles(tempDir, ["codex"]);
 
@@ -370,19 +372,6 @@ describe("programmatic API parity", () => {
 
         expect(await exists(template)).toBe(true);
         expect(await exists(artifact)).toBe(false);
-      });
-
-      it("never touches a nested AGENTS.md, only the root one", async () => {
-        // Codex reads hand-authored nested AGENTS.md files that uac never writes,
-        // so the scan must match the override basename exactly.
-        const tempDir = await createTempDir();
-        await seedOverrides(tempDir);
-        const nested = await writeFileAt(tempDir, "packages/frontend/AGENTS.md");
-
-        await cleanTargetFiles(tempDir, ["codex"]);
-
-        expect(await exists(nested)).toBe(true);
-        expect(await exists(join(tempDir, "AGENTS.md"))).toBe(false);
       });
     });
   });

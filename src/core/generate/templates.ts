@@ -1,5 +1,6 @@
 import { posix, relative } from "node:path";
 import { parseFrontmatter, parseTemplate, renderEjs, type TemplatesIndex } from "../parser.js";
+import type { OutputPlan } from "../plan/build-plan.js";
 import type { Locator } from "../plan/locate.js";
 import { toPosixPath } from "../plan/locate.js";
 import { resolveOverrides } from "../resolve-overrides.js";
@@ -24,6 +25,7 @@ import { asText, type FileReader } from "./read-cache.js";
  */
 export async function buildTemplatesIndexes(
   run: GenerateRun,
+  plan: OutputPlan,
   slots: Map<string, TemplateSlot>,
   reader: FileReader,
   docs: Map<string, string>,
@@ -38,7 +40,13 @@ export async function buildTemplatesIndexes(
   for (const slot of slots.values()) {
     if (slot.type !== "instructions") continue;
     for (const targetName of run.config.targets) {
-      const winner = slot.winnerByTarget.get(targetName);
+      // A target reading AGENTS.md finds instructions where the shared files
+      // put them, which follows the view target's frontmatter
+      const source =
+        plan.agentsMd && plan.readsAgentsMdInstructions(targetName)
+          ? plan.agentsMd.view
+          : targetName;
+      const winner = slot.winnerByTarget.get(source);
       if (!winner) continue;
 
       let frontmatter = frontmatterCache.get(winner);
@@ -48,7 +56,7 @@ export async function buildTemplatesIndexes(
         frontmatterCache.set(winner, frontmatter);
       }
 
-      const resolved = resolveOverrides(frontmatter, targetName) as UniversalFrontmatter;
+      const resolved = resolveOverrides(frontmatter, source) as UniversalFrontmatter;
       indexes.get(targetName)?.instructions.set(slot.name, resolved);
     }
   }
@@ -60,6 +68,7 @@ interface PendingFile extends RenderedFile {
   target: Target;
   type: MarkdownTemplateType;
   sourcePath: string;
+  consumers: Target[];
   /** Set for a template's main files (not skill extras) — what `combine` receives */
   entry?: Omit<CombineEntry, "content">;
 }
@@ -90,6 +99,7 @@ function combinePending(
         target: first.target,
         type: first.type,
         sourcePath: first.sourcePath,
+        consumers: first.consumers,
       });
       continue;
     }
@@ -112,6 +122,7 @@ function combinePending(
       target: first.target,
       type: first.type,
       sourcePath: group.map((file) => file.sourcePath).join(","),
+      consumers: first.consumers,
     });
   }
   return files;
@@ -123,9 +134,9 @@ export async function generateTemplateFiles(
   slots: Map<string, TemplateSlot>,
   reader: FileReader,
   indexes: Map<Target, TemplatesIndex>,
-  locator: Locator,
+  plan: OutputPlan,
 ): Promise<GeneratedFile[]> {
-  const { root, config, sink } = run;
+  const { root, config, sink, locator } = run;
   const pending: PendingFile[] = [];
 
   for (const slot of slots.values()) {
@@ -149,8 +160,17 @@ export async function generateTemplateFiles(
         });
         continue;
       }
+      // Another output serves this type for the target (AGENTS.md, or a
+      // file another target writes that this tool reads as well)
+      if (
+        plan.servedFor(targetName, type) ||
+        (type === "instructions" && locator.usesAgentsMd(targetName))
+      ) {
+        continue;
+      }
       const typeConfig = locator.typeConfig(targetName, type);
       if (!typeConfig) continue;
+      const consumers = plan.consumersOf(targetName, type);
 
       const renderContext = {
         target: targetName,
@@ -158,6 +178,7 @@ export async function generateTemplateFiles(
         config,
         templatesIndex: indexes.get(targetName),
         locator,
+        consumers,
       };
       const parsed = parseTemplate(await reader.text(template), renderContext);
       const frontmatter = resolveOverrides(
@@ -189,6 +210,7 @@ export async function generateTemplateFiles(
           target: targetName,
           type,
           sourcePath,
+          consumers,
           entry: { name: template.name, sourcePath, frontmatter, body: parsed.body },
         });
       }
@@ -206,6 +228,7 @@ export async function generateTemplateFiles(
           mode: extra.mode,
           target: targetName,
           type,
+          consumers,
           sourcePath: extra.filePath
             ? toPosixPath(relative(root, extra.filePath))
             : extra.relativePath,

@@ -77,6 +77,16 @@ export default defineTarget({
   name: "cursor",
   outputDir: ".cursor",
   supportedTypes: ["instructions", "skills", "hooks", "mcp"],
+  reads: {
+    instructions: [
+      {
+        from: "agentsMd",
+        reconcile: "loads-both",
+        loses:
+          "glob-scoped and description-only (agent-decided) rules: they become always-on or folder-scoped",
+      },
+    ],
+  },
 
   instructions: {
     frontmatterMap: {

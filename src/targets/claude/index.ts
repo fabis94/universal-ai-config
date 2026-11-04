@@ -115,6 +115,16 @@ export default defineTarget({
   name: "claude",
   outputDir: ".claude",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
+  reads: {
+    instructions: [
+      {
+        from: "agentsMd",
+        reconcile: "loads-both",
+        loses:
+          "file-pattern scoping (`paths` globs); nested AGENTS.md files load only when Claude reads a file in that folder, and none load while a non-empty CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md exists",
+      },
+    ],
+  },
 
   instructions: {
     frontmatterMap: {

@@ -106,6 +106,16 @@ export default defineTarget({
   name: "copilot",
   outputDir: ".github",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
+  reads: {
+    instructions: [
+      {
+        from: "agentsMd",
+        reconcile: "loads-both",
+        loses:
+          "`applyTo` patterns, `excludeAgent` and `name`; nested AGENTS.md files load only after Copilot views a file in that folder (CLI 1.0 and later)",
+      },
+    ],
+  },
 
   instructions: {
     // Always-on instructions all go to copilot-instructions.md, a plain

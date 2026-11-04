@@ -29,6 +29,8 @@ interface RenderContext {
   templatesIndex?: TemplatesIndex;
   /** Output path computation; built from `config` when omitted */
   locator?: Locator;
+  /** Targets that will read the output (exposed to EJS as `consumers`); defaults to `[target]` */
+  consumers?: Target[];
 }
 
 export function parseFrontmatter(content: string): ParsedTemplate {
@@ -132,6 +134,7 @@ export function renderEjs(template: string, context: RenderContext): string {
       target: context.target,
       type: context.type,
       config: context.config,
+      consumers: context.consumers ?? [context.target],
       ...pathHelpers,
       ...context.config.variables,
     },

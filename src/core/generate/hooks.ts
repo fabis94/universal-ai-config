@@ -7,6 +7,7 @@ import { stringifyToml } from "../toml.js";
 import { targets } from "../../targets/index.js";
 import type { Reporter } from "../diagnostics.js";
 import type { GeneratedFile, HookHandlerType, Target, UniversalHookHandler } from "../../types.js";
+import type { OutputPlan } from "../plan/build-plan.js";
 import type { GenerateRun } from "./context.js";
 import { discoverJsonFiles, type DiscoveredJsonFile } from "./discover.js";
 import { selectJsonFiles, type ShadowReporter } from "./select.js";
@@ -136,7 +137,10 @@ function resolveHookHandlers(
 }
 
 /** Merge every `hooks/*.json`, resolve it per target and render each target's hooks file. */
-export async function generateHooksFiles(run: GenerateRun): Promise<GeneratedFile[]> {
+export async function generateHooksFiles(
+  run: GenerateRun,
+  plan: OutputPlan,
+): Promise<GeneratedFile[]> {
   const { root, config, sink, shadow } = run;
   const hookSlots = await discoverJsonFiles(root, config, "hooks");
   if (hookSlots.size === 0) return [];
@@ -147,6 +151,8 @@ export async function generateHooksFiles(run: GenerateRun): Promise<GeneratedFil
   for (const targetName of config.targets) {
     const targetDef = targets[targetName];
     if (!targetDef?.hooks || !targetDef.supportedTypes.includes("hooks")) continue;
+    // Another target's file serves this one (see the plan)
+    if (plan.servedFor(targetName, "hooks")) continue;
 
     // Resolve same-named files and drop excluded ones — both are per-target
     const filteredFiles = selectJsonFiles(hookSlots, "hooks", targetName, config, shadow);
@@ -181,6 +187,7 @@ export async function generateHooksFiles(run: GenerateRun): Promise<GeneratedFil
       mergeKey: hooksConfig.mergeKey,
       mergeFormat: hooksFormat === "toml" ? "toml" : undefined,
       inputCount: survivingSources.size,
+      consumers: plan.consumersOf(targetName, "hooks"),
     });
   }
 

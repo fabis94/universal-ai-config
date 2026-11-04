@@ -12,7 +12,7 @@ import {
 import { dirname, join } from "node:path";
 import { consola } from "consola";
 import { targets } from "../targets/index.js";
-import { CODEX_OVERRIDE_FILENAME } from "../targets/codex/instruction-routing.js";
+import { LEGACY_CODEX_OVERRIDE } from "./agents-md/index.js";
 import { asText } from "./generate/read-cache.js";
 import { safePath } from "./safe-path.js";
 import { parseToml, stringifyToml } from "./toml.js";
@@ -377,7 +377,7 @@ export async function cleanTargetFiles(
       const templatesPrefix = options?.templatesDir
         ? `${options.templatesDir.replace(/\\/g, "/").replace(/\/+$/, "")}/`
         : undefined;
-      const found = await findFilesByName(root, CODEX_OVERRIDE_FILENAME);
+      const found = await findFilesByName(root, LEGACY_CODEX_OVERRIDE);
       for (const rel of found) {
         if (templatesPrefix && rel.startsWith(templatesPrefix)) continue;
         if (isPreserved(rel)) {

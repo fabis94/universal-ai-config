@@ -2,7 +2,7 @@ import { beforeEach, describe, it, expect, vi } from "vitest";
 import type { DiagnosticInput } from "../../../src/core/diagnostics.js";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYAML } from "yaml";
-import codex, { globRootDir } from "../../../src/targets/codex/index.js";
+import codex from "../../../src/targets/codex/index.js";
 import { posix } from "node:path";
 import type { RenderedFile, TemplateTypeConfig } from "../../../src/targets/define-target.js";
 import type {
@@ -78,8 +78,8 @@ describe("codex target", () => {
     expect(codex.supportedTypes).toEqual(["instructions", "skills", "agents", "hooks", "mcp"]);
   });
 
-  it("registers render functions for instructions, skills, and agents", () => {
-    expect(codex.instructions?.render).toBeTypeOf("function");
+  it("reads only AGENTS.md for instructions, and renders skills and agents itself", () => {
+    expect(codex.instructions).toBe("agentsMd");
     expect(codex.skills?.render).toBeTypeOf("function");
     expect(codex.agents?.render).toBeTypeOf("function");
   });
@@ -95,165 +95,7 @@ describe("codex target", () => {
     expect(codex.mcp?.format).toBe("toml");
   });
 
-  describe("globRootDir helper", () => {
-    it("returns first segments before the wildcard", () => {
-      expect(globRootDir("packages/frontend/**/*.ts")).toBe("packages/frontend");
-      expect(globRootDir("src/**")).toBe("src");
-      expect(globRootDir("src/api/**/*.ts")).toBe("src/api");
-    });
-
-    it("returns null for leading-wildcard globs", () => {
-      expect(globRootDir("**/*.ts")).toBeNull();
-      expect(globRootDir("*.md")).toBeNull();
-      expect(globRootDir("**/AGENTS.md")).toBeNull();
-    });
-
-    it("returns null for globs with no wildcard at all", () => {
-      expect(globRootDir("plain-file.ts")).toBeNull();
-      expect(globRootDir("src/foo")).toBeNull();
-    });
-  });
-
-  describe("instructions consolidate", () => {
-    const consolidate = renderAll(codex.instructions!);
-
-    it("single alwaysApply: true → root AGENTS.md", async () => {
-      const files = await consolidate(
-        makeInput([makeTemplate("rule-a", { alwaysApply: true, description: "Rule A" }, "Body A")]),
-      );
-      expect(files).toHaveLength(1);
-      expect(files[0]!.path).toBe("AGENTS.md");
-      expect(files[0]!.content).toContain("## Rule A");
-      expect(files[0]!.content).toContain("Body A");
-    });
-
-    it("multiple alwaysApply templates → alpha-sorted, separated by ---", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate("zeta", { alwaysApply: true, description: "Zeta rule" }, "Zeta body"),
-          makeTemplate("alpha", { alwaysApply: true, description: "Alpha rule" }, "Alpha body"),
-        ]),
-      );
-      expect(files).toHaveLength(1);
-      const content = files[0]!.content;
-      // alpha comes before zeta
-      const alphaIdx = content.indexOf("Alpha body");
-      const zetaIdx = content.indexOf("Zeta body");
-      expect(alphaIdx).toBeGreaterThan(-1);
-      expect(zetaIdx).toBeGreaterThan(-1);
-      expect(alphaIdx).toBeLessThan(zetaIdx);
-      expect(content).toContain("\n---\n");
-    });
-
-    it("resolvable-dir glob → <dir>/AGENTS.override.md", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate(
-            "frontend",
-            { globs: ["packages/frontend/**/*.ts"], description: "Frontend" },
-            "Frontend body",
-          ),
-        ]),
-      );
-      expect(files).toHaveLength(1);
-      expect(files[0]!.path).toBe("packages/frontend/AGENTS.override.md");
-      expect(files[0]!.content).toContain("Frontend body");
-    });
-
-    it("multi-segment dir prefix preserved", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate("api", { globs: ["src/api/**/*.ts"], description: "API" }, "API body"),
-        ]),
-      );
-      expect(files[0]!.path).toBe("src/api/AGENTS.override.md");
-    });
-
-    it("multiple distinct-dir globs in one template → multiple override files (same body)", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate(
-            "shared",
-            { globs: ["src/foo/**", "src/bar/**"], description: "Shared" },
-            "Shared body",
-          ),
-        ]),
-      );
-      expect(files).toHaveLength(2);
-      const paths = files.map((f) => f.path).sort();
-      expect(paths).toEqual(["src/bar/AGENTS.override.md", "src/foo/AGENTS.override.md"]);
-      for (const file of files) {
-        expect(file.content).toContain("Shared body");
-      }
-    });
-
-    it("multiple templates targeting the same dir → one file, alpha-sorted", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate("zebra", { globs: ["src/**"], description: "Zebra" }, "Zebra body"),
-          makeTemplate("apple", { globs: ["src/**"], description: "Apple" }, "Apple body"),
-        ]),
-      );
-      expect(files).toHaveLength(1);
-      expect(files[0]!.path).toBe("src/AGENTS.override.md");
-      const content = files[0]!.content;
-      expect(content.indexOf("Apple body")).toBeLessThan(content.indexOf("Zebra body"));
-    });
-
-    it("leading-wildcard globs route to root AGENTS.md", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate("tests", { globs: ["**/*.test.ts"], description: "Tests" }, "Tests body"),
-        ]),
-      );
-      expect(files).toHaveLength(1);
-      expect(files[0]!.path).toBe("AGENTS.md");
-      expect(files[0]!.content).toContain("Tests body");
-    });
-
-    it("template with neither alwaysApply nor globs → root AGENTS.md", async () => {
-      const files = await consolidate(
-        makeInput([makeTemplate("loose", { description: "Loose" }, "Loose body")]),
-      );
-      expect(files).toHaveLength(1);
-      expect(files[0]!.path).toBe("AGENTS.md");
-    });
-
-    it("alwaysApply: true + globs set → alwaysApply wins (root)", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate(
-            "both",
-            { alwaysApply: true, globs: ["src/**"], description: "Both" },
-            "Both body",
-          ),
-        ]),
-      );
-      expect(files).toHaveLength(1);
-      expect(files[0]!.path).toBe("AGENTS.md");
-    });
-
-    it("mixed alwaysApply + glob templates → root AGENTS.md + per-dir AGENTS.override.md", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate("global", { alwaysApply: true, description: "Global" }, "Global body"),
-          makeTemplate("scoped", { globs: ["src/**"], description: "Scoped" }, "Scoped body"),
-        ]),
-      );
-      expect(files).toHaveLength(2);
-      const paths = files.map((f) => f.path).sort();
-      expect(paths).toEqual(["AGENTS.md", "src/AGENTS.override.md"]);
-    });
-
-    it("description falls back to template name when missing", async () => {
-      const files = await consolidate(
-        makeInput([makeTemplate("nameless", { alwaysApply: true }, "Body")]),
-      );
-      expect(files[0]!.content).toContain("## nameless");
-    });
-  });
-
-  describe("skills consolidate", () => {
+  describe("skills render", () => {
     const consolidate = renderAll(codex.skills!);
 
     it("SKILL.md emitted at root-relative .agents/skills/<name>/SKILL.md", async () => {
@@ -499,7 +341,7 @@ describe("codex target", () => {
     });
   });
 
-  describe("agents consolidate", () => {
+  describe("agents render", () => {
     const consolidate = renderAll(codex.agents!);
 
     it("standalone .codex/agents/<name>.toml emitted, valid TOML", async () => {

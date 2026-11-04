@@ -121,6 +121,12 @@ export interface GeneratedFile {
   content: string | Uint8Array;
   /** Permission bits to apply after writing (set when the source file was executable). */
   mode?: number;
+  /**
+   * Every target that reads this file. Usually just `target`; a shared output
+   * (AGENTS.md, Claude's `.mcp.json` when copilot is a target too) lists every
+   * reader, with `target` being the one it was rendered for.
+   */
+  consumers?: Target[];
   target: Target;
   type: TemplateType;
   sourcePath: string;

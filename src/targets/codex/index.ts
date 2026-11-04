@@ -2,7 +2,6 @@ import { posix } from "node:path";
 import { stringify as stringifyYAML } from "yaml";
 import {
   defineTarget,
-  type CombineEntry,
   type RenderedFile,
   type RenderInput,
   type TargetContext,
@@ -11,9 +10,6 @@ import { renderMarkdown } from "../../core/generate/frontmatter.js";
 import { flattenCommand } from "../../core/shell.js";
 import { stringifyToml } from "../../core/toml.js";
 import type { UniversalHookHandler, UniversalMCPServer } from "../../types.js";
-import { getCodexInstructionEmissionPaths } from "./instruction-routing.js";
-
-export { globRootDir } from "./instruction-routing.js";
 
 /** Codex supports a strict subset of Claude's PascalCase hook events. */
 const EVENT_NAME_MAP: Record<string, string> = {
@@ -136,28 +132,6 @@ function transformCodexMCP(
     mcp_servers[name] = entry;
   }
   return { mcp_servers };
-}
-
-/** Render an instruction body with a `## description` H2 header. */
-function renderInstructionSection(name: string, description: string | undefined, body: string) {
-  const heading = description?.trim() || name;
-  return `## ${heading}\n\n${body.trim()}\n`;
-}
-
-/**
- * One section per routed path. Several templates routed to the same path are
- * joined by `combine`, alphabetically.
- */
-function renderCodexInstruction({ name, frontmatter, body }: RenderInput): RenderedFile[] {
-  const section = renderInstructionSection(name, frontmatter.description, body);
-  return getCodexInstructionEmissionPaths(frontmatter).map((path) => ({ path, content: section }));
-}
-
-function combineCodexInstructions(entries: CombineEntry[]): string {
-  return [...entries]
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((entry) => entry.content)
-    .join("\n---\n\n");
 }
 
 /** Convert a camelCase object's keys to snake_case (nested objects and arrays included). */
@@ -289,15 +263,8 @@ export default defineTarget({
   outputDir: ".codex",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
 
-  instructions: {
-    frontmatterMap: {},
-    outputPath: (_name, frontmatter) =>
-      getCodexInstructionEmissionPaths(frontmatter)[0] ?? "AGENTS.md",
-    typeDir: () => ".",
-    ownedPaths: () => ["AGENTS.md"],
-    render: renderCodexInstruction,
-    combine: combineCodexInstructions,
-  },
+  // Codex reads only AGENTS.md: its instructions are the shared AGENTS.md output
+  instructions: "agentsMd",
 
   skills: {
     frontmatterMap: {},

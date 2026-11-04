@@ -7,6 +7,7 @@ import { resolveOverrides } from "../resolve-overrides.js";
 import { stringifyToml } from "../toml.js";
 import { targets } from "../../targets/index.js";
 import type { GeneratedFile, Target, UniversalMCPInput, UniversalMCPServer } from "../../types.js";
+import type { OutputPlan } from "../plan/build-plan.js";
 import type { GenerateRun } from "./context.js";
 import { discoverJsonFiles, type DiscoveredJsonFile } from "./discover.js";
 import { selectJsonFiles, type ShadowReporter } from "./select.js";
@@ -110,7 +111,10 @@ function resolveMCPServers(
 }
 
 /** Merge every `mcp/*.json`, resolve it per target and render each target's MCP config. */
-export async function generateMCPFiles(run: GenerateRun): Promise<GeneratedFile[]> {
+export async function generateMCPFiles(
+  run: GenerateRun,
+  plan: OutputPlan,
+): Promise<GeneratedFile[]> {
   const { root, config, sink, shadow } = run;
   const mcpSlots = await discoverJsonFiles(root, config, "mcp");
   if (mcpSlots.size === 0) return [];
@@ -121,6 +125,8 @@ export async function generateMCPFiles(run: GenerateRun): Promise<GeneratedFile[
   for (const targetName of config.targets) {
     const targetDef = targets[targetName];
     if (!targetDef?.mcp || !targetDef.supportedTypes.includes("mcp")) continue;
+    // Another target's file serves this one (see the plan)
+    if (plan.servedFor(targetName, "mcp")) continue;
 
     // Resolve same-named files and drop excluded ones — both are per-target
     const filteredFiles = selectJsonFiles(mcpSlots, "mcp", targetName, config, shadow);
@@ -177,6 +183,7 @@ export async function generateMCPFiles(run: GenerateRun): Promise<GeneratedFile[
       mergeKey: mcpConfig.mergeKey,
       mergeFormat: mcpFormat === "toml" ? "toml" : undefined,
       inputCount: survivingSources.size,
+      consumers: plan.consumersOf(targetName, "mcp"),
     });
   }
 

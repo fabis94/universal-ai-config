@@ -4,15 +4,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { consola } from "consola";
 import { generate } from "../../src/core/generate/index.js";
-import type { Target } from "../../src/types.js";
+import type { GeneratedFile, Target } from "../../src/types.js";
+import { text } from "../test-helpers.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/docs-project");
 const ALL_TARGETS: Target[] = ["claude", "copilot", "cursor", "codex"];
 
-function findContent(files: { path: string; content: string }[], needle: string): string {
-  const file = files.find((f) => f.path.includes(needle) || f.content.includes(needle));
+function findContent(files: GeneratedFile[], needle: string): string {
+  const file = files.find((f) => f.path.includes(needle) || text(f).includes(needle));
   expect(file, `no generated file matching "${needle}"`).toBeDefined();
-  return file!.content;
+  return text(file);
+}
+
+/** Files a target reads — its own, plus shared ones like AGENTS.md. */
+function readBy(files: GeneratedFile[], target: Target): GeneratedFile[] {
+  return files.filter((f) => (f.consumers ?? [f.target]).includes(target));
 }
 
 describe("reference docs (docs/ + docPath)", () => {
@@ -51,8 +57,7 @@ describe("reference docs (docs/ + docPath)", () => {
       types: ["instructions"],
     });
     for (const target of ALL_TARGETS) {
-      const targetFiles = files.filter((f) => f.target === target);
-      const content = findContent(targetFiles, "- local:");
+      const content = findContent(readBy(files, target), "- local:");
       expect(content, target).toContain("- local: .universal-ai-config/docs/guide.md");
       expect(content, target).toContain("- shared-only: shared-templates/docs/shared-only.md");
     }
@@ -74,8 +79,8 @@ describe("reference docs (docs/ + docPath)", () => {
     const files = await generate({ root: FIXTURES_DIR, targets: ALL_TARGETS });
     for (const file of files) {
       expect(file.path).not.toContain("docs/");
-      expect(file.content).not.toContain("LOCAL guide doc");
-      expect(file.content).not.toContain("SHARED only doc");
+      expect(text(file)).not.toContain("LOCAL guide doc");
+      expect(text(file)).not.toContain("SHARED only doc");
     }
   });
 
@@ -95,10 +100,7 @@ describe("reference docs (docs/ + docPath)", () => {
       ],
     });
 
-    const content = findContent(
-      files.filter((f) => f.target === "claude"),
-      "broken-link",
-    );
+    const content = findContent(readBy(files, "claude"), "- missing:");
     expect(content).toContain("- missing: .universal-ai-config/docs/missing.md");
 
     const docWarnings = warn.mock.calls.filter((call) => String(call[0]).includes("docPath("));
