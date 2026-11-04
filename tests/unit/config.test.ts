@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { userConfigSchema, defineConfig } from "../../src/config/schema.js";
 import { loadProjectConfig } from "../../src/config/loader.js";
@@ -343,5 +345,28 @@ describe("agentsMd config", () => {
         inlineOverrides: { templatesDir: ".", agentsMd: { indexDir: "scoped-instructions" } },
       }),
     ).resolves.toBeDefined();
+  });
+});
+
+describe("overrides file name", () => {
+  const dirs: string[] = [];
+  afterEach(async () => {
+    for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
+  });
+  async function projectWith(file: string): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "uac-overrides-"));
+    dirs.push(dir);
+    await writeFile(join(dir, file), 'export default { targets: ["codex"] };\n', "utf-8");
+    return dir;
+  }
+
+  it("loads the documented universal-ai-config.overrides.ts", async () => {
+    const root = await projectWith("universal-ai-config.overrides.ts");
+    expect((await loadProjectConfig({ root })).targets).toEqual(["codex"]);
+  });
+
+  it("still loads universal-ai-config.overrides.config.ts", async () => {
+    const root = await projectWith("universal-ai-config.overrides.config.ts");
+    expect((await loadProjectConfig({ root })).targets).toEqual(["codex"]);
   });
 });

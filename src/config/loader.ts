@@ -34,6 +34,34 @@ function mergeConfigs(base: ResolvedConfig, override: UserConfig): ResolvedConfi
   };
 }
 
+/** The local overrides file, documented as `universal-ai-config.overrides.ts` (any c12 extension). */
+const OVERRIDES_NAME = "universal-ai-config.overrides";
+
+/**
+ * Load the gitignored overrides file. c12's default naming would look for
+ * `universal-ai-config.overrides.config.*`, which is not the documented
+ * name, so the exact name is tried first; the `.config.*` spelling is still
+ * read when it's the only one present.
+ */
+async function loadOverrides(root: string): Promise<UserConfig | undefined> {
+  const exact = await loadConfig<UserConfig>({
+    name: OVERRIDES_NAME,
+    configFile: OVERRIDES_NAME,
+    cwd: root,
+    dotenv: false,
+    defaults: {},
+  });
+  if (exact.config && Object.keys(exact.config).length > 0) return exact.config;
+
+  const legacy = await loadConfig<UserConfig>({
+    name: OVERRIDES_NAME,
+    cwd: root,
+    dotenv: false,
+    defaults: {},
+  });
+  return legacy.config;
+}
+
 export async function loadProjectConfig(options: LoadConfigOptions = {}): Promise<ResolvedConfig> {
   const root = options.root ?? process.cwd();
 
@@ -49,13 +77,7 @@ export async function loadProjectConfig(options: LoadConfigOptions = {}): Promis
   const baseParsed = userConfigSchema.parse(baseRaw ?? {});
   let resolved = mergeConfigs(DEFAULT_CONFIG, baseParsed);
 
-  // Load overrides config
-  const { config: overridesRaw } = await loadConfig<UserConfig>({
-    name: "universal-ai-config.overrides",
-    cwd: root,
-    dotenv: false,
-    defaults: {},
-  });
+  const overridesRaw = await loadOverrides(root);
 
   if (overridesRaw && Object.keys(overridesRaw).length > 0) {
     const overridesParsed = userConfigSchema.parse(overridesRaw);
