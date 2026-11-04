@@ -3,7 +3,8 @@ import { dirname, join } from "node:path";
 import { mkdtemp, mkdir, rm, readFile, writeFile, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { generate } from "../../src/core/generate/index.js";
-import { writeGeneratedFiles, cleanTargetFiles } from "../../src/core/writer.js";
+import { writeGeneratedFiles } from "../../src/core/writer.js";
+import { cleanTargetFiles } from "../../src/core/clean/index.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/basic-project");
 const OVERRIDES_FIXTURE_DIR = join(import.meta.dirname, "../fixtures/codex-overrides-project");
