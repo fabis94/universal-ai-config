@@ -38,7 +38,7 @@ describe("mcp opt-in filtering", () => {
     const mcp = files.find((f) => f.type === "mcp" && f.target === "copilot");
     expect(mcp).toBeDefined();
     const parsed = JSON.parse(mcp!.content);
-    expect(Object.keys(parsed.servers)).toEqual(["notion"]);
+    expect(Object.keys(parsed.mcpServers)).toEqual(["notion"]);
   });
 
   it("cursor: forceOptIn=false (default) — all servers passed through", async () => {
@@ -98,28 +98,36 @@ describe("mcp opt-in filtering", () => {
     // Base fixture config has forceOptIn={claude:true, copilot:true, default:false}
     // and mcpServers per-target. Inline overrides bring a different per-target list.
     // Because mcp is shallow-merged, forceOptIn carries over and the new lists apply.
-    const files = await generate({
-      root: FIXTURES_DIR,
-      targets: ["claude", "copilot", "cursor"],
-      types: ["mcp"],
-      overrides: {
-        mcp: {
-          mcpServers: {
-            claude: ["notion"],
-            copilot: ["github", "playwright"],
-            default: [],
-          },
+    const overrides = {
+      mcp: {
+        mcpServers: {
+          claude: ["notion"],
+          copilot: ["github", "playwright"],
+          default: [],
         },
       },
+    };
+    const files = await generate({
+      root: FIXTURES_DIR,
+      targets: ["claude", "cursor"],
+      types: ["mcp"],
+      overrides,
     });
 
     const claude = files.find((f) => f.type === "mcp" && f.target === "claude");
     expect(claude).toBeDefined();
     expect(Object.keys(JSON.parse(claude!.content).mcpServers)).toEqual(["notion"]);
 
-    const copilot = files.find((f) => f.type === "mcp" && f.target === "copilot");
+    // Copilot on its own machine (with claude it reads Claude's .mcp.json)
+    const copilotFiles = await generate({
+      root: FIXTURES_DIR,
+      targets: ["copilot"],
+      types: ["mcp"],
+      overrides,
+    });
+    const copilot = copilotFiles.find((f) => f.type === "mcp" && f.target === "copilot");
     expect(copilot).toBeDefined();
-    expect(Object.keys(JSON.parse(copilot!.content).servers).sort()).toEqual([
+    expect(Object.keys(JSON.parse(copilot!.content).mcpServers).sort()).toEqual([
       "github",
       "playwright",
     ]);
@@ -171,22 +179,29 @@ describe("mcp opt-in filtering", () => {
     expect(files.find((f) => f.type === "mcp" && f.target === "copilot")).toBeUndefined();
 
     // Now layer a different per-target list on top.
+    const overrides = {
+      mcp: {
+        forceOptIn: true,
+        mcpServers: { claude: ["github"], copilot: ["notion", "confluence"], default: [] },
+      },
+    };
     const files2 = await generate({
       root: FIXTURES_DIR,
-      targets: ["claude", "copilot"],
+      targets: ["claude"],
       types: ["mcp"],
-      overrides: {
-        mcp: {
-          forceOptIn: true,
-          mcpServers: { claude: ["github"], copilot: ["notion", "confluence"], default: [] },
-        },
-      },
+      overrides,
     });
     const claude = files2.find((f) => f.type === "mcp" && f.target === "claude");
     expect(Object.keys(JSON.parse(claude!.content).mcpServers)).toEqual(["github"]);
 
-    const copilot = files2.find((f) => f.type === "mcp" && f.target === "copilot");
-    expect(Object.keys(JSON.parse(copilot!.content).servers).sort()).toEqual([
+    const files3 = await generate({
+      root: FIXTURES_DIR,
+      targets: ["copilot"],
+      types: ["mcp"],
+      overrides,
+    });
+    const copilot = files3.find((f) => f.type === "mcp" && f.target === "copilot");
+    expect(Object.keys(JSON.parse(copilot!.content).mcpServers).sort()).toEqual([
       "confluence",
       "notion",
     ]);

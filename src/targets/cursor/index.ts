@@ -86,6 +86,40 @@ export default defineTarget({
           "glob-scoped and description-only (agent-decided) rules: they become always-on or folder-scoped",
       },
     ],
+    hooks: [
+      {
+        // Cursor imports these Claude events from .claude/settings.json (when
+        // any group has a matcher key) and skips commands identical to its own
+        from: "claude",
+        reconcile: "dedupes-identical",
+        events: [
+          "preToolUse",
+          "postToolUse",
+          "userPromptSubmit",
+          "stop",
+          "subagentStop",
+          "sessionStart",
+          "sessionEnd",
+          "preCompact",
+        ],
+        onlyWithMatcher: true,
+        loses: "nothing: Cursor keeps its own hooks.json (with loop_limit) next to Claude's",
+      },
+    ],
+    skills: [
+      {
+        from: "claude",
+        reconcile: "prefers-own",
+        loses: "nothing: Cursor shows its own copy of a skill both targets generate",
+      },
+    ],
+    agents: [
+      {
+        from: "claude",
+        reconcile: "prefers-own",
+        loses: "nothing: Cursor's .cursor/agents copy wins over .claude/agents",
+      },
+    ],
   },
 
   instructions: {
@@ -119,6 +153,7 @@ export default defineTarget({
   // agents: not supported — cursor has no agent files
 
   hooks: {
+    events: EVENT_NAME_MAP,
     handlerTypes: ["command", "prompt"],
     transform: transformCursorHooks,
     outputPath: ({ outputDir }) => `${outputDir}/hooks.json`,

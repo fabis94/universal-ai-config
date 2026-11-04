@@ -1,6 +1,12 @@
 import { targets as registry } from "../../targets/index.js";
 import type { ForeignRead, Reconcile, TargetDefinition } from "../../targets/define-target.js";
-import type { AgentsMdVariation, ResolvedConfig, Target, TemplateType } from "../../types.js";
+import type {
+  AgentsMdVariation,
+  HookHandlerType,
+  ResolvedConfig,
+  Target,
+  TemplateType,
+} from "../../types.js";
 
 /** AGENTS.md output for one run. */
 export interface AgentsMdPlan {
@@ -21,6 +27,8 @@ export interface ServedBy {
   by: Target | "agentsMd";
   reconcile: Reconcile;
   loses: string;
+  /** Hooks: handler types that make the reader reject the source's whole file */
+  rejectsHandlerTypes?: readonly HookHandlerType[];
 }
 
 /** A tool that runs another target's hooks too, but skips commands identical to its own. */
@@ -28,6 +36,8 @@ export interface DuplicateRunCheck {
   target: Target;
   against: Target;
   events: readonly string[];
+  /** The tool reads `against`'s file only when some handler group has a `matcher` key */
+  onlyWithMatcher: boolean;
 }
 
 /** What a run generates, decided once from the target set and the targets' `reads` facts. */
@@ -142,6 +152,7 @@ export function buildPlan(
           by: read.from,
           reconcile: read.reconcile,
           loses: read.loses,
+          ...(read.rejectsHandlerTypes ? { rejectsHandlerTypes: read.rejectsHandlerTypes } : {}),
         });
         continue;
       }
@@ -149,7 +160,12 @@ export function buildPlan(
       for (const other of definitions[target]?.reads?.[type] ?? []) {
         if (other.reconcile !== "dedupes-identical" || other.from === "agentsMd") continue;
         if (supports(other.from, type) && !yieldOf(other.from, type)) {
-          duplicateRunChecks.push({ target, against: other.from, events: other.events ?? [] });
+          duplicateRunChecks.push({
+            target,
+            against: other.from,
+            events: other.events ?? [],
+            onlyWithMatcher: other.onlyWithMatcher ?? false,
+          });
         }
       }
     }

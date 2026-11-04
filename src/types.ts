@@ -186,6 +186,10 @@ export interface UniversalMCPServer {
   env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
+  /** Claude/Copilot: per-tool-call timeout in milliseconds */
+  timeout?: number;
+  /** Copilot: load the server's tools only on demand */
+  deferTools?: boolean;
   // Claude-specific
   alwaysLoad?: boolean;
   headersHelper?: string;
@@ -229,6 +233,11 @@ export interface UniversalMCPServer {
   [key: string]: unknown;
 }
 
+/**
+ * @deprecated VS Code's legacy `.vscode/mcp.json` inputs. uac no longer writes
+ * that file, so inputs are dropped with a warning; use `${NAME}` environment
+ * variables instead.
+ */
 export interface UniversalMCPInput {
   type: string;
   id: string;

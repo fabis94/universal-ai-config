@@ -284,6 +284,7 @@ export default defineTarget({
   },
 
   hooks: {
+    events: EVENT_NAME_MAP,
     handlerTypes: ["command", "mcp_tool"],
     transform: transformCodexHooks,
     outputPath: ({ outputDir }) => `${outputDir}/hooks.json`,

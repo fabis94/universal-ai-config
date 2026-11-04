@@ -245,11 +245,29 @@ describe("complete-project (all frontmatter fields)", () => {
     it("merges multiple JSON files and generates for all targets", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
-        targets: ["claude", "copilot", "cursor"],
+        targets: ["claude", "cursor"],
         types: ["hooks"],
       });
+      expect(files.filter((f) => f.type === "hooks")).toHaveLength(2);
 
-      expect(files.filter((f) => f.type === "hooks")).toHaveLength(3);
+      const copilotOnly = await generate({
+        root: FIXTURES_DIR,
+        targets: ["copilot"],
+        types: ["hooks"],
+      });
+      expect(copilotOnly.filter((f) => f.type === "hooks")).toHaveLength(1);
+    });
+
+    it("claude + copilot: only Claude's hooks file, read by both", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude", "copilot"],
+        types: ["hooks"],
+        onDiagnostic: () => {},
+      });
+      expect(files.map((f) => [f.path, f.consumers])).toEqual([
+        [".claude/settings.json", ["claude", "copilot"]],
+      ]);
     });
 
     it("claude: PascalCase events, nested matcher groups, merged into settings.json", async () => {

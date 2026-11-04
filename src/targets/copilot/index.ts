@@ -69,30 +69,74 @@ function transformCopilotHooks(
   return { version: "1", hooks: result };
 }
 
+/** Fields only VS Code's legacy `.vscode/mcp.json` understood; the portable `.mcp.json` has none of them. */
+const LEGACY_VSCODE_FIELDS = ["envFile", "sandbox", "sandboxEnabled", "dev"] as const;
+
+/** Whether any string inside `value` references a VS Code `${input:…}` variable. */
+function usesInputVariable(value: unknown): boolean {
+  if (typeof value === "string") return value.includes("${input:");
+  if (Array.isArray(value)) return value.some(usesInputVariable);
+  if (value !== null && typeof value === "object") {
+    return Object.values(value).some(usesInputVariable);
+  }
+  return false;
+}
+
+/**
+ * The portable `.mcp.json` (`mcpServers`) that Copilot CLI, the Copilot app
+ * and VS Code's default Copilot harness read. VS Code-only fields of the
+ * legacy `.vscode/mcp.json` are dropped with a warning.
+ */
 function transformCopilotMCP(
   servers: Record<string, UniversalMCPServer>,
-  inputs?: UniversalMCPInput[],
+  inputs: UniversalMCPInput[] | undefined,
+  { report }: TargetContext,
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+  if (inputs && inputs.length > 0) {
+    report({
+      code: "legacy-field",
+      message:
+        "mcp inputs dropped: only VS Code's legacy .vscode/mcp.json supports them. Use ${NAME} environment variables in .mcp.json instead",
+      detail: { field: "inputs" },
+    });
+  }
+
+  const mcpServers: Record<string, unknown> = {};
   for (const [name, server] of Object.entries(servers)) {
     const entry: Record<string, unknown> = {};
     if (server.type !== undefined) entry.type = server.type;
     if (server.command !== undefined) entry.command = server.command;
     if (server.args !== undefined) entry.args = server.args;
     if (server.env !== undefined) entry.env = server.env;
+    if (server.cwd !== undefined) entry.cwd = server.cwd;
     if (server.url !== undefined) entry.url = server.url;
     if (server.headers !== undefined) entry.headers = server.headers;
-    if (server.envFile !== undefined) entry.envFile = server.envFile;
-    if (server.sandboxEnabled !== undefined) entry.sandboxEnabled = server.sandboxEnabled;
-    if (server.sandbox !== undefined) entry.sandbox = server.sandbox;
-    if (server.dev !== undefined) entry.dev = server.dev;
-    result[name] = entry;
+    // Copilot CLI requires a tool list; "*" enables every tool
+    entry.tools = server.enabledTools ?? ["*"];
+    if (server.timeout !== undefined) entry.timeout = server.timeout;
+    if (server.deferTools !== undefined) entry.deferTools = server.deferTools;
+    const oauthClientId = (server.oauth as { clientId?: unknown } | undefined)?.clientId;
+    if (oauthClientId !== undefined) entry.oauthClientId = oauthClientId;
+    if (server.scopes !== undefined) entry.oauthScopes = server.scopes;
+
+    for (const field of LEGACY_VSCODE_FIELDS) {
+      if (server[field] === undefined) continue;
+      report({
+        code: "legacy-field",
+        message: `mcp.${name}: ${field} dropped — only VS Code's legacy .vscode/mcp.json supports it`,
+        detail: { field },
+      });
+    }
+    if (usesInputVariable(entry)) {
+      report({
+        code: "legacy-field",
+        message: `mcp.${name}: uses \${input:…}, which only VS Code's legacy .vscode/mcp.json resolves; Copilot sessions skip this server. Use \${NAME} environment variables instead`,
+        detail: { field: "${input:}" },
+      });
+    }
+    mcpServers[name] = entry;
   }
-  const output: Record<string, unknown> = { servers: result };
-  if (inputs && inputs.length > 0) {
-    output.inputs = inputs;
-  }
-  return output;
+  return { mcpServers };
 }
 
 /** A mapper that emits nothing for always-on templates (they have no frontmatter in Copilot). */
@@ -113,6 +157,39 @@ export default defineTarget({
         reconcile: "loads-both",
         loses:
           "`applyTo` patterns, `excludeAgent` and `name`; nested AGENTS.md files load only after Copilot views a file in that folder (CLI 1.0 and later)",
+      },
+    ],
+    hooks: [
+      {
+        // Copilot runs every hook from .claude/settings.json as well as its own
+        from: "claude",
+        reconcile: "loads-both",
+        rejectsHandlerTypes: ["prompt", "agent", "mcp_tool"],
+        loses:
+          "Copilot-only events (userPromptTransformed, preMcpToolCall, postResult, prePRDescription), `cwd`/`env`, and hooks in the GitHub cloud agent, which reads only .github/hooks. Copilot runs Claude-format hooks with Claude's tool names and payloads, and exit code 1 blocks the tool",
+      },
+    ],
+    mcp: [
+      {
+        // Both targets write the root .mcp.json
+        from: "claude",
+        reconcile: "same-file",
+        loses:
+          "Copilot-specific server values (per-target `copilot` overrides) and Copilot-only fields such as `deferTools`: the shared .mcp.json is rendered for Claude",
+      },
+    ],
+    skills: [
+      {
+        from: "claude",
+        reconcile: "prefers-own",
+        loses: "nothing: Copilot shows its own copy of a skill both targets generate",
+      },
+    ],
+    agents: [
+      {
+        from: "claude",
+        reconcile: "prefers-own",
+        loses: "nothing: Copilot uses its own copy of an agent both targets generate",
       },
     ],
   },
@@ -182,6 +259,7 @@ export default defineTarget({
   },
 
   hooks: {
+    events: EVENT_NAME_MAP,
     handlerTypes: ["command", "http", "prompt"],
     transform: transformCopilotHooks,
     outputPath: ({ outputDir }) => `${outputDir}/hooks/hooks.json`,
@@ -189,6 +267,7 @@ export default defineTarget({
 
   mcp: {
     transform: transformCopilotMCP,
-    outputPath: () => ".vscode/mcp.json",
+    // The portable location every Copilot surface reads (.vscode/mcp.json is legacy)
+    outputPath: () => ".mcp.json",
   },
 });

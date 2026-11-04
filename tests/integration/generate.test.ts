@@ -236,7 +236,7 @@ describe("generate", () => {
       expect(parsed.mcpServers.github.env.GITHUB_TOKEN).toBe("${GITHUB_TOKEN}");
     });
 
-    it("generates copilot MCP at .vscode/mcp.json with servers wrapper", async () => {
+    it("generates copilot MCP at the portable root .mcp.json", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
@@ -245,12 +245,13 @@ describe("generate", () => {
 
       const mcp = files.find((f) => f.type === "mcp" && f.target === "copilot");
       expect(mcp).toBeDefined();
-      expect(mcp!.path).toBe(".vscode/mcp.json");
+      expect(mcp!.path).toBe(".mcp.json");
 
       const parsed = JSON.parse(mcp!.content);
-      expect(parsed.servers).toHaveProperty("github");
-      expect(parsed.servers.github.type).toBe("stdio");
-      expect(parsed.servers.github.command).toBe("npx");
+      expect(parsed.mcpServers).toHaveProperty("github");
+      expect(parsed.mcpServers.github.type).toBe("stdio");
+      expect(parsed.mcpServers.github.command).toBe("npx");
+      expect(parsed.mcpServers.github.tools).toEqual(["*"]);
     });
 
     it("sets inputCount on merged types (mcp, hooks) but not 1:1 types", async () => {

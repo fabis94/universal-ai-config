@@ -3,6 +3,7 @@ import { posix } from "node:path";
 import { toPosixPath } from "../plan/locate.js";
 import { resolveJsonVariables } from "../resolve-json-variables.js";
 import { resolveOverrides } from "../resolve-overrides.js";
+import { flattenCommand } from "../shell.js";
 import { stringifyToml } from "../toml.js";
 import { targets } from "../../targets/index.js";
 import type { Reporter } from "../diagnostics.js";
@@ -136,6 +137,106 @@ function resolveHookHandlers(
   return result;
 }
 
+/** A target's handlers after selection, overrides and type filtering. */
+interface ResolvedTargetHooks {
+  handlers: Record<string, UniversalHookHandler[]>;
+  inputCount: number;
+}
+
+/** What a hook runs, as a tool compares it: the command line, or the prompt text. */
+function runKey(handler: UniversalHookHandler, withArgs: boolean): string | undefined {
+  const type = handler.type ?? "command";
+  if (type === "prompt") return `prompt:${handler.prompt ?? ""}`;
+  if (type !== "command") return undefined;
+  return `command:${withArgs ? flattenCommand(handler.command ?? "", handler.args) : (handler.command ?? "")}`;
+}
+
+/**
+ * A tool that imports another target's hook file (Cursor reads Claude's) runs
+ * those handlers too, skipping only commands identical to its own. Warn about
+ * every imported handler that isn't identical: it runs a second time, or runs
+ * where a per-target override meant to keep it out.
+ */
+function checkDuplicateRuns(
+  run: GenerateRun,
+  plan: OutputPlan,
+  resolved: Map<Target, ResolvedTargetHooks>,
+): void {
+  for (const check of plan.duplicateRunChecks) {
+    const source = resolved.get(check.against);
+    const own = resolved.get(check.target);
+    const sourceEvents = targets[check.against]?.hooks?.events ?? {};
+    if (!source) continue;
+    if (check.onlyWithMatcher) {
+      const hasMatcher = Object.entries(source.handlers).some(
+        ([event, handlers]) => sourceEvents[event] && handlers.some((h) => h.matcher),
+      );
+      if (!hasMatcher) continue;
+    }
+
+    const report = run.sink.scoped(check.target, "hooks");
+    for (const event of check.events) {
+      // The importing tool runs the source's command as written, without its args
+      const ownKeys = new Set(
+        (own?.handlers[event] ?? []).map((h) => runKey(h, true)).filter(Boolean),
+      );
+      for (const handler of source.handlers[event] ?? []) {
+        const key = runKey(handler, false);
+        if (!key || ownKeys.has(key)) continue;
+        const what =
+          handler.type === "prompt" ? `prompt "${handler.prompt}"` : `"${handler.command}"`;
+        report({
+          code: "duplicate-hook-run",
+          message:
+            `${check.target} also runs ${check.against}'s ${event} hook ${what}, because its own hooks don't have the identical command (it skips only identical ones). ` +
+            `Usually you only need one of these targets on a machine: set \`targets\` in universal-ai-config.overrides.ts.`,
+          detail: {
+            against: check.against,
+            event,
+            command: handler.command ?? handler.prompt ?? "",
+          },
+        });
+      }
+    }
+  }
+}
+
+/**
+ * A reader that uses another target's hook file instead of its own may reject
+ * that whole file over one handler type it can't parse (Copilot and a prompt,
+ * agent or mcp_tool handler in .claude/settings.json).
+ */
+function checkRejectedFiles(
+  run: GenerateRun,
+  plan: OutputPlan,
+  resolved: Map<Target, ResolvedTargetHooks>,
+): void {
+  for (const served of plan.servedBy) {
+    if (served.type !== "hooks" || served.by === "agentsMd") continue;
+    const rejected = served.rejectsHandlerTypes ?? [];
+    const source = resolved.get(served.by);
+    if (!source || rejected.length === 0) continue;
+    const found = [
+      ...new Set(
+        Object.values(source.handlers)
+          .flat()
+          .map((h) => h.type ?? "command")
+          .filter((type) => rejected.includes(type)),
+      ),
+    ];
+    if (found.length === 0) continue;
+    run.sink.report({
+      code: "unsupported",
+      target: served.target,
+      type: "hooks",
+      message:
+        `${served.target} reads ${served.by}'s hook file instead of its own, but rejects that whole file because it has ${found.join(", ")} handlers — so ${served.target} runs none of these hooks. ` +
+        `Generate ${served.target} on its own (set \`targets\` in universal-ai-config.overrides.ts), or keep those handlers out of ${served.by} with per-target overrides.`,
+      detail: { kind: "handler-type", name: found.join(",") },
+    });
+  }
+}
+
 /** Merge every `hooks/*.json`, resolve it per target and render each target's hooks file. */
 export async function generateHooksFiles(
   run: GenerateRun,
@@ -145,8 +246,8 @@ export async function generateHooksFiles(
   const hookSlots = await discoverJsonFiles(root, config, "hooks");
   if (hookSlots.size === 0) return [];
 
-  const generatedFiles: GeneratedFile[] = [];
   const hooksRelativePath = toPosixPath(posix.join(config.templatesDir, "hooks"));
+  const resolved = new Map<Target, ResolvedTargetHooks>();
 
   for (const targetName of config.targets) {
     const targetDef = targets[targetName];
@@ -159,19 +260,29 @@ export async function generateHooksFiles(
     const mergedHooks = await mergeHookFiles(filteredFiles, config.variables);
     if (!mergedHooks) continue;
 
-    const hooksConfig = targetDef.hooks;
     const survivingSources = new Set<DiscoveredJsonFile>();
-    const report = sink.scoped(targetName, "hooks");
-    const resolvedHooks = resolveHookHandlers(
+    const handlers = resolveHookHandlers(
       mergedHooks.hooks,
       targetName,
-      hooksConfig.handlerTypes,
+      targetDef.hooks.handlerTypes,
       mergedHooks.handlerSources,
       survivingSources,
       shadow,
-      report,
+      sink.scoped(targetName, "hooks"),
     );
-    const transformed = hooksConfig.transform(resolvedHooks, { report });
+    resolved.set(targetName, { handlers, inputCount: survivingSources.size });
+  }
+
+  checkDuplicateRuns(run, plan, resolved);
+  checkRejectedFiles(run, plan, resolved);
+
+  const generatedFiles: GeneratedFile[] = [];
+  for (const [targetName, { handlers, inputCount }] of resolved) {
+    const hooksConfig = targets[targetName]?.hooks;
+    if (!hooksConfig) continue;
+    const transformed = hooksConfig.transform(handlers, {
+      report: sink.scoped(targetName, "hooks"),
+    });
     const hooksFormat = hooksConfig.format ?? "json";
     const content =
       hooksFormat === "toml"
@@ -186,7 +297,7 @@ export async function generateHooksFiles(
       sourcePath: hooksRelativePath,
       mergeKey: hooksConfig.mergeKey,
       mergeFormat: hooksFormat === "toml" ? "toml" : undefined,
-      inputCount: survivingSources.size,
+      inputCount,
       consumers: plan.consumersOf(targetName, "hooks"),
     });
   }

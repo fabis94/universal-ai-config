@@ -275,114 +275,116 @@ describe("copilot target", () => {
 
   describe("mcp", () => {
     const config = copilot.mcp!;
+    const fresh = () => collectingContext();
 
-    it("has correct output path", () => {
-      expect(config.outputPath({ outputDir: ".github" })).toBe(".vscode/mcp.json");
+    it("writes the portable root .mcp.json", () => {
+      expect(config.outputPath({ outputDir: ".github" })).toBe(".mcp.json");
     });
 
-    it("passes through all basic fields", () => {
+    it("passes through the portable fields, and enables every tool by default", () => {
+      const { ctx } = fresh();
       const servers = {
         "my-server": {
           type: "stdio" as const,
           command: "npx",
           args: ["-y", "@my/mcp"],
-          env: { TOKEN: "abc" },
-          envFile: ".env",
+          env: { TOKEN: "${TOKEN}" },
+          cwd: "tools",
+          timeout: 30000,
+          deferTools: true,
         },
         "http-server": {
           type: "http" as const,
           url: "https://mcp.example.com",
-          headers: { Authorization: "Bearer tok" },
+          headers: { Authorization: "Bearer ${TOKEN}" },
+          enabledTools: ["search"],
         },
       };
       const result = config.transform(servers, undefined, ctx) as {
-        servers: Record<string, Record<string, unknown>>;
+        mcpServers: Record<string, Record<string, unknown>>;
       };
-      const s = result.servers["my-server"]!;
-      expect(s.type).toBe("stdio");
-      expect(s.command).toBe("npx");
-      expect(s.args).toEqual(["-y", "@my/mcp"]);
-      expect(s.env).toEqual({ TOKEN: "abc" });
-      expect(s.envFile).toBe(".env");
-      const h = result.servers["http-server"]!;
-      expect(h.url).toBe("https://mcp.example.com");
-      expect(h.headers).toEqual({ Authorization: "Bearer tok" });
+      expect(result.mcpServers["my-server"]).toEqual({
+        type: "stdio",
+        command: "npx",
+        args: ["-y", "@my/mcp"],
+        env: { TOKEN: "${TOKEN}" },
+        cwd: "tools",
+        tools: ["*"],
+        timeout: 30000,
+        deferTools: true,
+      });
+      expect(result.mcpServers["http-server"]).toEqual({
+        type: "http",
+        url: "https://mcp.example.com",
+        headers: { Authorization: "Bearer ${TOKEN}" },
+        tools: ["search"],
+      });
     });
 
-    it("passes through sandboxEnabled, sandbox, dev", () => {
-      const servers = {
-        "my-server": {
-          type: "stdio" as const,
-          command: "npx",
-          sandboxEnabled: true,
-          sandbox: { "filesystem.allowWrite": ["/tmp"] },
-          dev: { watch: "src/**", debug: true },
+    it("maps the OAuth client id and scopes", () => {
+      const { ctx } = fresh();
+      const result = config.transform(
+        { s: { url: "https://x", oauth: { clientId: "abc" }, scopes: ["read"] } },
+        undefined,
+        ctx,
+      ) as { mcpServers: Record<string, Record<string, unknown>> };
+      expect(result.mcpServers.s).toMatchObject({ oauthClientId: "abc", oauthScopes: ["read"] });
+      expect(result.mcpServers.s).not.toHaveProperty("oauth");
+    });
+
+    it("drops VS Code-only fields with a legacy-field warning", () => {
+      const { ctx, diagnostics } = fresh();
+      const result = config.transform(
+        {
+          s: {
+            command: "npx",
+            envFile: ".env",
+            sandboxEnabled: true,
+            sandbox: { "filesystem.allowWrite": ["/tmp"] },
+            dev: { watch: "src/**", debug: true },
+          },
         },
-      };
-      const result = config.transform(servers, undefined, ctx) as {
-        servers: Record<string, Record<string, unknown>>;
-      };
-      const s = result.servers["my-server"]!;
-      expect(s.sandboxEnabled).toBe(true);
-      expect(s.sandbox).toEqual({ "filesystem.allowWrite": ["/tmp"] });
-      expect(s.dev).toEqual({ watch: "src/**", debug: true });
+        undefined,
+        ctx,
+      ) as { mcpServers: Record<string, Record<string, unknown>> };
+      expect(result.mcpServers.s).toEqual({ command: "npx", tools: ["*"] });
+      expect(diagnostics.map((d) => [d.code, (d.detail as { field: string }).field])).toEqual([
+        ["legacy-field", "envFile"],
+        ["legacy-field", "sandbox"],
+        ["legacy-field", "sandboxEnabled"],
+        ["legacy-field", "dev"],
+      ]);
     });
 
-    it("includes inputs array in output when provided", () => {
-      const servers = { s: { command: "npx" } };
-      const inputs = [
-        { type: "promptString" as const, id: "token", description: "API token", password: true },
-      ];
-      const result = config.transform(servers, inputs, ctx) as Record<string, unknown>;
-      expect(result.inputs).toEqual(inputs);
-    });
-
-    it("omits inputs key when no inputs provided", () => {
-      const result = config.transform({ s: { command: "npx" } }, undefined, ctx) as Record<
-        string,
-        unknown
-      >;
+    it("drops inputs and warns about ${input:} references", () => {
+      const { ctx, diagnostics } = fresh();
+      const inputs = [{ type: "promptString", id: "token", description: "API token" }];
+      const result = config.transform(
+        { s: { command: "npx", env: { TOKEN: "${input:token}" } } },
+        inputs,
+        ctx,
+      ) as Record<string, unknown>;
       expect(result).not.toHaveProperty("inputs");
+      expect(diagnostics.map((d) => (d.detail as { field: string }).field)).toEqual([
+        "inputs",
+        "${input:}",
+      ]);
     });
 
-    it("strips claude-only fields (oauth, alwaysLoad, headersHelper) from output", () => {
+    it("strips fields other targets own (alwaysLoad, headersHelper, auth)", () => {
+      const { ctx } = fresh();
       const servers = {
         "my-server": {
           command: "npx",
-          oauth: { clientId: "abc" },
           alwaysLoad: true,
           headersHelper: "./gen.sh",
+          auth: { CLIENT_ID: "id" },
         } as UniversalMCPServer,
       };
       const result = config.transform(servers, undefined, ctx) as {
-        servers: Record<string, Record<string, unknown>>;
+        mcpServers: Record<string, Record<string, unknown>>;
       };
-      const s = result.servers["my-server"]!;
-      expect(s).not.toHaveProperty("oauth");
-      expect(s).not.toHaveProperty("alwaysLoad");
-      expect(s).not.toHaveProperty("headersHelper");
-    });
-
-    it("strips cursor-only field (auth) from output", () => {
-      const servers = {
-        "my-server": {
-          command: "npx",
-          auth: { CLIENT_ID: "id", CLIENT_SECRET: "sec", scopes: ["read"] },
-        } as UniversalMCPServer,
-      };
-      const result = config.transform(servers, undefined, ctx) as {
-        servers: Record<string, Record<string, unknown>>;
-      };
-      const s = result.servers["my-server"]!;
-      expect(s).not.toHaveProperty("auth");
-    });
-
-    it("wraps output in servers key", () => {
-      const result = config.transform({ s: { command: "node" } }, undefined, ctx) as Record<
-        string,
-        unknown
-      >;
-      expect(result).toHaveProperty("servers");
+      expect(result.mcpServers["my-server"]).toEqual({ command: "npx", tools: ["*"] });
     });
   });
 });

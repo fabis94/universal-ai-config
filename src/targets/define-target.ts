@@ -111,6 +111,8 @@ export interface HooksTypeConfig {
    * transform only ever sees these types (each with its required fields set).
    */
   handlerTypes: readonly HookHandlerType[];
+  /** Universal event name → the target's event name. Events not listed are dropped. */
+  events: Readonly<Record<string, string>>;
   /** Transform universal hooks config to target-specific output object */
   transform: (
     hooks: Record<string, UniversalHookHandler[]>,
@@ -169,6 +171,10 @@ export interface ForeignRead {
   reconcile: Reconcile;
   /** For `dedupes-identical` hooks: the universal events the tool imports from `from` */
   events?: readonly string[];
+  /** Hooks: the tool ignores `from`'s file unless some handler group has a `matcher` key */
+  onlyWithMatcher?: boolean;
+  /** Hooks: the tool rejects `from`'s whole file when it holds a handler of one of these types */
+  rejectsHandlerTypes?: readonly HookHandlerType[];
   /** What this target loses when it uses `from`'s output instead of its own — shown in warnings and docs */
   loses: string;
 }

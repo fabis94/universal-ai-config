@@ -197,6 +197,7 @@ export default defineTarget({
   },
 
   hooks: {
+    events: EVENT_NAME_MAP,
     handlerTypes: ["command", "http", "mcp_tool", "prompt", "agent"],
     transform: transformClaudeHooks,
     outputPath: ({ outputDir }) => `${outputDir}/settings.json`,

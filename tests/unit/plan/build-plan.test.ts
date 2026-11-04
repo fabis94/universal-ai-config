@@ -112,7 +112,12 @@ describe("buildPlan policy (synthetic targets)", () => {
     const plan = buildPlan(config(["claude", "cursor"]), registry);
     expect(plan.servedBy).toEqual([]);
     expect(plan.duplicateRunChecks).toEqual([
-      { target: "cursor", against: "claude", events: ["preToolUse", "stop"] },
+      {
+        target: "cursor",
+        against: "claude",
+        events: ["preToolUse", "stop"],
+        onlyWithMatcher: false,
+      },
     ]);
   });
 

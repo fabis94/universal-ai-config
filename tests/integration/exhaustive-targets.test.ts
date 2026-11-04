@@ -166,24 +166,26 @@ describe("exhaustive per-target field coverage", () => {
       expect(s).not.toHaveProperty("auth");
     });
 
-    it("copilot: emits sandboxEnabled, sandbox, dev, envFile; strips alwaysLoad, headersHelper, oauth, auth", async () => {
+    it("copilot: drops the VS Code-only sandboxEnabled, sandbox, dev, envFile; strips alwaysLoad, headersHelper, oauth, auth", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
         types: ["mcp"],
+        onDiagnostic: () => {},
       });
 
       const mcp = files.find((f) => f.type === "mcp" && f.target === "copilot");
       expect(mcp).toBeDefined();
+      expect(mcp!.path).toBe(".mcp.json");
       const parsed = JSON.parse(mcp!.content) as {
-        servers: Record<string, Record<string, unknown>>;
+        mcpServers: Record<string, Record<string, unknown>>;
       };
-      const s = parsed.servers["shared-server"]!;
+      const s = parsed.mcpServers["shared-server"]!;
 
-      expect(s).toHaveProperty("sandboxEnabled", true);
-      expect(s).toHaveProperty("sandbox");
-      expect(s).toHaveProperty("dev");
-      expect(s).toHaveProperty("envFile", ".env.local");
+      expect(s).not.toHaveProperty("sandboxEnabled");
+      expect(s).not.toHaveProperty("sandbox");
+      expect(s).not.toHaveProperty("dev");
+      expect(s).not.toHaveProperty("envFile");
       expect(s).not.toHaveProperty("alwaysLoad");
       expect(s).not.toHaveProperty("headersHelper");
       expect(s).not.toHaveProperty("oauth");

@@ -191,10 +191,10 @@ describe("per-target overrides", () => {
       expect(mcp).toBeDefined();
       const parsed = JSON.parse(mcp!.content);
 
-      expect(parsed.servers["my-api"].command).toBe("npx");
-      expect(parsed.servers["my-api"].type).toBe("stdio");
+      expect(parsed.mcpServers["my-api"].command).toBe("npx");
+      expect(parsed.mcpServers["my-api"].type).toBe("stdio");
       // claude-only has no command for copilot -> dropped
-      expect(parsed.servers).not.toHaveProperty("claude-only");
+      expect(parsed.mcpServers).not.toHaveProperty("claude-only");
     });
 
     it("cursor: resolves cursor-specific command and args, drops claude-only", async () => {

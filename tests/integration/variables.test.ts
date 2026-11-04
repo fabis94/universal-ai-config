@@ -61,18 +61,12 @@ describe("typed variable interpolation", () => {
     });
 
     it("works across all targets", async () => {
-      const files = await generate({
-        root: FIXTURES_DIR,
-        targets: ["claude", "copilot", "cursor"],
-        types: ["mcp"],
-      });
-
       for (const target of ["claude", "copilot", "cursor"] as const) {
+        const files = await generate({ root: FIXTURES_DIR, targets: [target], types: ["mcp"] });
         const mcp = files.find((f) => f.type === "mcp" && f.target === target);
         expect(mcp).toBeDefined();
         const parsed = JSON.parse(mcp!.content);
-        const servers = target === "copilot" ? parsed.servers : parsed.mcpServers;
-        expect(servers.playwright.args).toEqual(["-y", "@playwright/mcp@latest"]);
+        expect(parsed.mcpServers.playwright.args).toEqual(["-y", "@playwright/mcp@latest"]);
       }
     });
   });

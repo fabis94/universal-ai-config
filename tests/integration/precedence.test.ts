@@ -159,14 +159,11 @@ describe("template precedence", () => {
       );
     });
 
-    it("the first declaration of an input id wins", async () => {
+    it("drops inputs for copilot (portable .mcp.json has none), with a warning", async () => {
       const { files } = await run({ targets: ["copilot"], types: ["mcp"] });
 
       const parsed = JSON.parse(files.find((f) => f.type === "mcp")!.content);
-      const token = parsed.inputs.find((i: { id: string }) => i.id === "token");
-      expect(token.description).toBe("token from LOCAL");
-      expect(parsed.inputs.filter((i: { id: string }) => i.id === "token")).toHaveLength(1);
-      expect(parsed.inputs.some((i: { id: string }) => i.id === "shared-token")).toBe(true);
+      expect(parsed).not.toHaveProperty("inputs");
     });
 
     it("excluding the winning file promotes the next one", async () => {
