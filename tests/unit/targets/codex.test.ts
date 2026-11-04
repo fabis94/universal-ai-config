@@ -116,7 +116,7 @@ describe("codex target", () => {
       expect(skillFile!.content).toContain('description: "Generate tests"');
     });
 
-    it("frontmatter contains version, author, license when set", async () => {
+    it("moves version and author under metadata (they aren't Agent Skills spec fields)", async () => {
       const files = await consolidate(
         makeInput([
           makeTemplate(
@@ -127,15 +127,20 @@ describe("codex target", () => {
               version: "1.0.0",
               author: "alice",
               license: "MIT",
+              metadata: { team: "ops" },
             },
             "Body",
           ),
         ]),
       );
       const skill = files.find((f) => f.path.endsWith("SKILL.md"))!;
-      expect(skill.content).toContain('version: "1.0.0"');
-      expect(skill.content).toContain('author: "alice"');
-      expect(skill.content).toContain('license: "MIT"');
+      const fm = parseYAML(skill.content.split("---\n")[1]!) as Record<string, unknown>;
+      expect(fm).toEqual({
+        name: "deploy",
+        description: "Deploy",
+        license: "MIT",
+        metadata: { team: "ops", version: "1.0.0", author: "alice" },
+      });
     });
 
     it("Claude-only skill fields are stripped from SKILL.md frontmatter", async () => {
@@ -394,14 +399,71 @@ describe("codex target", () => {
       expect(parsed.nickname_candidates).toEqual(["Alice", "Bob"]);
     });
 
-    it("sandboxMode → sandbox_mode", async () => {
+    it("drops sandboxMode, mcpServers and skills, which Codex rejects or ignores in agent files", async () => {
       const files = await consolidate(
         makeInput([
-          makeTemplate("a", { description: "A", sandboxMode: "workspace-write" }, "Body"),
+          makeTemplate(
+            "a",
+            {
+              description: "A",
+              sandboxMode: "workspace-write",
+              mcpServers: { github: { url: "https://x" } },
+              skills: ["deploy"],
+            },
+            "Body",
+          ),
         ]),
       );
       const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
-      expect(parsed.sandbox_mode).toBe("workspace-write");
+      expect(Object.keys(parsed).sort()).toEqual(["description", "developer_instructions", "name"]);
+      expect(diagnostics.map((d) => (d.detail as { name: string }).name)).toEqual([
+        "sandboxMode",
+        "mcpServers",
+        "skills",
+      ]);
+    });
+
+    it("skips an agent with no description or an empty body", async () => {
+      const files = await consolidate(
+        makeInput([
+          makeTemplate("no-desc", {}, "Body"),
+          makeTemplate("no-body", { description: "D" }, "  \n"),
+        ]),
+      );
+      expect(files).toEqual([]);
+      expect(diagnostics.map((d) => (d.detail as { name: string }).name)).toEqual([
+        "description",
+        "body",
+      ]);
+    });
+
+    it("writes the codex agent block snake_cased", async () => {
+      const files = await consolidate(
+        makeInput([
+          makeTemplate(
+            "a",
+            {
+              description: "A",
+              codex: {
+                modelReasoningSummary: "concise",
+                modelVerbosity: "low",
+                personality: "pragmatic",
+                serviceTier: "flex",
+                skills: { bundled: { enabled: false }, includeInstructions: false },
+              },
+            },
+            "Body",
+          ),
+        ]),
+      );
+      const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
+      expect(parsed).toMatchObject({
+        model_reasoning_summary: "concise",
+        model_verbosity: "low",
+        personality: "pragmatic",
+        service_tier: "flex",
+        skills: { bundled: { enabled: false }, include_instructions: false },
+      });
     });
 
     it("effort: 'medium' auto-maps to model_reasoning_effort", async () => {
@@ -412,14 +474,23 @@ describe("codex target", () => {
       expect(parsed.model_reasoning_effort).toBe("medium");
     });
 
-    it("effort: 'max' (Claude-only) dropped with warning, no model_reasoning_effort emitted", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    it("maps every Claude effort value, max included, and ultra", async () => {
+      for (const effort of ["low", "medium", "high", "xhigh", "max", "ultra"]) {
+        const files = await consolidate(
+          makeInput([makeTemplate("a", { description: "A", effort }, "Body")]),
+        );
+        const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
+        expect(parsed.model_reasoning_effort).toBe(effort);
+      }
+    });
+
+    it("drops an effort Codex doesn't know, with a warning", async () => {
       const files = await consolidate(
-        makeInput([makeTemplate("a", { description: "A", effort: "max" }, "Body")]),
+        makeInput([makeTemplate("a", { description: "A", effort: "extreme" }, "Body")]),
       );
       const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
       expect(parsed.model_reasoning_effort).toBeUndefined();
-      warnSpy.mockRestore();
+      expect(diagnostics.map((d) => d.code)).toEqual(["unsupported"]);
     });
 
     it("tools field dropped with warning", async () => {
@@ -449,20 +520,6 @@ describe("codex target", () => {
       const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
       expect(parsed.permission_mode).toBeUndefined();
       warnSpy.mockRestore();
-    });
-
-    it("mcpServers → mcp_servers", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate(
-            "a",
-            { description: "A", mcpServers: { github: { url: "https://x" } } },
-            "Body",
-          ),
-        ]),
-      );
-      const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
-      expect(parsed.mcp_servers).toEqual({ github: { url: "https://x" } });
     });
 
     it("Claude-only agent fields dropped silently", async () => {
@@ -523,18 +580,38 @@ describe("codex target", () => {
       expect(result.hooks).toHaveProperty("Stop");
     });
 
-    it("drops unsupported events silently", () => {
-      const hooks: Record<string, UniversalHookHandler[]> = {
-        sessionEnd: [{ command: "a.sh" }],
-        subagentStart: [{ command: "b.sh" }],
-        preCompact: [{ command: "c.sh" }],
-        preToolUse: [{ command: "d.sh" }],
+    it("maps the newer events, including the Codex-only ones", () => {
+      const events = [
+        "sessionEnd",
+        "subagentStart",
+        "subagentStop",
+        "preCompact",
+        "postCompact",
+        "preModelRequest",
+        "postModelRequest",
+        "interrupt",
+      ];
+      const result = transform(
+        Object.fromEntries(events.map((e) => [e, [{ command: "x" }]])),
+        ctx,
+      ) as { hooks: Record<string, unknown> };
+      expect(Object.keys(result.hooks)).toEqual([
+        "SessionEnd",
+        "SubagentStart",
+        "SubagentStop",
+        "PreCompact",
+        "PostCompact",
+        "PreModelRequest",
+        "PostModelRequest",
+        "Interrupt",
+      ]);
+    });
+
+    it("drops events Codex doesn't have", () => {
+      const result = transform({ notification: [{ command: "x" }] }, ctx) as {
+        hooks: Record<string, unknown>;
       };
-      const result = transform(hooks, ctx) as { hooks: Record<string, unknown> };
-      expect(result.hooks).toHaveProperty("PreToolUse");
-      expect(result.hooks).not.toHaveProperty("SessionEnd");
-      expect(result.hooks).not.toHaveProperty("SubagentStart");
-      expect(result.hooks).not.toHaveProperty("PreCompact");
+      expect(result.hooks).toEqual({});
     });
 
     it("type: 'command' handlers pass through", () => {
@@ -638,12 +715,52 @@ describe("codex target", () => {
       expect(globalGroup?.hooks).toHaveLength(1);
     });
 
+    it("emits async, commandWindows and additionalContextLimit", () => {
+      const result = transform(
+        {
+          preToolUse: [
+            { command: "x.sh", async: true, commandWindows: "x.ps1", additionalContextLimit: 4000 },
+          ],
+        },
+        ctx,
+      ) as { hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> } };
+      expect(result.hooks.PreToolUse[0]!.hooks[0]).toEqual({
+        type: "command",
+        command: "x.sh",
+        commandWindows: "x.ps1",
+        async: true,
+        additionalContextLimit: 4000,
+      });
+    });
+
+    it("keeps handler order exactly as templated (Codex trust hashes are positional)", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        preToolUse: [
+          { command: "c", matcher: "Bash" },
+          { command: "a" },
+          { command: "b", matcher: "Bash" },
+          { command: "d", matcher: "Edit" },
+        ],
+      };
+      const first = JSON.stringify(transform(hooks, ctx));
+      expect(JSON.stringify(transform(structuredClone(hooks), ctx))).toBe(first);
+      const groups = (
+        transform(hooks, ctx) as {
+          hooks: { PreToolUse: Array<{ matcher?: string; hooks: Array<{ command: string }> }> };
+        }
+      ).hooks.PreToolUse;
+      expect(groups.map((g) => [g.matcher ?? "", g.hooks.map((h) => h.command)])).toEqual([
+        ["Bash", ["c", "b"]],
+        ["", ["a"]],
+        ["Edit", ["d"]],
+      ]);
+    });
+
     it("Claude-specific handler fields dropped silently", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [
           {
             command: "x.sh",
-            async: true,
             asyncRewake: true,
             shell: "bash",
             if: "Bash(*)",
@@ -655,7 +772,6 @@ describe("codex target", () => {
         hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
       };
       const entry = result.hooks.PreToolUse[0]!.hooks[0]!;
-      expect(entry.async).toBeUndefined();
       expect(entry.asyncRewake).toBeUndefined();
       expect(entry.shell).toBeUndefined();
       expect(entry.if).toBeUndefined();
@@ -711,7 +827,7 @@ describe("codex target", () => {
       expect(result.mcp_servers.s!.type).toBeUndefined();
     });
 
-    it("maps all 13 new Codex MCP fields with snake_case keys", () => {
+    it("maps every Codex MCP field to its snake_case key", () => {
       const servers: Record<string, UniversalMCPServer> = {
         s: {
           command: "node",
@@ -728,7 +844,16 @@ describe("codex target", () => {
           toolTimeoutSec: 30,
           oauthResource: "https://x",
           scopes: ["read"],
-          experimentalEnvironment: "remote",
+          environmentId: "remote",
+          headersHelper: "./headers.sh",
+          startupReadiness: "catalog",
+          supportsParallelToolCalls: true,
+          toolInputSchemaMaxBytes: 2048,
+          omitToolsFrom: "deferred",
+          defaultToolsApprovalMode: "prompt",
+          toolSettings: { search: { approvalMode: "auto", outputTokenLimit: 500 } },
+          identity: { url: { match: "prefix", value: "https://x" } },
+          auth: "chatgpt",
         },
       };
       const result = transform(servers, undefined, ctx) as {
@@ -748,19 +873,64 @@ describe("codex target", () => {
       expect(s.tool_timeout_sec).toBe(30);
       expect(s.oauth_resource).toBe("https://x");
       expect(s.scopes).toEqual(["read"]);
-      expect(s.experimental_environment).toBe("remote");
+      expect(s.environment_id).toBe("remote");
+      expect(s.http_headers_helper).toBe("./headers.sh");
+      expect(s.startup_readiness).toBe("catalog");
+      expect(s.supports_parallel_tool_calls).toBe(true);
+      expect(s.tool_input_schema_max_bytes).toBe(2048);
+      expect(s.omit_tools_from).toBe("deferred");
+      expect(s.default_tools_approval_mode).toBe("prompt");
+      expect(s.tools).toEqual({ search: { approval_mode: "auto", output_token_limit: 500 } });
+      expect(s.identity).toEqual({ url: { match: "prefix", value: "https://x" } });
+      expect(s.auth).toBe("chatgpt");
+      expect(diagnostics).toEqual([]);
     });
 
-    it("oauth field dropped with warning", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    it("accepts { name, source } env_vars entries", () => {
+      const result = transform(
+        { s: { command: "x", envVars: ["A", { name: "B", source: "remote" }] } },
+        undefined,
+        ctx,
+      ) as { mcp_servers: Record<string, Record<string, unknown>> };
+      expect(result.mcp_servers.s!.env_vars).toEqual(["A", { name: "B", source: "remote" }]);
+    });
+
+    it("writes the deprecated experimentalEnvironment as environment_id, with a warning", () => {
+      const result = transform(
+        { s: { command: "x", experimentalEnvironment: "remote" } },
+        undefined,
+        ctx,
+      ) as { mcp_servers: Record<string, Record<string, unknown>> };
+      expect(result.mcp_servers.s!.environment_id).toBe("remote");
+      expect(result.mcp_servers.s).not.toHaveProperty("experimental_environment");
+      expect(diagnostics.map((d) => d.code)).toEqual(["legacy-field"]);
+    });
+
+    it("maps oauth to Codex's oauth table, reporting keys Codex lacks", () => {
       const servers: Record<string, UniversalMCPServer> = {
-        s: { url: "https://x", oauth: { clientId: "id" } },
+        s: {
+          url: "https://x",
+          oauth: {
+            clientId: "id",
+            clientSecret: "secret",
+            callbackUrl: "http://127.0.0.1/cb",
+            callbackPort: 7777,
+            authServerMetadataUrl: "https://meta",
+          },
+        },
       };
       const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
-      expect(result.mcp_servers.s!.oauth).toBeUndefined();
-      warnSpy.mockRestore();
+      expect(result.mcp_servers.s!.oauth).toEqual({
+        client_id: "id",
+        client_secret: "secret",
+        callback_url: "http://127.0.0.1/cb",
+        callback_port: 7777,
+      });
+      expect(diagnostics.map((d) => (d.detail as { name: string }).name)).toEqual([
+        "oauth.authServerMetadataUrl",
+      ]);
     });
 
     it("auth field dropped with warning", () => {

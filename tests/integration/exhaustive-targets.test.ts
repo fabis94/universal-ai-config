@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
+import { parse as parseToml } from "smol-toml";
 import { generate } from "../../src/core/generate/index.js";
 import { expectYamlField } from "../test-helpers.js";
 
@@ -217,4 +218,45 @@ describe("exhaustive per-target field coverage", () => {
       expect(s).not.toHaveProperty("dev");
     });
   });
+});
+
+describe("codex agent files are valid role files", () => {
+  // AgentRoleOverrides in codex-rs core/src/agent/role.rs, plus the role's identity keys.
+  // Codex drops a role file with any other key.
+  const ALLOWED = new Set([
+    "name",
+    "description",
+    "developer_instructions",
+    "model",
+    "model_reasoning_effort",
+    "model_reasoning_summary",
+    "model_verbosity",
+    "personality",
+    "service_tier",
+    "nickname_candidates",
+    "features",
+    "skills",
+  ]);
+
+  for (const fixture of ["exhaustive-project", "complete-project", "complete-complex-project"]) {
+    it(`${fixture}: every .codex/agents/*.toml parses and uses only known keys`, async () => {
+      const files = await generate({
+        root: join(import.meta.dirname, `../fixtures/${fixture}`),
+        targets: ["codex"],
+        types: ["agents"],
+        onDiagnostic: () => {},
+      });
+      const agents = files.filter((f) => f.path.startsWith(".codex/agents/"));
+      expect(agents.length).toBeGreaterThan(0);
+      for (const agent of agents) {
+        const parsed = parseToml(agent.content as string) as Record<string, unknown>;
+        expect(
+          Object.keys(parsed).filter((key) => !ALLOWED.has(key)),
+          agent.path,
+        ).toEqual([]);
+        expect(String(parsed.description).trim(), agent.path).not.toBe("");
+        expect(String(parsed.developer_instructions).trim(), agent.path).not.toBe("");
+      }
+    });
+  }
 });
