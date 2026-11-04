@@ -16,6 +16,7 @@ import type { GenerateRun } from "./context.js";
 import type { DiscoveredTemplate, TemplateSlot } from "./discover.js";
 import { mapFrontmatter, renderMarkdown } from "./frontmatter.js";
 import { asText, type FileReader } from "./read-cache.js";
+import { checkSkillSpec } from "./skill-spec.js";
 
 /**
  * Build a per-target index of instruction template name → resolved
@@ -187,6 +188,10 @@ export async function generateTemplateFiles(
       ) as UniversalFrontmatter;
       const outputPath = locator.templatePath(targetName, type, template.name, frontmatter);
       const sourcePath = toPosixPath(template.relativePath);
+      // Reported without a target: the same problem in every target prints once
+      if (type === "skills") {
+        checkSkillSpec(template.name, frontmatter, sourcePath, (d) => sink.report(d));
+      }
 
       const rendered = typeConfig.render
         ? typeConfig.render(

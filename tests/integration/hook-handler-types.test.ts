@@ -79,3 +79,19 @@ describe("hook handler types per target", () => {
     }
   });
 });
+
+describe("skill spec checks", () => {
+  it("warn once per problem, not once per target", async () => {
+    const diagnostics: Diagnostic[] = [];
+    await generate({
+      root: FIXTURE,
+      targets: ["claude", "cursor", "codex"],
+      types: ["skills"],
+      templates: [{ name: "no-desc", type: "skills", content: "---\nname: no-desc\n---\nBody\n" }],
+      onDiagnostic: (d) => diagnostics.push(d),
+    });
+    const spec = diagnostics.filter((d) => d.code === "skill-spec");
+    expect(spec).toHaveLength(1);
+    expect(spec[0]).toMatchObject({ detail: { skill: "no-desc", field: "description" } });
+  });
+});
