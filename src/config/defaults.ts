@@ -15,4 +15,8 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   exclude: [],
   preserveOnClean: [],
   mcp: {},
+  agentsMd: {
+    variation: "nested",
+    indexDir: ".agents/uac-instructions",
+  },
 };

@@ -22,6 +22,10 @@ export type {
   UniversalMCPServer,
   UniversalMCPInput,
   MCPConfig,
+  AgentsMdConfig,
+  AgentsMdVariation,
+  ResolvedAgentsMdConfig,
+  HookHandlerType,
   PerTargetValue,
 } from "./types.js";
 export type { CleanOptions } from "./core/writer.js";

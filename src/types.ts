@@ -54,6 +54,34 @@ export interface UserConfig {
    * declared them.
    */
   mcp?: MCPConfig;
+  /**
+   * AGENTS.md output. Generated whenever `codex` is a target (forced), or when
+   * `enable` is true. While it is generated, every target that reads AGENTS.md
+   * (claude, cursor, copilot) skips its own instruction output.
+   */
+  agentsMd?: AgentsMdConfig;
+}
+
+/** How instruction templates are laid out across AGENTS.md files. */
+export type AgentsMdVariation = "nested" | "concatenate" | "index";
+
+export interface AgentsMdConfig {
+  /**
+   * Generate AGENTS.md even without the codex target. Ignored (with a warning)
+   * when false while codex is a target, since Codex reads nothing else.
+   */
+  enable?: boolean;
+  /**
+   * - `nested` (default): folder-scoped instructions go to `<dir>/AGENTS.md`,
+   *   everything else to the root `AGENTS.md`.
+   * - `concatenate`: everything goes to the root `AGENTS.md`, with a scope
+   *   note on each scoped section.
+   * - `index`: the root `AGENTS.md` lists folder-scoped instructions, which are
+   *   written to `<indexDir>/<name>.md` for the agent to read on demand.
+   */
+  variation?: AgentsMdVariation;
+  /** Where the `index` variation writes scoped instructions. Default: `.agents/uac-instructions`. */
+  indexDir?: string;
 }
 
 export interface MCPConfig {
@@ -73,6 +101,14 @@ export interface ResolvedConfig {
   exclude: PerTargetValue<string[]>;
   preserveOnClean: PerTargetValue<string[]>;
   mcp: MCPConfig;
+  agentsMd: ResolvedAgentsMdConfig;
+}
+
+/** `agentsMd` with defaults applied. `enable` stays undefined unless set, so an explicit `false` can be told apart. */
+export interface ResolvedAgentsMdConfig {
+  enable?: boolean;
+  variation: AgentsMdVariation;
+  indexDir: string;
 }
 
 export interface GeneratedFile {

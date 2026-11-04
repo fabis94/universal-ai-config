@@ -1,6 +1,7 @@
 import { loadConfig } from "c12";
 import { userConfigSchema } from "./schema.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
+import { validateResolvedConfig } from "./validate.js";
 import type { ResolvedConfig, UserConfig, Target, TemplateType } from "../types.js";
 
 export interface LoadConfigOptions {
@@ -28,6 +29,8 @@ function mergeConfigs(base: ResolvedConfig, override: UserConfig): ResolvedConfi
     preserveOnClean: override.preserveOnClean ?? base.preserveOnClean,
     // MCP config: shallow-merge fields (forceOptIn / mcpServers each replace independently)
     mcp: { ...base.mcp, ...override.mcp },
+    // AGENTS.md config: shallow-merge fields, like mcp
+    agentsMd: { ...base.agentsMd, ...override.agentsMd },
   };
 }
 
@@ -73,5 +76,6 @@ export async function loadProjectConfig(options: LoadConfigOptions = {}): Promis
     resolved.types = options.cliTypes;
   }
 
+  validateResolvedConfig(resolved, root);
   return resolved;
 }
