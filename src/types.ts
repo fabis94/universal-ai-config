@@ -170,12 +170,21 @@ export interface UniversalHookHandler {
   // prompt / agent handler
   prompt?: string;
   model?: string;
+  /** Copilot: working directory for the command */
+  cwd?: string;
+  /** Copilot: environment variables for the command */
+  env?: Record<string, string>;
+  /** Codex: Windows-only command override */
+  commandWindows?: string;
+  /** Codex: how much `additionalContext` the hook may send before Codex saves it to disk */
+  additionalContextLimit?: number;
   // common fields
   matcher?: string;
   timeout?: number;
   description?: string;
   // Cursor-specific
   loopLimit?: number | null;
+  /** Block the action when the hook fails (Cursor `failClosed`, Claude `onFailure: "block"`) */
   failClosed?: boolean;
 }
 
@@ -200,12 +209,13 @@ export interface UniversalMCPServer {
   dev?: { watch?: string; debug?: boolean };
   // Cursor-specific
   envFile?: string;
-  auth?: Record<string, unknown>;
+  /** Cursor: OAuth object; Codex: `"oauth"` or `"chatgpt"` (use per-target overrides) */
+  auth?: Record<string, unknown> | string;
   // Codex-specific (snake_case TOML keys → camelCase universal)
   /** Codex: working directory for stdio child process */
   cwd?: string;
-  /** Codex: env-var-name allowlist for forwarding (distinct from `env` value-setter) */
-  envVars?: string[];
+  /** Codex: env vars to forward — a name, or `{ name, source }` (source `local` or `remote`) */
+  envVars?: Array<string | { name: string; source?: string }>;
   /** Codex: per-server tool allowlist (canonical Codex name) */
   enabledTools?: string[];
   /** Codex: per-server tool denylist (Codex-only) */
@@ -228,8 +238,24 @@ export interface UniversalMCPServer {
   oauthResource?: string;
   /** Codex: OAuth scopes to request */
   scopes?: string[];
-  /** Codex (experimental): `"local"` or `"remote"` — remote-executor flag */
+  /** @deprecated Codex renamed it; use `environmentId`. */
   experimentalEnvironment?: string;
+  /** Codex: the executor environment that runs the server */
+  environmentId?: string;
+  /** Codex: `"connection"` or `"catalog"` — what startup waits for */
+  startupReadiness?: string;
+  /** Codex: every tool on this server is safe to run in parallel */
+  supportsParallelToolCalls?: boolean;
+  /** Codex: cap on a tool's input schema size */
+  toolInputSchemaMaxBytes?: number;
+  /** Codex: where tool definitions are left out (`direct`, `deferred` or `code_mode`) */
+  omitToolsFrom?: string;
+  /** Codex: approval mode for every tool (`auto`, `prompt`, `writes` or `approve`) */
+  defaultToolsApprovalMode?: string;
+  /** Codex: per-tool settings, keyed by tool name */
+  toolSettings?: Record<string, { approvalMode?: string; outputTokenLimit?: number }>;
+  /** Codex: how the server proves its identity (`command` or `url` matcher) */
+  identity?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -319,6 +345,20 @@ export interface ShadowEvent {
   winningSource: string;
 }
 
+/** Codex-only agent settings, emitted snake_cased into the agent's TOML file. */
+export interface UniversalAgentCodexFields {
+  modelReasoningSummary?: string;
+  modelVerbosity?: string;
+  personality?: string;
+  serviceTier?: string;
+  skills?: {
+    /** `{ enabled: false }` turns off Codex's bundled skills for this agent */
+    bundled?: { enabled?: boolean };
+    /** `false` omits the automatic skills instructions block */
+    includeInstructions?: boolean;
+  };
+}
+
 /**
  * Codex-specific nested skill metadata. Drives emission of the
  * `agents/openai.yaml` sidecar alongside `SKILL.md`. Fields under this object
@@ -371,8 +411,13 @@ export interface UniversalFrontmatter {
   version?: string;
   /** Skill author attribution (Codex SKILL.md spec) */
   author?: string;
-  /** Codex-only nested skill metadata — drives `agents/openai.yaml` sidecar emission */
-  codex?: UniversalSkillCodexFields;
+  /**
+   * Codex-only settings: for skills, the `agents/openai.yaml` sidecar
+   * (`interface`, `dependencies`); for agents, extra agent-file keys.
+   */
+  codex?: UniversalSkillCodexFields & UniversalAgentCodexFields;
+  /** Cursor: icon on the skill's Custom Mode badge */
+  icon?: string;
   // Claude-only skill fields
   whenToUse?: string;
   arguments?: string | string[];
@@ -386,19 +431,41 @@ export interface UniversalFrontmatter {
   permissionMode?: string;
   skills?: string[];
   memory?: string;
-  target?: string;
+  /** Copilot agent: the editor schema the file targets */
+  target?: "vscode" | "github-copilot";
   mcpServers?: Record<string, unknown>;
-  handoffs?: string[];
+  /** @deprecated VS Code Local-harness only; dropped for Copilot with a warning. */
+  handoffs?: unknown[];
+  /** @deprecated VS Code Local-harness only (`agents`); dropped for Copilot with a warning. */
   subAgents?: string[];
+  /** Cursor agent: restricted write permissions */
+  readonly?: boolean;
+  // Copilot-only agent fields
+  /** Copilot agent: whether `model` is a preference or a requirement */
+  modelPolicy?: "preferred" | "required";
+  /** Copilot agent: also load the repository's custom instructions */
+  includeCustomInstructions?: boolean;
+  /** Copilot agent: load tools on demand */
+  deferredToolLoading?: boolean;
+  /** Copilot agent: offer only the listed tools */
+  strictToolsList?: boolean;
+  /** Copilot agent: GitHub settings block */
+  github?: Record<string, unknown>;
   // Claude-only agent fields
   maxTurns?: number;
   background?: boolean;
   isolation?: string;
   color?: string;
   initialPrompt?: string;
+  /** Claude agent: lower auto-compact window, in tokens */
+  autoCompactWindow?: number;
+  /** Claude agent: start without CLAUDE.md files */
+  omitClaudeMd?: boolean;
+  /** Claude agent: experimental options (e.g. `cacheTtl`) */
+  experimental?: Record<string, unknown>;
   // Codex-only agent fields
   /** Codex agent: display nickname pool for spawned worker copies */
   nicknameCandidates?: string[];
-  /** Codex agent: sandbox mode (`read-only` / `workspace-write` / `danger-full-access`) */
+  /** @deprecated Codex ignores it in agent files since 0.149; dropped with a warning. */
   sandboxMode?: string;
 }

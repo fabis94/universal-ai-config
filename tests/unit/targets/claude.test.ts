@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { collectingContext } from "../../test-helpers.js";
 import claude from "../../../src/targets/claude/index.js";
+import { mapFrontmatter } from "../../../src/core/generate/frontmatter.js";
 import type {
   UniversalFrontmatter,
   UniversalHookHandler,
@@ -122,10 +123,15 @@ describe("claude target", () => {
       expect(config.frontmatterMap.skillPaths).toBe("paths");
     });
 
-    it("does not map copilot/cursor-only skill fields", () => {
-      expect(config.frontmatterMap).not.toHaveProperty("license");
-      expect(config.frontmatterMap).not.toHaveProperty("compatibility");
-      expect(config.frontmatterMap).not.toHaveProperty("metadata");
+    it("maps the Agent Skills spec fields Claude now accepts", () => {
+      expect(config.frontmatterMap.license).toBe("license");
+      expect(config.frontmatterMap.compatibility).toBe("compatibility");
+      expect(config.frontmatterMap.metadata).toBe("metadata");
+    });
+
+    it("does not map fields other targets own", () => {
+      expect(config.frontmatterMap).not.toHaveProperty("icon");
+      expect(config.frontmatterMap).not.toHaveProperty("version");
     });
 
     it("generates correct output path", () => {
@@ -521,6 +527,118 @@ describe("claude target", () => {
       >;
       expect(result).toHaveProperty("mcpServers");
       expect(result).not.toHaveProperty("s");
+    });
+  });
+});
+
+describe("claude target — 3.0 additions", () => {
+  it("maps the four new hook events", () => {
+    const { ctx } = collectingContext();
+    const result = claude.hooks!.transform(
+      {
+        messageDisplay: [{ command: "a" }],
+        directoryAdded: [{ command: "b" }],
+        preModelSwitch: [{ command: "c" }],
+        postModelSwitch: [{ command: "d" }],
+      },
+      ctx,
+    ) as { hooks: Record<string, unknown> };
+    expect(Object.keys(result.hooks)).toEqual([
+      "MessageDisplay",
+      "DirectoryAdded",
+      "PreModelSwitch",
+      "PostModelSwitch",
+    ]);
+  });
+
+  it("maps failClosed to onFailure on command and http handlers only", () => {
+    const { ctx } = collectingContext();
+    const result = claude.hooks!.transform(
+      {
+        preToolUse: [
+          { command: "a", failClosed: true },
+          { type: "http", url: "https://x", failClosed: false },
+          { type: "prompt", prompt: "p", failClosed: true },
+        ],
+      },
+      ctx,
+    ) as { hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> } };
+    const handlers = result.hooks.PreToolUse[0]!.hooks;
+    expect(handlers.map((h) => h.onFailure)).toEqual(["block", "continue", undefined]);
+    expect(handlers[0]).not.toHaveProperty("failClosed");
+  });
+
+  it("maps the new skill fields", () => {
+    expect(
+      mapFrontmatter(
+        {
+          disallowedTools: ["Bash"],
+          background: false,
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { owner: "team" },
+        },
+        claude.skills!,
+      ),
+    ).toEqual({
+      "disallowed-tools": ["Bash"],
+      background: false,
+      license: "MIT",
+      compatibility: "Requires git",
+      metadata: { owner: "team" },
+    });
+  });
+
+  it("maps the new agent fields", () => {
+    expect(
+      mapFrontmatter(
+        { autoCompactWindow: 200000, omitClaudeMd: true, experimental: { cacheTtl: "1h" } },
+        claude.agents!,
+      ),
+    ).toEqual({ autoCompactWindow: 200000, omitClaudeMd: true, experimental: { cacheTtl: "1h" } });
+  });
+
+  describe("mcp", () => {
+    it("emits an integer millisecond timeout", () => {
+      const { ctx, diagnostics } = collectingContext();
+      const result = claude.mcp!.transform(
+        { s: { command: "x", timeout: 30000 } },
+        undefined,
+        ctx,
+      ) as {
+        mcpServers: Record<string, Record<string, unknown>>;
+      };
+      expect(result.mcpServers.s!.timeout).toBe(30000);
+      expect(diagnostics).toEqual([]);
+    });
+
+    it("warns about a timeout that looks like seconds, and drops a non-integer one", () => {
+      const { ctx, diagnostics } = collectingContext();
+      const result = claude.mcp!.transform(
+        { a: { command: "x", timeout: 30 }, b: { command: "x", timeout: 1.5 } },
+        undefined,
+        ctx,
+      ) as { mcpServers: Record<string, Record<string, unknown>> };
+      expect(result.mcpServers.a!.timeout).toBe(30);
+      expect(result.mcpServers.b).not.toHaveProperty("timeout");
+      expect(diagnostics.map((d) => d.code)).toEqual(["suspicious-value", "suspicious-value"]);
+    });
+
+    it("drops a type outside Claude's set and flags sse as legacy", () => {
+      const { ctx, diagnostics } = collectingContext();
+      const result = claude.mcp!.transform(
+        {
+          local: { type: "local", command: "x" },
+          old: { type: "sse", url: "https://x" },
+          ws: { type: "ws", url: "wss://x" },
+        },
+        undefined,
+        ctx,
+      ) as { mcpServers: Record<string, Record<string, unknown>> };
+      expect(result.mcpServers.local).not.toHaveProperty("type");
+      expect(result.mcpServers.old!.type).toBe("sse");
+      expect(result.mcpServers.ws!.type).toBe("ws");
+      expect(diagnostics.map((d) => d.code)).toEqual(["unsupported", "legacy-field"]);
     });
   });
 });

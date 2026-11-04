@@ -104,10 +104,10 @@ describe("complete-project (all frontmatter fields)", () => {
       expectYamlField(c, "argument-hint", "<environment> [--dry-run]");
       expect(c).toContain("hooks:");
 
-      // Claude doesn't map license, compatibility, or metadata
-      expect(c).not.toContain("license:");
-      expect(c).not.toContain("compatibility:");
-      expect(c).not.toContain("metadata:");
+      // Agent Skills spec fields Claude accepts
+      expect(c).toContain("license:");
+      expect(c).toContain("compatibility:");
+      expect(c).toContain("metadata:");
     });
 
     it("copilot: maps copilot-specific skill fields only", async () => {

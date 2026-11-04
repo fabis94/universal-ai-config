@@ -34,6 +34,8 @@ export type {
   AgentsMdVariation,
   ResolvedAgentsMdConfig,
   HookHandlerType,
+  UniversalSkillCodexFields,
+  UniversalAgentCodexFields,
   PerTargetValue,
 } from "./types.js";
 export type { WriteReport } from "./core/writer.js";
