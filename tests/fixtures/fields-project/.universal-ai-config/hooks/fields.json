@@ -1,0 +1,22 @@
+{
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "node",
+        "args": ["guard.js", "--strict"],
+        "matcher": "Bash",
+        "cwd": "scripts",
+        "env": { "MODE": "strict" },
+        "failClosed": true,
+        "async": false,
+        "commandWindows": "node guard.js --strict --windows",
+        "additionalContextLimit": 4000,
+        "timeout": 20
+      }
+    ],
+    "messageDisplay": [{ "command": "./scripts/display.sh" }],
+    "preModelRequest": [{ "command": "./scripts/model.sh" }],
+    "userPromptTransformed": [{ "command": "./scripts/transformed.sh" }],
+    "stop": [{ "command": "./scripts/stop.sh" }]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "local": {
+      "command": "npx",
+      "args": ["-y", "local-mcp"],
+      "timeout": 30000,
+      "deferTools": true,
+      "enabledTools": ["search"],
+      "envVars": ["HOME", { "name": "TOKEN", "source": "remote" }],
+      "startupReadiness": "catalog",
+      "toolSettings": { "search": { "approvalMode": "auto" } }
+    },
+    "remote": {
+      "type": "http",
+      "url": "https://mcp.example.com/mcp",
+      "headersHelper": "./scripts/headers.sh",
+      "environmentId": "remote",
+      "oauth": { "clientId": "uac-client", "callbackPort": 7777 },
+      "auth": { "codex": "chatgpt", "cursor": { "CLIENT_ID": "uac-client" } }
+    }
+  }
+}
