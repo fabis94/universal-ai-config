@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { collectingContext } from "../../test-helpers.js";
+import { mapFrontmatter } from "../../../src/core/generate/frontmatter.js";
 import cursor from "../../../src/targets/cursor/index.js";
 import type {
   UniversalFrontmatter,
@@ -15,9 +16,42 @@ describe("cursor target", () => {
     expect(cursor.outputDir).toBe(".cursor");
   });
 
-  it("does not support agents", () => {
-    expect(cursor.supportedTypes).not.toContain("agents");
-    expect(cursor.agents).toBeUndefined();
+  describe("agents", () => {
+    const config = cursor.agents!;
+
+    it("supports agents at .cursor/agents/<name>.md", () => {
+      expect(cursor.supportedTypes).toContain("agents");
+      expect(config.outputPath("reviewer", {}, { outputDir: ".cursor" })).toBe(
+        ".cursor/agents/reviewer.md",
+      );
+    });
+
+    it("maps name, description, model, readonly and background → is_background", () => {
+      expect(
+        mapFrontmatter(
+          {
+            name: "reviewer",
+            description: "Reviews",
+            model: "composer-2.5",
+            readonly: true,
+            background: true,
+            tools: ["Read"],
+            permissionMode: "plan",
+          },
+          config,
+        ),
+      ).toEqual({
+        name: "reviewer",
+        description: "Reviews",
+        model: "composer-2.5",
+        readonly: true,
+        is_background: true,
+      });
+    });
+
+    it("writes line-safe frontmatter for Cursor's line-based agent parser", () => {
+      expect(config.frontmatterStyle).toBe("line-safe");
+    });
   });
 
   describe("instructions", () => {
@@ -81,8 +115,26 @@ describe("cursor target", () => {
       expect(config.frontmatterMap.metadata).toBe("metadata");
     });
 
+    it("maps user-invocable, paths (from skillPaths), icon and color", () => {
+      expect(
+        mapFrontmatter(
+          {
+            userInvocable: false,
+            skillPaths: ["src/**", "docs/**"],
+            icon: "rocket",
+            color: "cyan",
+          },
+          config,
+        ),
+      ).toEqual({
+        "user-invocable": false,
+        paths: ["src/**", "docs/**"],
+        icon: "rocket",
+        color: "cyan",
+      });
+    });
+
     it("does not map claude-only skill fields", () => {
-      expect(config.frontmatterMap).not.toHaveProperty("userInvocable");
       expect(config.frontmatterMap).not.toHaveProperty("argumentHint");
       expect(config.frontmatterMap).not.toHaveProperty("allowedTools");
       expect(config.frontmatterMap).not.toHaveProperty("model");
@@ -92,7 +144,6 @@ describe("cursor target", () => {
       expect(config.frontmatterMap).not.toHaveProperty("whenToUse");
       expect(config.frontmatterMap).not.toHaveProperty("arguments");
       expect(config.frontmatterMap).not.toHaveProperty("effort");
-      expect(config.frontmatterMap).not.toHaveProperty("skillPaths");
       expect(config.frontmatterMap).not.toHaveProperty("skillShell");
     });
 
@@ -328,12 +379,27 @@ describe("cursor target", () => {
       expect(s.auth).toEqual({ CLIENT_ID: "id", scopes: ["read"] });
     });
 
-    it("omits type when not provided", () => {
-      const servers = { "my-server": { command: "npx" } };
-      const result = config.transform(servers, undefined, ctx) as {
-        mcpServers: Record<string, Record<string, unknown>>;
-      };
-      expect(result.mcpServers["my-server"]).not.toHaveProperty("type");
+    it("writes type stdio for a command server without a type (Cursor requires it)", () => {
+      const result = config.transform(
+        { local: { command: "npx" }, remote: { url: "https://x" } },
+        undefined,
+        ctx,
+      ) as { mcpServers: Record<string, Record<string, unknown>> };
+      expect(result.mcpServers.local!.type).toBe("stdio");
+      expect(result.mcpServers.remote).not.toHaveProperty("type");
+    });
+
+    it("emits auth only as an object (a string is Codex's auth mode)", () => {
+      const result = config.transform(
+        {
+          a: { url: "https://x", auth: "chatgpt" },
+          b: { url: "https://x", auth: { CLIENT_ID: "x" } },
+        },
+        undefined,
+        ctx,
+      ) as { mcpServers: Record<string, Record<string, unknown>> };
+      expect(result.mcpServers.a).not.toHaveProperty("auth");
+      expect(result.mcpServers.b!.auth).toEqual({ CLIENT_ID: "x" });
     });
 
     it("strips claude-only fields (oauth, alwaysLoad, headersHelper) from output", () => {

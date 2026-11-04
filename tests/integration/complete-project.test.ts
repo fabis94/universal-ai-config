@@ -160,7 +160,8 @@ describe("complete-project (all frontmatter fields)", () => {
       expect(c).toContain("metadata:");
 
       // Cursor doesn't map claude-specific fields
-      expect(c).not.toContain("user-invocable");
+      // Cursor (CLI) honours user-invocable
+      expect(c).toContain("user-invocable");
       expect(c).not.toContain("allowed-tools");
       expect(c).not.toContain("agent:");
       expect(c).not.toContain("context:");
@@ -228,15 +229,19 @@ describe("complete-project (all frontmatter fields)", () => {
       expect(c).not.toContain("memory:");
     });
 
-    it("cursor: skips agents entirely", async () => {
+    it("cursor: writes .cursor/agents with Cursor's fields, line-safe", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["cursor"],
         types: ["agents"],
       });
 
-      const cursorAgents = files.filter((f) => f.type === "agents" && f.target === "cursor");
-      expect(cursorAgents).toHaveLength(0);
+      const agent = files.find((f) => f.type === "agents" && f.target === "cursor");
+      expect(agent!.path).toBe(".cursor/agents/full-agent.md");
+      expect(agent!.content).toBe(
+        "---\nname: project-manager\ndescription: Manages project tasks and coordination\nmodel: opus\n---\n" +
+          "You are a project manager agent. Coordinate tasks across the team and ensure quality.\n",
+      );
     });
   });
 

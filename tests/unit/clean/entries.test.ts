@@ -37,6 +37,7 @@ describe("clean entries derived from target definitions", () => {
     expect(describeEntries("cursor")).toEqual([
       "instructions: .cursor/rules",
       "skills: .cursor/skills",
+      "agents: .cursor/agents",
       "hooks: .cursor/hooks.json",
       "mcp: .cursor/mcp.json",
     ]);

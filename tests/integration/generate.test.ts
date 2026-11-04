@@ -80,7 +80,7 @@ describe("generate", () => {
     expect(globRule!.content).toContain("globs:");
   });
 
-  it("skips agents for cursor target", async () => {
+  it("generates agents for the cursor target", async () => {
     const files = await generate({
       root: FIXTURES_DIR,
       targets: ["cursor"],
@@ -88,7 +88,7 @@ describe("generate", () => {
     });
 
     const agentFiles = files.filter((f) => f.type === "agents" && f.target === "cursor");
-    expect(agentFiles).toHaveLength(0);
+    expect(agentFiles.map((f) => f.path)).toEqual([".cursor/agents/reviewer.md"]);
   });
 
   it("generates skills correctly", async () => {

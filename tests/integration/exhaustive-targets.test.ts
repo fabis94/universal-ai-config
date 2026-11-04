@@ -93,8 +93,9 @@ describe("exhaustive per-target field coverage", () => {
       expect(c).not.toContain("when_to_use:");
       expect(c).not.toContain("arguments:");
       expect(c).not.toContain("allowed-tools:");
-      expect(c).not.toContain("user-invocable:");
       expect(c).not.toContain("argument-hint:");
+      // skillPaths maps to Cursor's paths
+      expect(c).toContain("paths:");
     });
   });
 

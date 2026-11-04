@@ -28,6 +28,7 @@ const PATTERNS = [
   // Cursor
   ".cursor/rules/",
   ".cursor/skills/",
+  ".cursor/agents/",
   ".cursor/hooks.json",
   // Codex (mix of root-relative + .codex/ + .agents/ outputs)
   ".codex/",

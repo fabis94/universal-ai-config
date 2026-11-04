@@ -60,14 +60,17 @@ function transformCursorMCP(servers: Record<string, UniversalMCPServer>): Record
   const mcpServers: Record<string, unknown> = {};
   for (const [name, server] of Object.entries(servers)) {
     const entry: Record<string, unknown> = {};
+    // Cursor documents `type` as required for stdio servers
     if (server.type !== undefined) entry.type = server.type;
+    else if (server.command !== undefined) entry.type = "stdio";
     if (server.command !== undefined) entry.command = server.command;
     if (server.args !== undefined) entry.args = server.args;
     if (server.env !== undefined) entry.env = server.env;
     if (server.url !== undefined) entry.url = server.url;
     if (server.headers !== undefined) entry.headers = server.headers;
     if (server.envFile !== undefined) entry.envFile = server.envFile;
-    if (server.auth !== undefined) entry.auth = server.auth;
+    // Cursor's auth is an OAuth object; a string is Codex's auth mode
+    if (server.auth !== undefined && typeof server.auth === "object") entry.auth = server.auth;
     mcpServers[name] = entry;
   }
   return { mcpServers };
@@ -76,7 +79,7 @@ function transformCursorMCP(servers: Record<string, UniversalMCPServer>): Record
 export default defineTarget({
   name: "cursor",
   outputDir: ".cursor",
-  supportedTypes: ["instructions", "skills", "hooks", "mcp"],
+  supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
   reads: {
     instructions: [
       {
@@ -144,13 +147,30 @@ export default defineTarget({
       license: "license",
       compatibility: "compatibility",
       metadata: "metadata",
+      userInvocable: "user-invocable",
+      skillPaths: (value) => ({ paths: normalizeGlobs(value) }),
+      icon: "icon",
+      color: "color",
     },
     outputPath: (name, _fm, { outputDir }) => `${outputDir}/skills/${name}/SKILL.md`,
     typeDir: ({ outputDir }) => `${outputDir}/skills`,
     ownedPaths: ({ outputDir }) => [`${outputDir}/skills`],
   },
 
-  // agents: not supported — cursor has no agent files
+  agents: {
+    frontmatterMap: {
+      name: "name",
+      description: "description",
+      model: "model",
+      readonly: "readonly",
+      background: "is_background",
+    },
+    // Cursor reads agent files by splitting each line at the first `:`
+    frontmatterStyle: "line-safe",
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/agents/${name}.md`,
+    typeDir: ({ outputDir }) => `${outputDir}/agents`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/agents`],
+  },
 
   hooks: {
     events: EVENT_NAME_MAP,
