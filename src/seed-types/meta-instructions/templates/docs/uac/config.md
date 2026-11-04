@@ -13,7 +13,7 @@ Everything the config file (`universal-ai-config.config.ts`) supports, plus how 
 - `exclude` — glob patterns to skip templates from generation (array or per-target object). Prefix a pattern with a source directory to skip just that copy — see [Template exclusion](#template-exclusion).
 - `preserveOnClean` — glob patterns matching **output** paths that `uac clean` must never delete (array or per-target object). See [Preserving files from clean](#preserving-files-from-clean).
 - `mcp` — server-name-level opt-in filtering for MCP (`mcp.forceOptIn` + `mcp.mcpServers`). See [mcp.md](mcp.md#server-name-opt-in-filtering).
-- `agentsMd` — AGENTS.md output: `enable`, `variation` and `indexDir`. See [AGENTS.md output](#agentsmd-output).
+- `agentsMd` — AGENTS.md output: `enable`, `variation`, `indexDir` and `keepOverrideFiles`. See [AGENTS.md output](#agentsmd-output).
 
 Any option that takes a per-target object uses the shape `{ claude, copilot, cursor, codex, default }`; a target without its own key falls back to `default`.
 
@@ -66,6 +66,7 @@ agentsMd: {
   enable: true,               // generate AGENTS.md without codex (forced on with codex)
   variation: "nested",        // "nested" (default) | "concatenate" | "index"
   indexDir: ".agents/uac-instructions", // the index variation's folder (default)
+  keepOverrideFiles: false,   // true: AGENTS.override.md files are yours, never warned about or deleted
 }
 ```
 
@@ -95,7 +96,14 @@ The `index` variation writes scoped instructions to `<indexDir>/<name>.md` (defa
 
 - **`claude-md-present`:** Claude reads AGENTS.md only while no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` has content. If one does, Claude gets none of uac's instructions. Add `@AGENTS.md` to it (imports the root file only) or remove it.
 - **`agents-md-size`:** Codex reads at most 32 KiB of AGENTS.md per folder chain (root plus each ancestor) and silently drops the rest. Use the `index` variation or raise `project_doc_max_bytes` in your Codex config.
+- **`agents-override-present`:** see [Leftover `AGENTS.override.md` files](#leftover-agentsoverridemd-files).
 - **`shared-divergence`:** the shared files are rendered for one target (codex when present, otherwise the first reader): its per-target overrides, `exclude` and EJS `target`. uac warns when another reader would have gotten a different set of templates, and notes (under `--verbose`) templates that render differently for it.
+
+### Leftover `AGENTS.override.md` files
+
+uac 2.x wrote `<dir>/AGENTS.override.md` files for Codex. uac 3 writes `AGENTS.md` instead, and Codex reads an `AGENTS.override.md` in place of the `AGENTS.md` in the same folder, so a leftover one hides uac's instructions there. Whenever `generate` or `clean` covers instructions, uac lists every `AGENTS.override.md` in the project with an `agents-override-present` warning and, in a terminal, asks whether to delete them (see [cli.md](cli.md#leftover-agentsoverridemd-files)). It never deletes one without asking: the name is also Codex's own mechanism for hand-written overrides.
+
+Set `agentsMd.keepOverrideFiles: true` if yours are hand-written: uac then never warns about or deletes them. To keep only some, list them in `preserveOnClean`.
 
 ## Shared outputs and one target set per machine
 

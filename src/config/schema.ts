@@ -27,6 +27,7 @@ const agentsMdConfigSchema = z.object({
   enable: z.boolean().optional(),
   variation: z.enum(["nested", "concatenate", "index"]).optional(),
   indexDir: z.string().optional(),
+  keepOverrideFiles: z.boolean().optional(),
 });
 
 export const userConfigSchema = z.object({

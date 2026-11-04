@@ -1,7 +1,9 @@
 import { defineCommand } from "citty";
 import { consola } from "consola";
 import { generateProject } from "../core/generate/index.js";
+import type { Diagnostic } from "../core/diagnostics.js";
 import { writeGeneratedFiles } from "../core/writer.js";
+import { offerAgentsOverrideRemoval } from "./agents-overrides.js";
 import { formatFileLine, formatTargetSummary, printDiagnostics } from "./report.js";
 import { runClean } from "./run-clean.js";
 import { resolveCliRoot } from "./resolve-root.js";
@@ -68,6 +70,8 @@ export default defineCommand({
         configPath: args.config,
         verbose: args.verbose,
         dryRun: args["dry-run"],
+        // Asked once, after generating
+        askAboutOverrideFiles: false,
       });
     }
 
@@ -111,5 +115,11 @@ export default defineCommand({
     printDiagnostics(diagnostics, { verbose, allTargets });
     const unchanged = report.unchanged.length > 0 ? ` (${report.unchanged.length} unchanged)` : "";
     consola.success(`Generated ${files.length} file(s)${unchanged}`);
+
+    const overrides = diagnostics.find(
+      (d): d is Extract<Diagnostic, { code: "agents-override-present" }> =>
+        d.code === "agents-override-present",
+    );
+    await offerAgentsOverrideRemoval(root, overrides?.detail.paths ?? [], { dryRun: false });
   },
 });

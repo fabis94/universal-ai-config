@@ -16,7 +16,9 @@ src/
 ├── types.ts                       # All TypeScript interfaces
 ├── commands/                      # CLI commands: generate, init, clean, seed, skill/
 │   ├── report.ts                  # CLI summary + grouped diagnostics output
-│   └── run-clean.ts               # Shared by `clean` and `generate --clean`
+│   ├── run-clean.ts               # Shared by `clean` and `generate --clean`
+│   ├── interactive.ts             # canPrompt() + confirmAction(): the only prompt seam
+│   └── agents-overrides.ts        # Asks to delete leftover AGENTS.override.md files
 ├── core/
 │   ├── generate/                  # The pipeline: index (generateProject/generate), discover,
 │   │                              #   select, read-cache, templates, agents-md, hooks, mcp,
@@ -25,7 +27,8 @@ src/
 │   │   ├── build-plan.ts          # Which outputs a run generates (from targets' `reads`)
 │   │   └── locate.ts              # The only place output paths are computed
 │   ├── agents-md/                 # AGENTS.md routing, nested/concatenate/index layouts, render
-│   ├── clean/                     # Clean entries from ownedPaths, legacy entries, AGENTS.md scan
+│   ├── clean/                     # Clean entries from ownedPaths, legacy entries, AGENTS.md scan,
+│   │                              #   leftover AGENTS.override.md files (find/remove, never automatic)
 │   ├── diagnostics.ts             # Typed Diagnostic + DiagnosticSink
 │   ├── writer.ts                  # Writes files (bytes, mode, mergeKey) → WriteReport
 │   ├── parser.ts                  # Frontmatter + EJS, path helpers
@@ -135,7 +138,7 @@ Seed templates are EJS-rendered with `config.templatesDir` as a variable. Skills
 - **Identity helpers** — use `defineTarget()`, `defineConfig()` for type-safe object literals
 - **Zod v4** — use `z.record(z.string(), z.unknown())`, never `z.record(z.unknown())` (Zod v4 requires explicit key schema)
 - **No default exports** except for target definitions and the config file
-- **Interactive prompts** — use `@clack/prompts` (`multiselect`/`confirm`/`select` + `isCancel`); never `consola.prompt`. consola bundles a stale, frozen fork of pre-1.0 clack that mis-renders wrapped/multiline options (ghost rows, duplicates). consola is for logging only.
+- **Interactive prompts** — use `@clack/prompts` (`multiselect`/`confirm`/`select` + `isCancel`); never `consola.prompt`. Gate every prompt on `canPrompt()` from `commands/interactive.ts` (no prompt without a terminal: CI, scripts, agents), and put yes/no questions through its `confirmAction()` so tests can mock one module. consola bundles a stale, frozen fork of pre-1.0 clack that mis-renders wrapped/multiline options (ghost rows, duplicates). consola is for logging only.
 - **TypeScript strict mode** — `strict`, `noUncheckedIndexedAccess`, `noUnusedLocals`, `noUnusedParameters`
 - **Build** — tsdown (configured in `tsdown.config.ts`), outputs `dist/cli.mjs` + `dist/index.mjs`
 
@@ -143,7 +146,7 @@ Seed templates are EJS-rendered with `config.templatesDir` as a variable. Skills
 
 Exported from `src/index.ts`:
 
-- **Functions**: `generateProject()`, `generate()`, `writeGeneratedFiles()`, `cleanTargetFiles()`, `loadProjectConfig()`, `defineConfig()`, `defineTarget()`, `mergeField()`, plus the `skill add` helpers
+- **Functions**: `generateProject()`, `generate()`, `writeGeneratedFiles()`, `cleanTargetFiles()`, `findAgentsOverrideFiles()`, `removeAgentsOverrideFiles()`, `loadProjectConfig()`, `defineConfig()`, `defineTarget()`, `mergeField()`, plus the `skill add` helpers
 - **Types**: config (`UserConfig`, `ResolvedConfig`, `AgentsMdConfig`, …), templates (`UniversalFrontmatter`, `UniversalHookHandler`, `UniversalMCPServer`, …), results (`GeneratedFile`, `GenerateResult`, `OutputPlan`, `Diagnostic`, `WriteReport`, `CleanOptions`), and the target model (`TargetDefinition`, `TemplateTypeConfig`, `HooksTypeConfig`, `MCPTypeConfig`, `ForeignRead`, …)
 
 ## Testing

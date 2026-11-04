@@ -22,13 +22,12 @@ describe("AGENTS.md ownership and clean (CLI)", () => {
     expect(await p.read("AGENTS.md")).toContain("## Project-wide standards");
   });
 
-  it("clean -t codex removes root and nested AGENTS.md, the index dir and legacy overrides", async () => {
+  it("clean -t codex removes root and nested AGENTS.md and the index dir", async () => {
     const p = await project();
     await p.run("generate", ["-t", "codex", "--type", "instructions"]);
     expect(await p.exists("packages/frontend/AGENTS.md")).toBe(true);
     // Left behind by an earlier run with the index variation
     await p.write(".agents/uac-instructions/frontend.md");
-    await p.write("packages/legacy/AGENTS.override.md");
     await p.write("packages/stale/AGENTS.md", "from a template that no longer exists");
 
     await p.run("clean", ["-t", "codex"]);
@@ -38,7 +37,6 @@ describe("AGENTS.md ownership and clean (CLI)", () => {
       "packages/frontend/AGENTS.md",
       "packages/app/lib/tests/AGENTS.md",
       "packages/stale/AGENTS.md",
-      "packages/legacy/AGENTS.override.md",
       ".agents/uac-instructions",
     ]) {
       expect(await p.exists(path), path).toBe(false);
@@ -76,12 +74,10 @@ describe("AGENTS.md ownership and clean (CLI)", () => {
     const p = await project();
     await p.run("generate", ["-t", "claude", "--type", "instructions"]);
     expect(await p.exists(".claude/rules/frontend.md")).toBe(true);
-    await p.write("packages/old/AGENTS.override.md");
 
     await p.run("generate", ["-t", "claude,codex", "--type", "instructions", "--clean"]);
 
     expect(await p.exists(".claude/rules")).toBe(false);
-    expect(await p.exists("packages/old/AGENTS.override.md")).toBe(false);
     expect(await p.exists("AGENTS.md")).toBe(true);
     expect(await p.exists("packages/frontend/AGENTS.md")).toBe(true);
   });

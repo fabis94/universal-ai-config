@@ -27,6 +27,7 @@ expect(text(rule)).toContain("expected output");
 
 - `text(file)` reads `content` whether it's a string or bytes (skill extra files other than `.md` are `Uint8Array`).
 - Assert on diagnostics by `code` and `detail`, not on console output. For target unit tests, `collectingContext()` from `tests/test-helpers.ts` gives a `ctx` whose `report` collects into `diagnostics`.
+- CLI prompts go through `src/commands/interactive.ts`. Tests `vi.mock` that module to choose whether a terminal is present and what the user answers (see `agents-overrides.test.ts`); without the mock, tests run with no terminal and nothing prompts.
 - `targets` replaces the fixture's configured set — overlapping targets change what's generated (AGENTS.md, Claude's hooks/`.mcp.json` shared with Copilot), so test a target's own rendering with that target alone.
 
 ## Fixture Projects

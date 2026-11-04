@@ -21,7 +21,7 @@ Generate target-specific config files from templates.
 - `--root, -r <path>` — project root (see [Project root resolution](#project-root-resolution))
 - `--clean` — remove existing generated files before generating. Scoped by `--type`: `--clean` alone removes everything, but combined with `--type skills` it only cleans skills artifacts, leaving other types in place. Combined with `--dry-run` it previews the removals instead of performing them. With no `--target` it cleans **every** target, not just the ones in your config — see [`uac clean`](#uac-clean).
 
-Use `--clean` after renaming or deleting a template, changing an instruction's `globs` (which can move its AGENTS.md section to another folder), switching `targets`, or changing `agentsMd.variation` — plain `generate` only writes, it never removes stale outputs.
+Use `--clean` after renaming or deleting a template, changing an instruction's `globs` (which can move its AGENTS.md section to another folder), switching `targets`, or changing `agentsMd.variation` — plain `generate` only writes, it never removes stale outputs. The one exception is leftover `AGENTS.override.md` files, which `generate` offers to delete (see [below](#leftover-agentsoverridemd-files)).
 
 ### Output
 
@@ -65,10 +65,18 @@ Clean loads your config so `outputDirs`, `preserveOnClean`, `templatesDir` and `
 Cleaning `codex` — or, with `agentsMd.enable: true`, any target that reads AGENTS.md (claude, cursor, copilot) — removes the AGENTS.md output:
 
 - every `AGENTS.md` in the project, root and nested, found by **scanning the project tree** (their folders come from template `globs`, so they move when templates change; a scan also finds orphans from a deleted template or an edited `globs`);
-- the configured `agentsMd.indexDir`;
-- legacy `AGENTS.override.md` files written by uac 2.x (Codex never loads them in a root launch, and they hide a same-folder `AGENTS.md`).
+- the configured `agentsMd.indexDir`.
 
 The scan skips `node_modules`, `.git` and build output, and the input folders of your template dirs (`instructions/`, `skills/`, `docs/`, …), where a skill may ship an `AGENTS.md` as an extra file. It does not skip a templates dir itself: an instruction scoped to `<%= templatesDir %>/**` writes `<%= templatesDir %>/AGENTS.md`. Keep a hand-written `AGENTS.md` with `preserveOnClean`.
+
+### Leftover `AGENTS.override.md` files
+
+uac 2.x wrote `<dir>/AGENTS.override.md` files for Codex, and Codex reads one in place of the `AGENTS.md` in the same folder. Clean never removes them on its own, because the name is also Codex's mechanism for hand-written overrides. Instead, `uac generate` and `uac clean` list every one they find whenever the run covers instructions (any target), and in a terminal ask whether to delete them:
+
+- `generate` asks after writing its files; `generate --clean` asks once.
+- Nothing is asked or deleted in a dry run, or without a terminal (CI, scripts, a coding agent's shell). Delete the listed files yourself there.
+- The scan skips the same folders as the AGENTS.md scan, and paths in `preserveOnClean`.
+- `agentsMd.keepOverrideFiles: true` turns the warning and the question off (see [config.md](config.md#leftover-agentsoverridemd-files)).
 
 ## `uac skill add <source>`
 

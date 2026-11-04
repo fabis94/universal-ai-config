@@ -166,6 +166,11 @@ function formatServedBy(served: ServedDiagnostic[], verbose: boolean): ReportLin
   return lines;
 }
 
+/** Paths a warning is about, listed below it when there can be many. */
+function listedPaths(diagnostic: Diagnostic): string[] {
+  return diagnostic.code === "agents-override-present" ? diagnostic.detail.paths : [];
+}
+
 function printLines(lines: ReportLine[]): void {
   for (const line of lines) {
     consola.log(pc.dim(`  ↳ ${line.text}`));
@@ -206,6 +211,7 @@ export function printDiagnostics(
   for (const d of diagnostics) {
     if (d.code === "served-by" || d.severity !== "warn") continue;
     consola.warn(`[${d.target ?? "uac"}] ${d.message}`);
+    for (const path of listedPaths(d)) consola.log(pc.dim(`  ↳ ${path}`));
   }
 
   const shadows = diagnostics

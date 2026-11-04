@@ -116,6 +116,7 @@ export default defineConfig({
     enable: true, // only matters without codex
     variation: "nested", // "nested" (default) | "concatenate" | "index"
     indexDir: ".agents/uac-instructions", // index variation only
+    keepOverrideFiles: false, // true: never warn about or offer to delete AGENTS.override.md files
   },
 });
 ```
@@ -129,7 +130,7 @@ export default defineConfig({
 - **Ownership:** generate overwrites every `AGENTS.md` it writes, root and nested, like any other output; `uac clean` (for codex, or any reader when `enable` is set) removes every `AGENTS.md` in the project plus the index dir. Keep a hand-written one with [`preserveOnClean`](#preserving-files-from-clean).
 - **Switching** targets or variations leaves the old layout behind — run `uac generate --clean`.
 - **Warnings:** a folder chain over 32 KiB (Codex silently cuts the rest — try `index`), a `CLAUDE.md` that hides `AGENTS.md` from Claude, and globs no folder layout can express (negated, `..`).
-- `AGENTS.override.md` is no longer generated: Codex never loads it in a root launch, and it hides a same-folder `AGENTS.md`. `uac clean` removes old ones.
+- `AGENTS.override.md` is no longer generated: Codex never loads it in a root launch, and it hides a same-folder `AGENTS.md`. `uac generate` and `uac clean` list leftover ones and, in a terminal, ask to delete them. Set `keepOverrideFiles: true` if yours are hand-written.
 
 ## Template Structure
 
@@ -1084,7 +1085,11 @@ Removes everything the given targets generate (all registered targets if omitted
 | `agentsMd`               | `{ enable?, indexDir? }`          | With `enable`, cleaning any AGENTS.md reader removes the `AGENTS.md` files |
 | `onPreserve`             | `(path: string) => void`          | Called per existing path that `preserveOnClean` spared                     |
 
-Unlike the CLI, this function does not load your config file — pass these from `loadProjectConfig()` if you need them honored.
+Unlike the CLI, this function does not load your config file — pass these from `loadProjectConfig()` if you need them honored. It never removes `AGENTS.override.md` files.
+
+### `findAgentsOverrideFiles(root, options?)` / `removeAgentsOverrideFiles(root, paths)`
+
+The API side of the CLI's question about leftover `AGENTS.override.md` files. `findAgentsOverrideFiles` returns them root-relative (none when `agentsMd.keepOverrideFiles` is set; template inputs and `preserveOnClean` paths left out) and takes `templatesDir`, `additionalTemplateDirs`, `preserveOnClean` and `agentsMd`, so a `ResolvedConfig` works as is. `removeAgentsOverrideFiles` deletes the paths you pass and returns those it removed. `generateProject()` reports the same files as an `agents-override-present` diagnostic.
 
 ### `loadProjectConfig(options?)`
 

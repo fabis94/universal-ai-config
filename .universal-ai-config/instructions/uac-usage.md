@@ -32,7 +32,7 @@ It works from any subdirectory — uac searches upward for the project root. `--
 - `exclude` — skip templates by input path (per-target allowed).
 - `preserveOnClean` — output paths `uac clean` must never delete.
 - `mcp` — opt-in filtering of MCP servers by name.
-- `agentsMd` — AGENTS.md output (`enable`, `variation`, `indexDir`); always on with codex, and then Claude/Cursor/Copilot use it instead of their own instruction files.
+- `agentsMd` — AGENTS.md output (`enable`, `variation`, `indexDir`, `keepOverrideFiles`); always on with codex, and then Claude/Cursor/Copilot use it instead of their own instruction files.
 
 `universal-ai-config.overrides.ts` (gitignored) is merged over the config for local settings. Arrays there replace the base value; use `mergeField` to concatenate.
 

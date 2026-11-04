@@ -43,6 +43,11 @@ export interface DiagnosticDetails {
   "claude-md-present": { files: string[] };
   /** A folder's AGENTS.md chain is over Codex's combined budget. */
   "agents-md-size": { files: string[]; bytes: number; limit: number };
+  /**
+   * AGENTS.override.md files, probably left by uac 2.x, that hide a
+   * same-folder AGENTS.md from Codex. Silenced by `agentsMd.keepOverrideFiles`.
+   */
+  "agents-override-present": { paths: string[] };
   /** A glob that can't be expressed by AGENTS.md routing. */
   "agents-md-glob": { template: string; glob: string; reason: "negated" | "parent-segment" };
   /** A template type, hook handler type, hook event or field a target can't express. */

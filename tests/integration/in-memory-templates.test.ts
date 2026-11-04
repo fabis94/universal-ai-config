@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { generate } from "../../src/core/generate/index.js";
 import { expectYamlField, text } from "../test-helpers.js";
@@ -233,13 +235,14 @@ describe("in-memory templates", () => {
       },
     ];
 
-    // Use a root that has no .universal-ai-config/ directory
+    // A root that has no .universal-ai-config/ directory
+    const root = await mkdtemp(join(tmpdir(), "uac-in-memory-"));
     const files = await generate({
-      root: "/tmp",
+      root,
       targets: ["claude"],
       types: ["instructions"],
       templates,
-    });
+    }).finally(() => rm(root, { recursive: true, force: true }));
 
     expect(files).toHaveLength(1);
     const rule = files[0];

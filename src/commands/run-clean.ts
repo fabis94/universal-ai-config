@@ -1,7 +1,14 @@
 import { consola } from "consola";
 import { loadProjectConfig } from "../config/loader.js";
+import {
+  agentsOverrideDiagnostic,
+  findAgentsOverrideFiles,
+} from "../core/clean/agents-overrides.js";
 import { cleanTargetFiles } from "../core/clean/index.js";
+import { DiagnosticSink } from "../core/diagnostics.js";
 import type { Target, TemplateType } from "../types.js";
+import { offerAgentsOverrideRemoval } from "./agents-overrides.js";
+import { printDiagnostics } from "./report.js";
 
 interface RunCleanOptions {
   root: string;
@@ -12,6 +19,11 @@ interface RunCleanOptions {
   configPath?: string;
   verbose?: boolean;
   dryRun?: boolean;
+  /**
+   * Warn about leftover AGENTS.override.md files and offer to delete them
+   * (default true). `generate --clean` turns it off: generate asks itself.
+   */
+  askAboutOverrideFiles?: boolean;
 }
 
 /**
@@ -23,7 +35,7 @@ interface RunCleanOptions {
  * you've since dropped from your config. Narrow it with `--target`.
  */
 export async function runClean(options: RunCleanOptions): Promise<string[]> {
-  const { root, targets, types, configPath, verbose, dryRun } = options;
+  const { root, targets, types, configPath, verbose, dryRun = false } = options;
   const config = await loadProjectConfig({ root, configPath });
 
   const preserved: string[] = [];
@@ -43,13 +55,22 @@ export async function runClean(options: RunCleanOptions): Promise<string[]> {
   if (verbose) {
     for (const path of cleaned) consola.info(`${verb} ${path}`);
     for (const path of preserved.sort()) consola.info(`Preserved ${path}`);
-    return cleaned;
+  } else {
+    if (cleaned.length > 0) consola.info(`${verb} ${cleaned.length} existing path(s)`);
+    if (preserved.length > 0) {
+      consola.info(`Preserved ${preserved.length} path(s) via \`preserveOnClean\`:`);
+      for (const path of preserved.sort()) consola.log(`  ${path}`);
+    }
   }
 
-  if (cleaned.length > 0) consola.info(`${verb} ${cleaned.length} existing path(s)`);
-  if (preserved.length > 0) {
-    consola.info(`Preserved ${preserved.length} path(s) via \`preserveOnClean\`:`);
-    for (const path of preserved.sort()) consola.log(`  ${path}`);
+  if ((options.askAboutOverrideFiles ?? true) && (!types || types.includes("instructions"))) {
+    const overrides = await findAgentsOverrideFiles(root, config);
+    if (overrides.length > 0) {
+      const sink = new DiagnosticSink();
+      sink.report(agentsOverrideDiagnostic(overrides));
+      printDiagnostics(sink.items, { verbose: false, allTargets: new Set() });
+      await offerAgentsOverrideRemoval(root, overrides, { dryRun });
+    }
   }
   return cleaned;
 }

@@ -278,8 +278,12 @@ describe("agentsMd config", () => {
     });
   });
 
-  it("rejects an unknown variation", () => {
+  it("validates variation and keepOverrideFiles", () => {
     expect(() => userConfigSchema.parse({ agentsMd: { variation: "flat" } })).toThrow();
+    expect(() => userConfigSchema.parse({ agentsMd: { keepOverrideFiles: "yes" } })).toThrow();
+    expect(userConfigSchema.parse({ agentsMd: { keepOverrideFiles: true } }).agentsMd).toEqual({
+      keepOverrideFiles: true,
+    });
   });
 
   const invalid: Array<[string, string]> = [

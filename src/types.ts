@@ -82,6 +82,12 @@ export interface AgentsMdConfig {
   variation?: AgentsMdVariation;
   /** Where the `index` variation writes scoped instructions. Default: `.agents/uac-instructions`. */
   indexDir?: string;
+  /**
+   * The project's `AGENTS.override.md` files are yours. uac 2.x generated them
+   * for Codex; by default generate and clean warn about any they find and
+   * offer to delete them. With `true` uac never warns about or deletes them.
+   */
+  keepOverrideFiles?: boolean;
 }
 
 export interface MCPConfig {
@@ -109,6 +115,7 @@ export interface ResolvedAgentsMdConfig {
   enable?: boolean;
   variation: AgentsMdVariation;
   indexDir: string;
+  keepOverrideFiles?: boolean;
 }
 
 export interface GeneratedFile {

@@ -15,7 +15,7 @@ Codex writes to several locations, most of them outside its `outputDir`, because
 - **`.codex/hooks.json`** — hooks
 - **`.codex/config.toml`** — only the `mcp_servers` table is uac's; every other key in the file is yours and is preserved
 
-uac 2.x wrote `<dir>/AGENTS.override.md` files instead of nested `AGENTS.md`. Run `uac generate --clean` once after upgrading: clean removes every legacy override file (Codex would read one instead of the new `AGENTS.md` in the same folder).
+uac 2.x wrote `<dir>/AGENTS.override.md` files instead of nested `AGENTS.md`. Codex reads one instead of the new `AGENTS.md` in the same folder, so `uac generate` and `uac clean` list any they find and, in a terminal, ask to delete them (see [cli.md](cli.md#leftover-agentsoverridemd-files)). Set `agentsMd.keepOverrideFiles: true` if yours are hand-written.
 
 All of these are gitignored by `uac seed gitignore` (every `AGENTS.md`, nested ones included), so each developer regenerates locally. Clean removes uac's Codex output whole — every `AGENTS.md` in the project, the index dir, `.agents/skills/`, `.codex/agents/`, `.codex/hooks.json` — except the `mcp_servers` key of `.codex/config.toml`. If you deliberately commit a file at one of these paths, add it to `preserveOnClean`.
 

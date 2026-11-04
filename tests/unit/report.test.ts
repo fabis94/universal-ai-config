@@ -103,6 +103,23 @@ describe("printDiagnostics", () => {
     expect(lines[index + 1]).not.toContain("↳");
   });
 
+  it("lists the files a leftover-override warning is about below it", () => {
+    const lines = capture([
+      {
+        code: "agents-override-present",
+        severity: "warn",
+        type: "instructions",
+        message: "Found 2 AGENTS.override.md files",
+        detail: { paths: ["a/AGENTS.override.md", "b/AGENTS.override.md"] },
+      },
+    ]);
+    expect(lines[0]).toBe("warn: [uac] Found 2 AGENTS.override.md files");
+    expect(lines.slice(1)).toEqual([
+      expect.stringMatching(/^log: .*↳ a\/AGENTS\.override\.md/),
+      expect.stringMatching(/^log: .*↳ b\/AGENTS\.override\.md/),
+    ]);
+  });
+
   it("prints other warnings one by one and counts info", () => {
     const lines = capture([
       {

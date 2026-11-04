@@ -11,6 +11,10 @@ export type {
 } from "./core/plan/build-plan.js";
 export { writeGeneratedFiles } from "./core/writer.js";
 export { cleanTargetFiles } from "./core/clean/index.js";
+export {
+  findAgentsOverrideFiles,
+  removeAgentsOverrideFiles,
+} from "./core/clean/agents-overrides.js";
 export { fetchSkills, installSkill } from "./core/add-skill.js";
 export { parseSkillSource } from "./core/skill-source.js";
 export { discoverSkills, filterSkillsByName, normalizeSkillName } from "./core/skill-discovery.js";
@@ -40,6 +44,7 @@ export type {
 } from "./types.js";
 export type { WriteReport } from "./core/writer.js";
 export type { CleanOptions } from "./core/clean/index.js";
+export type { AgentsOverrideOptions } from "./core/clean/agents-overrides.js";
 export type {
   Diagnostic,
   DiagnosticCode,

@@ -11,13 +11,6 @@ import { orderSections, renderFile } from "./render.js";
 
 export { AGENTS_MD, primaryFile, type AgentsMdEntry } from "./layout.js";
 
-/**
- * Basename of the per-folder files uac 2.x wrote for Codex. Codex never loads
- * them in a root launch and they hide a same-folder AGENTS.md, so clean
- * always removes them.
- */
-export const LEGACY_CODEX_OVERRIDE = "AGENTS.override.md";
-
 /** Codex reads at most this many bytes of AGENTS.md per folder chain and drops the rest silently. */
 const CODEX_AGENTS_MD_LIMIT = 32 * 1024;
 

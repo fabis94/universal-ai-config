@@ -1,4 +1,5 @@
 import { loadProjectConfig } from "../../config/loader.js";
+import { agentsOverrideDiagnostic, findAgentsOverrideFiles } from "../clean/agents-overrides.js";
 import { DiagnosticSink, printDiagnostic, type Diagnostic } from "../diagnostics.js";
 import { buildPlan, type OutputPlan } from "../plan/build-plan.js";
 import { createLocator } from "../plan/locate.js";
@@ -146,6 +147,12 @@ export async function generateProject(options: GenerateOptions = {}): Promise<Ge
     if ((await discoverJsonFiles(root, config, type)).size > 0) typesWithTemplates.add(type);
   }
   reportServedBy(run, plan, typesWithTemplates);
+
+  // uac 2.x's Codex output: a leftover one hides the AGENTS.md uac now writes
+  if (config.types.includes("instructions")) {
+    const overrides = await findAgentsOverrideFiles(root, config);
+    if (overrides.length > 0) sink.report(agentsOverrideDiagnostic(overrides));
+  }
   return { files: assertNoPathCollisions(files), diagnostics: sink.items, plan };
 }
 

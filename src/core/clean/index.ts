@@ -1,5 +1,5 @@
 import { readFile, readdir, rm, rmdir, stat, writeFile } from "node:fs/promises";
-import { isAbsolute, join, relative } from "node:path";
+import { join } from "node:path";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { targets } from "../../targets/index.js";
 import type { TargetDefinition } from "../../targets/define-target.js";
@@ -8,9 +8,9 @@ import { createPreserveMatcher } from "../preserve-on-clean.js";
 import { safePath } from "../safe-path.js";
 import { listFilesRecursive } from "../scan-files.js";
 import { parseToml, stringifyToml } from "../toml.js";
-import { resolveSourceDir } from "../template-sources.js";
+import { AGENTS_MD } from "../agents-md/index.js";
 import type { PerTargetValue, Target, TemplateType } from "../../types.js";
-import { findAgentsFiles } from "./agents-files.js";
+import { findFilesOutsideInputs, templateDirsWithin } from "./agents-files.js";
 import { ownedEntries, type CleanEntry } from "./entries.js";
 import { legacyEntries } from "./legacy.js";
 
@@ -165,20 +165,6 @@ function ownsAgentsMd(target: Target, options?: CleanOptions): boolean {
   return options?.agentsMd?.enable === true && readsAgentsMd(definition);
 }
 
-/** Template dirs inside the project, as root-relative POSIX paths. */
-function templateDirsIn(root: string, options?: CleanOptions): string[] {
-  const dirs = [
-    options?.templatesDir ?? DEFAULT_CONFIG.templatesDir,
-    ...(options?.additionalTemplateDirs ?? []),
-  ];
-  return dirs.flatMap((dir) => {
-    const rel = relative(root, resolveSourceDir(root, dir));
-    if (rel === "") return ["."];
-    if (rel.startsWith("..") || isAbsolute(rel)) return [];
-    return [toPosixPath(rel)];
-  });
-}
-
 /**
  * Remove generated artifacts for a set of targets.
  *
@@ -228,14 +214,18 @@ export async function cleanTargetFiles(
 
   // AGENTS.md files: root and nested ones sit wherever folder-scoped
   // instructions pointed, so a scan finds them (including ones a template
-  // no longer derives). Legacy AGENTS.override.md files from uac 2.x go too.
+  // no longer derives). Legacy AGENTS.override.md files are not removed here:
+  // see findAgentsOverrideFiles().
   const owners = targetList.filter((target) => ownsAgentsMd(target, options));
   if (owners.length > 0 && includesType("instructions")) {
     const ctx = contextFor(
       owners.map((target) => createPreserveMatcher(options?.preserveOnClean, target)),
     );
-    const found = await findAgentsFiles(root, templateDirsIn(root, options));
-    for (const rel of [...found.agentsMd, ...found.overrides]) {
+    const templateDirs = templateDirsWithin(root, [
+      options?.templatesDir ?? DEFAULT_CONFIG.templatesDir,
+      ...(options?.additionalTemplateDirs ?? []),
+    ]);
+    for (const rel of await findFilesOutsideInputs(root, AGENTS_MD, templateDirs)) {
       for (const path of await removePath(rel, ctx)) removed.add(path);
     }
     const indexDir = toPosixPath(options?.agentsMd?.indexDir ?? DEFAULT_CONFIG.agentsMd.indexDir);

@@ -74,13 +74,4 @@ describe("clean -t is the set being cleaned (CLI)", () => {
     });
     expect(await p.read(".codex/config.toml")).toBe('model = "gpt-6.1-sol"\n');
   });
-
-  it("skips override files inside the templates dir's input folders", async () => {
-    const p = await project();
-    await p.write(".universal-ai-config/skills/x/AGENTS.override.md", "template input");
-    await p.write("pkg/AGENTS.override.md");
-    await p.run("clean");
-    expect(await p.exists(".universal-ai-config/skills/x/AGENTS.override.md")).toBe(true);
-    expect(await p.exists("pkg/AGENTS.override.md")).toBe(false);
-  });
 });
