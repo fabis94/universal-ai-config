@@ -398,7 +398,7 @@ describe("generate", () => {
       });
     });
 
-    it("generates copilot hooks with bash field", async () => {
+    it("generates copilot hooks with the cross-platform command field", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
@@ -410,10 +410,11 @@ describe("generate", () => {
       expect(hooks!.path).toBe(".github/hooks/hooks.json");
 
       const parsed = JSON.parse(hooks!.content);
-      expect(parsed.version).toBe("1");
+      expect(parsed.version).toBe(1);
       expect(parsed.hooks.postToolUse[0]).toEqual({
         type: "command",
-        bash: ".hooks/lint.sh",
+        command: ".hooks/lint.sh",
+        matcher: "Write|Edit",
         timeoutSec: 30,
       });
     });

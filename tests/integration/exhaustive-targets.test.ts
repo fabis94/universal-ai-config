@@ -64,7 +64,7 @@ describe("exhaustive per-target field coverage", () => {
       expectYamlField(c, "shell", "bash");
     });
 
-    it("copilot: does not emit claude-only skill fields", async () => {
+    it("copilot: emits allowed-tools, not the claude-only skill fields", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
@@ -74,9 +74,9 @@ describe("exhaustive per-target field coverage", () => {
       const skill = files.find((f) => f.type === "skills" && f.target === "copilot");
       expect(skill).toBeDefined();
       const c = skill!.content;
+      expect(c).toContain("allowed-tools:");
       expect(c).not.toContain("when_to_use:");
       expect(c).not.toContain("arguments:");
-      expect(c).not.toContain("allowed-tools:");
       expect(c).not.toContain("agent:");
     });
 
@@ -118,7 +118,7 @@ describe("exhaustive per-target field coverage", () => {
       expect(c).toContain("Start with a status report");
     });
 
-    it("copilot: does not emit claude-only agent fields", async () => {
+    it("copilot: maps effort to reasoning-effort, and emits no claude-only agent fields", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
@@ -128,15 +128,15 @@ describe("exhaustive per-target field coverage", () => {
       const agent = files.find((f) => f.type === "agents" && f.target === "copilot");
       expect(agent).toBeDefined();
       const c = agent!.content;
+      expectYamlField(c, "reasoning-effort", "high");
+      expect(c).not.toMatch(/^effort:/m);
       expect(c).not.toContain("maxTurns:");
       expect(c).not.toContain("background:");
-      expect(c).not.toContain("effort:");
       expect(c).not.toContain("isolation:");
       expect(c).not.toContain("color:");
       expect(c).not.toContain("initialPrompt:");
       expect(c).not.toContain("disallowedTools:");
       expect(c).not.toContain("permissionMode:");
-      expect(c).not.toContain("skills:");
       expect(c).not.toContain("memory:");
     });
   });

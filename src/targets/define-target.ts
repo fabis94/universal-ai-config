@@ -31,7 +31,11 @@ export interface PathContext {
  */
 export type FrontmatterMapper =
   | string
-  | ((value: unknown, allFrontmatter: UniversalFrontmatter) => Record<string, unknown>);
+  | ((
+      value: unknown,
+      allFrontmatter: UniversalFrontmatter,
+      ctx: TargetContext,
+    ) => Record<string, unknown>);
 
 /**
  * How frontmatter is serialized.

@@ -40,7 +40,7 @@ describe("hook handler types per target", () => {
     const { json, unsupported } = await run("copilot");
     const pre = (json.hooks as Record<string, Array<Record<string, unknown>>>).preToolUse!;
     expect(pre.map((h) => h.type)).toEqual(["command", "http"]);
-    expect(pre[0]!.bash).toBe("node guard.js --mode 'strict mode'");
+    expect(pre[0]!.command).toBe("node guard.js --mode 'strict mode'");
     expect(pre[1]).toEqual({ type: "http", url: "https://hooks.example.com/pre" });
     expect((json.hooks as Record<string, Array<Record<string, unknown>>>).sessionStart).toEqual([
       { type: "prompt", prompt: "Say hi" },

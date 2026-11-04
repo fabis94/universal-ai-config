@@ -115,8 +115,11 @@ describe("copilot target", () => {
       expect(mapper(false)).toEqual({});
     });
 
+    it("maps allowedTools to allowed-tools", () => {
+      expect(config.frontmatterMap.allowedTools).toBe("allowed-tools");
+    });
+
     it("does not map claude-only skill fields", () => {
-      expect(config.frontmatterMap).not.toHaveProperty("allowedTools");
       expect(config.frontmatterMap).not.toHaveProperty("model");
       expect(config.frontmatterMap).not.toHaveProperty("subagentType");
       expect(config.frontmatterMap).not.toHaveProperty("hooks");
@@ -131,49 +134,94 @@ describe("copilot target", () => {
   describe("agents", () => {
     const config = copilot.agents!;
 
-    it("maps name and description directly", () => {
-      expect(config.frontmatterMap.name).toBe("name");
-      expect(config.frontmatterMap.description).toBe("description");
+    it("maps the Copilot-harness fields with the CLI's kebab-case keys", () => {
+      const { ctx, diagnostics } = collectingContext();
+      expect(
+        mapFrontmatter(
+          {
+            name: "reviewer",
+            description: "Reviews",
+            model: "gpt-6.1-sol",
+            tools: ["read", "edit"],
+            target: "github-copilot",
+            mcpServers: { s: { command: "x" } },
+            userInvocable: true,
+            disableAutoInvocation: false,
+            hooks: { stop: [] },
+            skills: ["deploy"],
+            effort: "high",
+            modelPolicy: "required",
+            metadata: { team: "core" },
+            includeCustomInstructions: true,
+            deferredToolLoading: true,
+            strictToolsList: false,
+            github: { permissions: { contents: "read" } },
+          },
+          config,
+          ctx,
+        ),
+      ).toEqual({
+        name: "reviewer",
+        description: "Reviews",
+        model: "gpt-6.1-sol",
+        tools: ["read", "edit"],
+        target: "github-copilot",
+        "mcp-servers": { s: { command: "x" } },
+        "user-invocable": true,
+        "disable-model-invocation": false,
+        hooks: { stop: [] },
+        skills: ["deploy"],
+        "reasoning-effort": "high",
+        "model-policy": "required",
+        metadata: { team: "core" },
+        "include-custom-instructions": true,
+        "deferred-tool-loading": true,
+        "strict-tools-list": false,
+        github: { permissions: { contents: "read" } },
+      });
+      expect(diagnostics).toEqual([]);
     });
 
-    it("maps model and tools directly", () => {
-      expect(config.frontmatterMap.model).toBe("model");
-      expect(config.frontmatterMap.tools).toBe("tools");
+    it("drops Local-harness-only fields with a legacy-field warning", () => {
+      const { ctx, diagnostics } = collectingContext();
+      expect(
+        mapFrontmatter(
+          {
+            handoffs: [{ label: "Go", agent: "x", prompt: "p" }],
+            subAgents: ["helper"],
+            argumentHint: "<file>",
+          },
+          config,
+          ctx,
+        ),
+      ).toEqual({});
+      expect(diagnostics.map((d) => (d.detail as { field: string }).field)).toEqual([
+        "handoffs",
+        "agents",
+        "argument-hint",
+      ]);
     });
 
-    it("maps target and handoffs directly", () => {
-      expect(config.frontmatterMap.target).toBe("target");
-      expect(config.frontmatterMap.handoffs).toBe("handoffs");
-    });
-
-    it("maps mcpServers to mcp-servers", () => {
-      expect(config.frontmatterMap.mcpServers).toBe("mcp-servers");
-    });
-
-    it("maps argumentHint, userInvocable, disableAutoInvocation, subAgents, hooks", () => {
-      expect(config.frontmatterMap.argumentHint).toBe("argument-hint");
-      expect(config.frontmatterMap.userInvocable).toBe("user-invocable");
-      expect(config.frontmatterMap.disableAutoInvocation).toBe("disable-model-invocation");
-      expect(config.frontmatterMap.subAgents).toBe("agents");
-      expect(config.frontmatterMap.hooks).toBe("hooks");
+    it("drops a target that isn't an editor schema", () => {
+      const { ctx, diagnostics } = collectingContext();
+      expect(mapFrontmatter({ target: "anything" as "vscode" }, config, ctx)).toEqual({});
+      expect(diagnostics.map((d) => d.code)).toEqual(["suspicious-value"]);
     });
 
     it("does not map claude-only agent fields", () => {
-      expect(config.frontmatterMap).not.toHaveProperty("maxTurns");
-      expect(config.frontmatterMap).not.toHaveProperty("background");
-      expect(config.frontmatterMap).not.toHaveProperty("effort");
-      expect(config.frontmatterMap).not.toHaveProperty("isolation");
-      expect(config.frontmatterMap).not.toHaveProperty("color");
-      expect(config.frontmatterMap).not.toHaveProperty("initialPrompt");
-      expect(config.frontmatterMap).not.toHaveProperty("memory");
-      expect(config.frontmatterMap).not.toHaveProperty("disallowedTools");
-      expect(config.frontmatterMap).not.toHaveProperty("permissionMode");
-      expect(config.frontmatterMap).not.toHaveProperty("skills");
+      for (const field of [
+        "disallowedTools",
+        "permissionMode",
+        "memory",
+        "maxTurns",
+        "background",
+      ]) {
+        expect(config.frontmatterMap).not.toHaveProperty(field);
+      }
     });
 
     it("generates correct output path with .agent.md extension", () => {
-      const fm: UniversalFrontmatter = {};
-      expect(config.outputPath("reviewer", fm, { outputDir: ".github" })).toBe(
+      expect(config.outputPath("reviewer", {}, { outputDir: ".github" })).toBe(
         ".github/agents/reviewer.agent.md",
       );
     });
@@ -181,95 +229,132 @@ describe("copilot target", () => {
 
   describe("hooks", () => {
     const config = copilot.hooks!;
+    const transform = (hooks: Record<string, UniversalHookHandler[]>) =>
+      config.transform(hooks, collectingContext().ctx) as {
+        version: unknown;
+        hooks: Record<string, Array<Record<string, unknown>>>;
+      };
 
-    it("has correct output path and no merge key", () => {
+    it("writes .github/hooks/hooks.json with no merge key", () => {
       expect(config.outputPath({ outputDir: ".github" })).toBe(".github/hooks/hooks.json");
       expect(config.mergeKey).toBeUndefined();
     });
 
-    it("maps command to bash field", () => {
-      const hooks: Record<string, UniversalHookHandler[]> = {
-        preToolUse: [{ command: "test.sh", timeout: 30 }],
-      };
-      const result = config.transform(hooks, ctx) as {
-        version: string;
-        hooks: Record<string, unknown[]>;
-      };
-      expect(result.version).toBe("1");
-      expect(result.hooks.preToolUse[0]).toEqual({
-        type: "command",
-        bash: "test.sh",
-        timeoutSec: 30,
-      });
+    it("writes the number 1 as version (Copilot rejects the file otherwise)", () => {
+      expect(transform({}).version).toBe(1);
     });
 
-    it("maps userPromptSubmit to userPromptSubmitted", () => {
-      const hooks: Record<string, UniversalHookHandler[]> = {
-        userPromptSubmit: [{ command: "validate.sh" }],
-      };
-      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
-      expect(result.hooks).toHaveProperty("userPromptSubmitted");
-      expect(result.hooks).not.toHaveProperty("userPromptSubmit");
+    it("maps every universal event Copilot runs", () => {
+      const events = [
+        "sessionStart",
+        "sessionEnd",
+        "userPromptSubmit",
+        "preToolUse",
+        "postToolUse",
+        "postToolUseFailure",
+        "stop",
+        "subagentStart",
+        "subagentStop",
+        "preCompact",
+        "permissionRequest",
+        "notification",
+        "errorOccurred",
+        "userPromptTransformed",
+        "preMcpToolCall",
+        "postResult",
+        "prePRDescription",
+      ];
+      const result = transform(Object.fromEntries(events.map((e) => [e, [{ command: "x" }]])));
+      expect(Object.keys(result.hooks)).toEqual([
+        "sessionStart",
+        "sessionEnd",
+        "userPromptSubmitted",
+        "preToolUse",
+        "postToolUse",
+        "postToolUseFailure",
+        "agentStop",
+        "subagentStart",
+        "subagentStop",
+        "preCompact",
+        "permissionRequest",
+        "notification",
+        "errorOccurred",
+        "userPromptTransformed",
+        "preMcpToolCall",
+        "postResult",
+        "prePRDescription",
+      ]);
     });
 
-    it("drops unsupported events", () => {
-      const hooks: Record<string, UniversalHookHandler[]> = {
-        preToolUse: [{ command: "test.sh" }],
-        stop: [{ command: "stop.sh" }],
-        subagentStart: [{ command: "agent.sh" }],
-      };
-      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
-      expect(result.hooks).toHaveProperty("preToolUse");
-      expect(result.hooks).not.toHaveProperty("stop");
-      expect(result.hooks).not.toHaveProperty("subagentStart");
+    it("drops events Copilot doesn't have", () => {
+      expect(transform({ setup: [{ command: "x" }] }).hooks).toEqual({});
     });
 
-    it("drops matcher field", () => {
-      const hooks: Record<string, UniversalHookHandler[]> = {
-        preToolUse: [{ matcher: "Bash", command: "test.sh" }],
-      };
-      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
-      const handler = result.hooks.preToolUse[0] as Record<string, unknown>;
-      expect(handler).not.toHaveProperty("matcher");
-    });
-
-    it("maps all six supported events", () => {
-      const hooks: Record<string, UniversalHookHandler[]> = {
-        sessionStart: [{ command: "a.sh" }],
-        sessionEnd: [{ command: "a.sh" }],
-        userPromptSubmit: [{ command: "a.sh" }],
-        preToolUse: [{ command: "a.sh" }],
-        postToolUse: [{ command: "a.sh" }],
-        errorOccurred: [{ command: "a.sh" }],
-      };
-      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
-      expect(result.hooks).toHaveProperty("sessionStart");
-      expect(result.hooks).toHaveProperty("sessionEnd");
-      expect(result.hooks).toHaveProperty("userPromptSubmitted");
-      expect(result.hooks).toHaveProperty("preToolUse");
-      expect(result.hooks).toHaveProperty("postToolUse");
-      expect(result.hooks).toHaveProperty("errorOccurred");
-    });
-
-    it("produces flat handler list (no matcher grouping)", () => {
-      const hooks: Record<string, UniversalHookHandler[]> = {
+    it("writes the cross-platform command with args folded in, plus matcher, cwd, env and timeoutSec", () => {
+      const result = transform({
         preToolUse: [
-          { matcher: "Bash", command: "check.sh" },
-          { matcher: "Edit", command: "lint.sh" },
+          {
+            command: "node",
+            args: ["guard.js", "a b"],
+            matcher: "bash|edit",
+            cwd: "scripts",
+            env: { MODE: "strict" },
+            timeout: 10,
+          },
         ],
-      };
-      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
-      // flat array of handlers, not nested by matcher
-      expect(result.hooks.preToolUse).toHaveLength(2);
-      const first = result.hooks.preToolUse[0] as Record<string, unknown>;
-      expect(first).not.toHaveProperty("hooks"); // not the Claude nested shape
-      expect(first.bash).toBe("check.sh");
+      });
+      expect(result.hooks.preToolUse).toEqual([
+        {
+          type: "command",
+          command: "node guard.js 'a b'",
+          cwd: "scripts",
+          env: { MODE: "strict" },
+          matcher: "bash|edit",
+          timeoutSec: 10,
+        },
+      ]);
     });
 
-    it("always wraps output in version + hooks keys", () => {
-      const result = config.transform({}, ctx) as Record<string, unknown>;
-      expect(result.version).toBe("1");
-      expect(result).toHaveProperty("hooks");
+    it("emits a flat handler list (no matcher grouping)", () => {
+      const result = transform({
+        preToolUse: [
+          { command: "a", matcher: "bash" },
+          { command: "b", matcher: "bash" },
+        ],
+      });
+      expect(result.hooks.preToolUse).toHaveLength(2);
+    });
+
+    it("emits http handlers, and prompt handlers on sessionStart only", () => {
+      const { ctx, diagnostics } = collectingContext();
+      const result = config.transform(
+        {
+          preToolUse: [
+            {
+              type: "http",
+              url: "https://x",
+              headers: { A: "b" },
+              allowedEnvVars: ["T"],
+              timeout: 5,
+            },
+          ],
+          sessionStart: [{ type: "prompt", prompt: "hi" }],
+          stop: [{ type: "prompt", prompt: "bye" }],
+        },
+        ctx,
+      ) as { hooks: Record<string, unknown[]> };
+      expect(result.hooks.preToolUse).toEqual([
+        {
+          type: "http",
+          url: "https://x",
+          headers: { A: "b" },
+          allowedEnvVars: ["T"],
+          timeoutSec: 5,
+        },
+      ]);
+      expect(result.hooks.sessionStart).toEqual([{ type: "prompt", prompt: "hi" }]);
+      expect(result.hooks).not.toHaveProperty("agentStop");
+      expect(diagnostics.map((d) => d.code)).toEqual(["unsupported"]);
     });
   });
 

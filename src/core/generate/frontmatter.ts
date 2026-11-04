@@ -1,11 +1,16 @@
 import { stringify as stringifyYAML } from "yaml";
-import type { FrontmatterStyle, TemplateTypeConfig } from "../../targets/define-target.js";
+import type {
+  FrontmatterStyle,
+  TargetContext,
+  TemplateTypeConfig,
+} from "../../targets/define-target.js";
 import type { UniversalFrontmatter } from "../../types.js";
 
 /** Transform universal frontmatter keys into a target's keys via its `frontmatterMap`. */
 export function mapFrontmatter(
   universal: UniversalFrontmatter,
   typeConfig: Pick<TemplateTypeConfig, "frontmatterMap">,
+  ctx: TargetContext = { report: () => {} },
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [universalKey, mapper] of Object.entries(typeConfig.frontmatterMap)) {
@@ -15,7 +20,7 @@ export function mapFrontmatter(
     if (typeof mapper === "string") {
       result[mapper] = value;
     } else {
-      Object.assign(result, mapper(value, universal));
+      Object.assign(result, mapper(value, universal, ctx));
     }
   }
   return result;

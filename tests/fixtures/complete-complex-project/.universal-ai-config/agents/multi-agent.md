@@ -18,7 +18,7 @@ skills:
 memory:
   claude: project
 target:
-  copilot: "Review code for quality"
+  copilot: github-copilot
 mcpServers:
   copilot:
     github:

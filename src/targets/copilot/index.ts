@@ -1,4 +1,4 @@
-import { defineTarget, type TargetContext } from "../define-target.js";
+import { defineTarget, type FrontmatterMapper, type TargetContext } from "../define-target.js";
 import type {
   UniversalFrontmatter,
   UniversalHookHandler,
@@ -15,7 +15,21 @@ const EVENT_NAME_MAP: Record<string, string> = {
   userPromptSubmit: "userPromptSubmitted",
   preToolUse: "preToolUse",
   postToolUse: "postToolUse",
+  postToolUseFailure: "postToolUseFailure",
+  // The main agent finishing a turn — not sessionEnd
+  stop: "agentStop",
+  subagentStart: "subagentStart",
+  subagentStop: "subagentStop",
+  preCompact: "preCompact",
+  // permissionRequest and notification are CLI-only (not in the cloud agent)
+  permissionRequest: "permissionRequest",
+  notification: "notification",
   errorOccurred: "errorOccurred",
+  // Copilot-only events
+  userPromptTransformed: "userPromptTransformed",
+  preMcpToolCall: "preMcpToolCall",
+  postResult: "postResult",
+  prePRDescription: "prePRDescription",
 };
 
 /** Copilot runs prompt hooks only at session start. */
@@ -34,9 +48,13 @@ function transformCopilotHandler(h: UniversalHookHandler): Record<string, unknow
       entry.prompt = h.prompt;
       break;
     default:
-      // Copilot has no args array — fold args into the command string
-      entry.bash = flattenCommand(h.command ?? "", h.args);
+      // `command` is the cross-platform field (copied to bash and powershell).
+      // Copilot's exec + args are CLI-only, so args are folded into the string.
+      entry.command = flattenCommand(h.command ?? "", h.args);
+      if (h.cwd !== undefined) entry.cwd = h.cwd;
+      if (h.env !== undefined) entry.env = h.env;
   }
+  if (h.matcher !== undefined) entry.matcher = h.matcher;
   if (h.timeout !== undefined) entry.timeoutSec = h.timeout;
   return entry;
 }
@@ -66,7 +84,8 @@ function transformCopilotHooks(
     if (entries.length > 0) result[copilotEvent] = entries;
   }
 
-  return { version: "1", hooks: result };
+  // Copilot rejects the whole file unless version is the number 1
+  return { version: 1, hooks: result };
 }
 
 /** Fields only VS Code's legacy `.vscode/mcp.json` understood; the portable `.mcp.json` has none of them. */
@@ -137,6 +156,18 @@ function transformCopilotMCP(
     mcpServers[name] = entry;
   }
   return { mcpServers };
+}
+
+/** Drop a field only VS Code's Local harness accepts, with a warning. */
+function localHarnessOnly(field: string): FrontmatterMapper {
+  return (_value, _fm, { report }) => {
+    report({
+      code: "legacy-field",
+      message: `agent field "${field}" dropped: only VS Code's Local harness accepts it, and the default Copilot harness rejects agents that set it`,
+      detail: { field },
+    });
+    return {};
+  };
 }
 
 /** A mapper that emits nothing for always-on templates (they have no frontmatter in Copilot). */
@@ -231,6 +262,7 @@ export default defineTarget({
       compatibility: "compatibility",
       license: "license",
       metadata: "metadata",
+      allowedTools: "allowed-tools",
       forkContext: (value) => (value ? { context: "fork" } : {}),
     },
     outputPath: (name, _fm, { outputDir }) => `${outputDir}/skills/${name}/SKILL.md`,
@@ -244,14 +276,31 @@ export default defineTarget({
       description: "description",
       model: "model",
       tools: "tools",
-      target: "target",
+      target: (value, _fm, { report }) => {
+        if (value === "vscode" || value === "github-copilot") return { target: value };
+        report({
+          code: "suspicious-value",
+          message: `agent target "${String(value)}" isn't "vscode" or "github-copilot"; dropped`,
+          detail: { field: "target", value },
+        });
+        return {};
+      },
       mcpServers: "mcp-servers",
-      handoffs: "handoffs",
-      argumentHint: "argument-hint",
       userInvocable: "user-invocable",
       disableAutoInvocation: "disable-model-invocation",
-      subAgents: "agents",
       hooks: "hooks",
+      skills: "skills",
+      effort: "reasoning-effort",
+      modelPolicy: "model-policy",
+      metadata: "metadata",
+      includeCustomInstructions: "include-custom-instructions",
+      deferredToolLoading: "deferred-tool-loading",
+      strictToolsList: "strict-tools-list",
+      github: "github",
+      // VS Code Local-harness fields; the default Copilot harness rejects them
+      handoffs: localHarnessOnly("handoffs"),
+      subAgents: localHarnessOnly("agents"),
+      argumentHint: localHarnessOnly("argument-hint"),
     },
     outputPath: (name, _fm, { outputDir }) => `${outputDir}/agents/${name}.agent.md`,
     typeDir: ({ outputDir }) => `${outputDir}/agents`,

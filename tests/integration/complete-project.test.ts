@@ -135,7 +135,7 @@ describe("complete-project (all frontmatter fields)", () => {
       expect(c).toContain('context: "fork"');
 
       // Copilot doesn't map claude-specific fields
-      expect(c).not.toContain("allowed-tools");
+      expect(c).toContain("allowed-tools");
       expect(c).not.toContain("agent:");
       expect(c).not.toContain("hooks:");
     });
@@ -215,17 +215,16 @@ describe("complete-project (all frontmatter fields)", () => {
       expectYamlField(c, "description", "Manages project tasks and coordination");
       expectYamlField(c, "model", "opus");
       expect(c).toContain("tools:");
-      expectYamlField(c, "target", "Manage and coordinate project tasks");
+      expectYamlField(c, "target", "github-copilot");
       expect(c).toContain("mcp-servers:");
-      expect(c).toContain("handoffs:");
-
-      // Copilot now maps hooks for agents
       expect(c).toContain("hooks:");
+      expect(c).toContain("skills:");
+      // Local-harness only: dropped for the default Copilot harness
+      expect(c).not.toContain("handoffs:");
 
       // Copilot doesn't map claude-specific fields
       expect(c).not.toContain("disallowedTools:");
       expect(c).not.toContain("permissionMode:");
-      expect(c).not.toContain("skills:");
       expect(c).not.toContain("memory:");
     });
 
@@ -306,7 +305,7 @@ describe("complete-project (all frontmatter fields)", () => {
       expect(sessionStart.hooks[0].command).toBe(".hooks/load-env.sh");
     });
 
-    it("copilot: maps events, uses bash field, drops unsupported events", async () => {
+    it("copilot: maps events, uses the cross-platform command field, drops unsupported events", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
@@ -318,23 +317,22 @@ describe("complete-project (all frontmatter fields)", () => {
       expect(hooks!.path).toBe(".github/hooks/hooks.json");
 
       const parsed = JSON.parse(hooks!.content);
-      expect(parsed.version).toBe("1");
+      expect(parsed.version).toBe(1);
 
       const h = parsed.hooks;
-      // Copilot supports preToolUse, postToolUse, sessionStart
       expect(h).toHaveProperty("preToolUse");
       expect(h).toHaveProperty("postToolUse");
       expect(h).toHaveProperty("sessionStart");
-      // Copilot maps userPromptSubmit → userPromptSubmitted
+      // Copilot maps userPromptSubmit → userPromptSubmitted, stop → agentStop
       expect(h).toHaveProperty("userPromptSubmitted");
       expect(h).not.toHaveProperty("userPromptSubmit");
-      // Copilot does NOT support stop
+      expect(h).toHaveProperty("agentStop");
       expect(h).not.toHaveProperty("stop");
 
-      // Verify bash field
-      expect(h.preToolUse[0].bash).toBe(".hooks/block-rm.sh");
+      expect(h.preToolUse[0].command).toBe(".hooks/block-rm.sh");
+      expect(h.preToolUse[0]).not.toHaveProperty("bash");
       expect(h.preToolUse[0].timeoutSec).toBe(30);
-      expect(h.preToolUse[0]).not.toHaveProperty("matcher");
+      expect(h.preToolUse[0].matcher).toBe("Bash");
     });
 
     it("cursor: camelCase events, flat handlers, version 1", async () => {

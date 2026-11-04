@@ -197,7 +197,9 @@ export async function generateTemplateFiles(
             {
               path: outputPath,
               content: renderMarkdown(
-                mapFrontmatter(frontmatter, typeConfig),
+                mapFrontmatter(frontmatter, typeConfig, {
+                  report: sink.scoped(targetName, type),
+                }),
                 parsed.body,
                 typeConfig.frontmatterStyle,
               ),
