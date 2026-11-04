@@ -4,7 +4,8 @@ description: Validate uac's assumptions about supported AI tools (Claude Code, C
 userInvocable: true
 argumentHint: "[--tool <name>] [--feature <category>]"
 allowedTools:
-  claude: ["Read", "Grep", "Glob", "Bash", "WebFetch", "WebSearch", "Write", "AskUserQuestion"]
+  claude:
+    ["Read", "Grep", "Glob", "Bash", "WebFetch", "WebSearch", "Write", "AskUserQuestion", "Agent"]
 ---
 
 # Report Feature Changes
@@ -17,7 +18,7 @@ Compare uac's implementation against the latest upstream documentation for each 
 
 Parse `$ARGUMENTS`:
 
-- `--tool <name>` — restrict to one tool (`claude`, `copilot`, `cursor`). Defaults to all supported tools.
+- `--tool <name>` — restrict to one tool (`claude`, `copilot`, `cursor`, `codex`). Defaults to all supported tools.
 - `--feature <category>` — restrict to one Part 1 feature category from the reference (e.g. `hooks`, `mcp`, `frontmatter`, `tools`). Defaults to all categories.
 
 If no arguments are provided, ask the user with AskUserQuestion whether they want to validate everything (slow, thorough) or scope down to a single tool/feature first.
@@ -29,6 +30,7 @@ Read [upstream-validation-reference.md](upstream-validation-reference.md) — th
 - **Part 1** — the feature categories to validate (file locations, frontmatter, hooks, tools, MCP, permissions, models, etc.) and where each is implemented in uac (`src/targets/<tool>/index.ts`, etc.).
 - **Part 2** — per-tool documentation URLs grouped by tier. **Tier 1 is authoritative** (vendor reference docs). Tier 2 is for dating changes (changelogs). Tier 3 is community/supporting evidence only.
 - **Part 5** — known documentation quality caveats (beta-API churn, in-product-only docs, vendor terminology drift, multiple doc surfaces).
+- **Part 6** — how to investigate a tool's internals (isolated install, headless runs, where to see what was loaded, how to read its shipped code) when the docs don't settle a question.
 
 Treat this reference as the source of truth for _what to check and where to look_. Do not invent new URLs — if a needed doc page is missing from the reference, note it as a gap in the final report.
 
@@ -62,6 +64,16 @@ For each (tool × feature category) pair in scope:
    - Conflicting vendor surfaces (e.g. Copilot's `docs.github.com` vs `code.visualstudio.com`) → note the conflict and pick the surface that matches the behavior being checked.
 
 If WebFetch fails for a URL (network error, 404, rate limit), record the URL as unreachable in the report rather than silently skipping the category.
+
+### When the docs don't settle it
+
+Some questions are about runtime behavior: which files get discovered, what triggers loading, precedence, dedupe, size limits. If the docs are vague on one of these, contradict each other, or contradict the changelog, and a finding depends on the answer, investigate the tool directly following Part 6 of the reference.
+
+- **Subagents:** spawn one subagent per tool in parallel, each in its own scratch folder outside the repo.
+- **Agent prompts:** pass each agent the Part 6 method and its tool's cheat sheet. Tell it to return findings as text, and save them yourself.
+- **Before reporting:** fold the results into the matching findings, labelling each with its evidence type (harness logs, code, model answer). List anything the agents installed or created outside their scratch folders in the report so the user can clean it up.
+
+Ask the user before starting, because it installs tools and spends model usage on their accounts.
 
 ## Step 4: Write the Report
 

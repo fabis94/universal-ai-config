@@ -639,6 +639,234 @@ When the skill runs, it should be aware of these recurring documentation quality
 - **Vendor terminology drifts.** "Subagent," "agent," "custom agent," "cloud agent," and "background agent" all refer to overlapping-but-distinct concepts depending on the vendor and the release. Normalize against uac's universal `agents` type only when functionality matches.
 - **Multiple doc surfaces per vendor.** Copilot in particular splits docs across `docs.github.com` (cloud / GitHub.com surface) and `code.visualstudio.com` (IDE surface) with significant overlap and occasional contradictions. When they disagree, prefer the IDE-specific surface for IDE behavior and the GitHub surface for cloud-agent behavior.
 - **Stale examples in docs.** Code examples in vendor docs sometimes use deprecated model IDs or field names. Always cross-reference the formal reference tables, not the prose examples.
+- **Docs describe intended behavior, not the exact mechanics.** Triggers, precedence, dedupe and size budgets often differ from the prose. Real examples from 2026-11:
+  - Claude Code loads a nested `AGENTS.md` only on the Read tool, not on Write or Edit.
+  - Copilot CLI loads one only on the `view` tool.
+  - Codex documents a per-file byte limit, but the code applies one combined budget and silently truncates.
+  - Cursor uploads every nested `AGENTS.md` on every request and scopes them on its server.
+
+  When a recommendation depends on behavior like this, verify it with [Part 6](#part-6-investigating-tool-internals-when-docs-are-unclear) before reporting it as high confidence.
+
+---
+
+## Part 6: Investigating tool internals when docs are unclear
+
+Use this when Tier 1 docs are vague, contradict each other or the changelog, or don't cover a runtime question. Typical questions: which files get discovered, what triggers loading, precedence, dedupe, size limits. The answer comes from running the tool against a throwaway fixture and reading its code.
+
+The first run of this method (2026-11-04, nested `AGENTS.md` loading in all four tools) found behavior that every vendor's docs got wrong or left out.
+
+### 6.1 Method
+
+1. **One subagent per tool, in parallel.**
+   - **Scratch folders:** give each its own scratch folder and tell it never to touch sibling folders.
+   - **Writing files:** subagents may be blocked from writing report files ("Subagents should return findings as text"), so have them return findings as text and save the files yourself.
+   - **Repo:** say explicitly that the uac repo must not be modified.
+2. **Install an isolated copy** (per-tool commands in 6.2).
+   - Record the exact version.
+   - Make each agent list everything it created outside its scratch folder (caches, session folders, config side effects) so the user can clean up.
+3. **Check auth without prompts.**
+   - Never run an interactive or browser login, and never print or copy credentials.
+   - When logged out, use the no-model paths in 6.2. They still give exact evidence.
+4. **Build a fixture.**
+   - **Git repo:** `git init` and commit. Several tools need `.git` to find the project root or enable nested discovery.
+   - **Markers:** put one marker per file, worded as a plain fact: `This directory's codename is FOO-NARWHAL-73.` Never word it as an instruction like "if asked, report this code", which trips prompt-injection defenses.
+   - **Controls:** add an unrelated sibling folder.
+   - **Variants:** use a fresh copy per variant and change one thing per variant.
+   - **Paths:** keep scratch paths free of words the tool might match (a model cited a `scratchpad/agentsmd/` path as an AGENTS.md).
+5. **Rank evidence, strongest first:**
+   1. What the harness actually injected: session files, event logs, debug request payloads.
+   2. Shipped code or source.
+   3. The model's own answer. This is weakest: models misattribute sources and sometimes refuse to repeat markers.
+
+   Always confirm from the logs that the model didn't read the instruction file itself through a tool.
+
+6. **Read the code.** Find the loader through the grep anchors in 6.2. Date behavior changes with git history, changelogs, or by diffing the same code from two versions.
+7. **Keep costs small.** Use the cheapest model and short single-step prompts. About 10–30 runs per tool was enough in practice.
+   - **Use a mock or fake model where the tool allows it.** Codex and Copilot can point at a local server that returns scripted tool calls. Those runs are free and repeatable, fire real hooks, and expose the full request (system prompt, tool list, skill and agent lists). See 6.2.
+   - **Feed real `uac generate` output into the fixture,** not just hand-written files. That is how the Cursor agent-parsing bug was found.
+   - **Hook probes:** have every hook log `{source, event, argv, stdin, cwd}` and the **names** of env vars only, never their values. A parent agent session's environment contains tokens. For a clean baseline, run with `env -i HOME=$HOME PATH=/usr/bin:/bin`.
+8. **Report back** with:
+   - version, install path and auth status
+   - a table: Scenario | Result | Evidence type | short excerpt
+   - code findings with `file:line` or byte offsets
+   - where the docs and the behavior disagree
+   - what it means for uac
+   - a cleanup list
+
+### 6.2 Per-tool cheat sheet
+
+#### Claude Code
+
+- **Install:**
+  - `npm install --prefix <dir> @anthropic-ai/claude-code@<version|latest>`.
+  - The real binary is `node_modules/@anthropic-ai/claude-code/bin/claude.exe` (native Bun, about 320 MB).
+  - Older global versions sit in `~/.local/share/claude/versions/<ver>`, which is handy for diffs.
+  - Every copy shares `~/.claude`, and each run leaves a `~/.claude/projects/<slug>/` folder.
+- **Auth:** `claude auth status` prints JSON with `loggedIn`.
+- **No-model paths:**
+  - `claude -p "/context" --output-format stream-json --verbose` is free. Its `system/init` event lists `mcp_servers` (with status and source), `agents`, `skills`, `slash_commands` and `plugins`, and the run fires SessionStart and SessionEnd hooks.
+  - `claude mcp list` shows the interactive approval state, while `-p` auto-approves project servers. To test a trusted workspace without touching `~/.claude.json`, use `CLAUDE_CONFIG_DIR=<dir>` with a `.claude.json` containing `{"projects":{"<abs path>":{"hasTrustDialogAccepted":true}}}`.
+- **Headless runs:**
+  - `claude -p "<prompt>" --model haiku --output-format stream-json --verbose --allowedTools Read --disallowedTools "Bash,Glob,Grep,Agent,WebFetch,WebSearch" --max-turns 3 [--debug-file <f>] [--settings <f>] [--setting-sources project,local]`.
+  - Cost is about $0.003–0.008 per run; read it from `total_cost_usd`.
+  - **Multi-turn:** use `--input-format stream-json` and write the next user line only after the `result` event.
+- **What was loaded:**
+  - stream-json leaves out injected context. Read `~/.claude/projects/<cwd with non-alphanumerics → '-'>/<session_id>.jsonl` instead.
+  - **Session file entries:** `type:"attachment"` with `attachment.type` `instructions` (startup files), `nested_memory` (nested CLAUDE.md and rules) or `hook_additional_context` (content a built-in plugin injected). `api-request-blob` holds what was actually sent.
+  - **Subagents:** their transcripts are in `<session_id>/subagents/agent-*.jsonl`.
+  - **Debug log:** `--debug-file` shows lines like `found X of Y directories`.
+- **Code:**
+  - The JS is embedded in the binary as chunks separated by NUL bytes (`// @bun @bytecode`). Find an anchor with Python `data.find(b'…')`, slice between the surrounding `\x00` bytes, and format the result with `prettier --parser babel`.
+  - Many features are built-in plugins; read the manifest of events each one reacts to first.
+  - **Anchors:**
+    - Instructions: `cc-plugin-agents-md`, `claude-md-or-agents-md`, `"fs.ancestors"`, `nested_memory`, `e("tool.call",{tool:`.
+    - Skills and agents: `Loading skills from: managed=`, `Dynamically discovered`, `does not recognize or apply` (agent keys).
+    - MCP: `unknown MCP server type`.
+    - Other tools' configs: `tengu_import` (the importer).
+    - Feature flags: `tengu_`.
+  - **Every config path Claude treats as its own** is listed in the sandbox deny-write list near `"launch.json"`.
+- **Pitfalls:**
+  - **Command rewriting:** user hooks can rewrite commands; `rtk` turned `cat` into `rtk read`. Use `--setting-sources project,local` for Bash-based tests. That flag also removes user skills, agents and plugins.
+  - **Empty CLAUDE.md:** it doesn't count as a CLAUDE.md.
+  - **Inherited environment:** runs started from inside Claude Code inherit `CLAUDE_*` env vars and the `scratchpad_dir` payload field. Use `env -i` for a clean baseline.
+  - **Gitignored fixture files:** a global gitignore may ignore `.claude/settings.local.json` in fixtures; check with `git check-ignore -v`.
+
+#### OpenAI Codex
+
+- **Install:**
+  - `npm install --prefix <dir> @openai/codex@<version>`, and run with `CODEX_HOME=<dir>/home` so `~/.codex` is never touched.
+  - The npm package wraps a native Rust binary (`node_modules/@openai/codex-<platform>/vendor/<triple>/bin/codex`). The matching source tag is `rust-v<version>`.
+- **Auth:** `codex login status`, `$CODEX_HOME/auth.json`, `OPENAI_API_KEY`.
+- **No-model path:**
+  - `codex debug prompt-input "hi"`, run from the target folder, prints the exact model input for free.
+  - It doesn't show base instructions that go in the API's `instructions` field. For those, use the rollout file.
+  - `codex exec` without auth still writes the rollout. SessionStart, UserPromptSubmit and SessionEnd hooks still fire.
+  - **app-server JSON-RPC works logged out:** `codex app-server` over stdio. Send `initialize` and `initialized`, then `skills/list {cwds, forceReload}`, `hooks/list {cwds}`, `config/read {cwd, includeLayers}` and `externalAgentConfig/detect {cwds, includeHome}`.
+    - Agent-role parse errors arrive as `configWarning` notifications.
+    - `codex app-server generate-json-schema --out <d>` documents every method.
+- **Mock model, no auth:**
+  1. Put `model_provider="mock"` and `[model_providers.mock] base_url="http://127.0.0.1:<port>/v1" wire_api="responses" requires_openai_auth=false` in a scratch config.
+  2. Run a small SSE server that sends `response.created` → `response.output_item.done` → `response.completed`. It captures full request bodies and can script tool calls that fire real hooks.
+  3. Use an unknown model slug (`-m gpt-5.1-codex`) to get a plain `exec_command` tool. Default models wrap tools in JS code mode, which is hard to script.
+  - Agent roles only appear in the `spawn_agent` tool's description, so they need request capture.
+- **Headless runs:**
+  - `codex exec --json -s read-only -m <model> -C <dir> "<prompt>" </dev/null`. Stdin must be closed.
+  - **Hook trust:** take `key` and `currentHash` from `hooks/list` and write `[hooks.state."<key>"] trusted_hash = "<hash>"` in the scratch config. Don't use the bypass flag.
+  - There's no max-turns flag; use `-c model_reasoning_effort="low"`.
+  - Don't use `--ephemeral`: it skips the rollout file.
+- **What was loaded:** `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl`. Look at `session_meta.payload.base_instructions`, the `response_item` messages (`# AGENTS.md instructions for <cwd>`), `world_state.payload.state.agents_md` and `turn_context.payload`.
+- **Code:**
+  - Open source at https://github.com/openai/codex; clone with `git clone --filter=blob:none`.
+  - **Start with:** `codex-rs/core/src/agents_md*.rs`, `codex-rs/config/src/config_toml.rs`, `codex-rs/models-manager/models.json` (each model's `instructions_template`) and `codex-rs/core/tests/suite/`.
+  - `grep -a -c '<string>' <binary>` confirms a string ships in a build.
+  - Date changes with `git log --date=short -- <file>`; commit bodies are full PR descriptions.
+- **Pitfalls:**
+  - Docs and code disagreed on the byte budget; trust the code.
+  - **Project trust:** set it in a config file, because `-c projects."<path>".trust_level` didn't take effect.
+  - **Slow history search:** `git log -S` on a blobless clone is very slow. `git diff --name-only <tag> main -- <paths>` only needs trees, so it is fast.
+  - **Set `HOME` as well as `CODEX_HOME`:** Codex reads `~/.agents/skills`, and the importer reads `~/.claude`. With a fake `HOME`, call the native binary directly, because the npm shim may fail to find node.
+  - **Same-name MCP test:** give the two copies different fields so the merge is visible. A `url` in one layer and a `command` in another breaks the whole config load.
+  - **Extra cleanup paths:** `~/.codex/tmp/arg0-linux/`, `/tmp/codex-daemon-<uid>`, `/tmp/codex-bwrap-synthetic-mount-targets-<uid>`.
+
+#### Cursor
+
+- **Install:**
+  - `install.sh` pins the version. For an isolated copy, download `https://downloads.cursor.com/lab/<ver>/linux/x64/agent-cli-package.tar.gz` and extract it into your folder.
+  - The official installer writes `~/.local/share/cursor-agent/versions/<ver>/` plus `~/.local/bin/{agent,cursor-agent}`.
+  - The CLI auto-updates, so call the versioned path directly.
+  - Sandbox every run: set `HOME`, `CURSOR_CONFIG_DIR`, `CURSOR_DATA_DIR`, the `XDG_*` dirs, `NODE_COMPILE_CACHE` and `TMPDIR`.
+- **Auth:**
+  - `agent status` / `agent about`.
+  - Headless auth is only possible with `CURSOR_API_KEY` or `--api-key`.
+  - Without auth, `-p` fails before any rules load.
+- **Headless runs:**
+  - `agent -p --trust --output-format stream-json --mode ask --model <cheap> "<prompt>"`.
+  - There's no max-turns flag. Tool permissions live in `$CURSOR_CONFIG_DIR/cli-config.json`.
+- **What was loaded:**
+  - Prompt assembly happens on Cursor's server.
+  - stream-json `tool_call` completed events carry `readToolCall.result.success.relatedCursorRulePaths` and `relatedCursorRules`. Logs are in `$TMPDIR/cursor-agent-logs-<uid>/`.
+- **No-auth path:** load the bundle as a module to get the exact list of rules the CLI uploads.
+  1. In a copy of `index.js`, replace the final `__webpack_require__("./src/main.tsx")` with `module.exports=__webpack_require__`.
+  2. Call `configureRipgrepPath(<pkg>/rg)`.
+  3. Construct `LocalCursorRulesService` and call `getAllCursorRules()`.
+  - **Lazy chunks:** modules in lazily loaded chunks need their sibling chunks loaded first (`await Promise.all([...ids].map(c => wr.e(c)))`). Find the chunk ids where the CLI's chat command loads them.
+  - **Other types:**
+    - **Hooks:** the hooks module has a loader that returns the merged config, including Claude-file import warnings, and an executor that really runs hook commands for a synthetic event.
+    - **Skills:** discovery plus a separate merge service. The cross-folder dedupe only happens in the merge.
+    - **Subagents and MCP:** each has its own subagent and MCP file reader.
+    - Minified class names change per build; re-derive them from each module's export map using the anchors below.
+  - **`agent mcp list` works without auth** and shows exactly which MCP files load.
+  - **Each type has its own root:** rules, skills and agents use the cwd (or `--workspace`), while hooks and MCP use the git root. Always test from a subfolder too.
+- **Code:**
+  - The bundle is `versions/<ver>/index.js` (webpack, about 7 MB) plus lazily loaded `NNNN.index.js` chunks; run prettier over them.
+  - Module IDs keep their source paths. Span names (`withName("…")`) and proto descriptor strings survive minification.
+  - **Anchors:**
+    - Rules: `LocalCursorRulesService`, `NestedExtensibilityService`, `loadRulesFromDirAndAncestors`, `buildIncludeGlobs`, `related_cursor_rule`, `x-cursor-lazy-rule-bodies`.
+    - Hooks: `dedupeClaudeHooksAgainstCursorHooks`, `parseClaudeConfig`, `Unknown Claude Code event`.
+    - Skills: `MergedAgentSkillsService`.
+    - Subagents: `local-subagents`.
+    - Use `grep -ob` for byte offsets.
+- **Dating changes:**
+  - CLI changelog: https://cursor.com/docs/cli/changelog.md
+  - IDE notes: https://cursor.com/docs/release-notes/ide.md
+  - RSS (carries product labels): https://cursor.com/docs/release-notes/rss.xml
+- **Pitfalls:**
+  - The code proves what is uploaded. Whether the model sees it needs an authenticated run.
+  - Minified class names collide across modules; go through each module's export map.
+  - The CLI and IDE changelogs differ.
+  - Loaders print `HH:MM:SS INFO …` lines to stdout; strip them before parsing JSON.
+  - Hooks run through the user's `$SHELL`; set `HOME` and `SHELL` explicitly under `env -i`.
+
+#### GitHub Copilot CLI
+
+- **Install:**
+  - `npm install --prefix <dir> @github/copilot@<version>`.
+  - The real binary, `node_modules/@github/copilot-<os>-<arch>/copilot` (a Node SEA), extracts itself on first launch. Set `COPILOT_PKG_CACHE_HOME=<dir>/cache` before the first run, and always pass `--no-auto-update`.
+  - A global `copilot` may be a launcher that runs the newest cached package in `~/.copilot/pkg/universal/`, so its version can change under you.
+- **Auth:**
+  - It falls back to `gh auth token`. Check for the debug log line `Authentication method resolution completed`.
+  - Don't read `~/.copilot/config.json`.
+- **No-model paths:**
+  - `copilot instruction list --json` shows startup sources only. `copilot mcp list --json` and `copilot skill list --json` are free too.
+  - **Free discovery through the SDK:** use the bundled SDK's `CopilotClient` with `RuntimeConnection.forStdio({path: <binary>})`.
+    - Calls: `rpc.skills|agents|hooks.discover({projectPaths})` and `rpc.mcp.discover`, then on a session `skills.list()`, `agent.list()` and `mcp.list()`.
+    - SDK sessions skip the CLI's trust gating, so use the CLI to test trust.
+  - `require(<pkg>/prebuilds/<platform>/runtime.node)` loads directly in Node and exposes the native functions, e.g. `repoSettingsLoadWithWarning(root, {...})`, which shows how a Claude settings file is translated.
+  - Old versions that fail with HTTP 400 still log the full request payload under `--log-level debug`.
+- **Fake model, no premium requests:**
+  - Set `COPILOT_PROVIDER_BASE_URL=http://127.0.0.1:<port> COPILOT_PROVIDER_TYPE=openai COPILOT_MODEL=gpt-4.1 COPILOT_OFFLINE=true`.
+  - Run a small `/chat/completions` SSE server that returns scripted `tool_calls`.
+  - Request bodies show the system prompt (`<available_skills>`), the tool list, custom agents (in the `task` tool) and MCP tools.
+- **Trust:**
+  - Repo hooks and workspace MCP only load in `-p` mode with `--trust-folder`, with `COPILOT_ALLOW_ALL=true` (exactly `true`), or when the folder is listed in `trustedFolders` in `$COPILOT_HOME/config.json`. `--yolo` doesn't count.
+  - Skills and agents load without trust.
+  - A per-run `COPILOT_HOME=<run>/home` gives a clean trust state and keeps sessions out of `~/.copilot`; `gh` auth still works.
+- **Headless runs:**
+  - Base command: `copilot -p "<prompt>" --no-auto-update --no-ask-user --disable-builtin-mcps --output-format json --log-level debug --log-dir <d> --share <d>/transcript.md --usage-output-file <d>/usage.json --available-tools view --deny-tool shell --deny-tool write`.
+  - **Tool names depend on the model family** (GPT models have `apply_patch` and `rg`). A filter that names a missing tool still bills the run, and the model gets zero tools.
+  - If `--model X` says "not available", use `--model auto` with `COPILOT_AUTO_TIER=efficiency`.
+  - Each run costs about one premium request; see `usage.json`.
+  - Avoid `--experimental`: it persists to `~/.copilot/settings.json`.
+- **What was loaded:**
+  - `COPILOT_EVENTS_LOG_DIRECTORY=<d>` writes `events.0.jsonl`. Rows with `kind:"messages_snapshot"` hold the exact messages sent.
+  - The JSON stdout has `system.notification` / `instruction_discovered` events with `sourcePath`, `triggerFile` and `triggerTool`.
+  - Force feature flags with `COPILOT_CLI_ENABLED_FEATURE_FLAGS=A,B`. Append to it, because the environment may already set it.
+- **Code:**
+  - In 1.0.x, `<pkgcache>/cli-main.js` is only JS glue; the logic is Rust in `prebuilds/<platform>/runtime.node`. Search it with `LC_ALL=C strings -n 6 -t d runtime.node`.
+  - **Bundled SDK typings are the best docs:** `copilot-sdk/types.d.ts`, `generated/rpc.d.ts`, `generated/session-events.d.ts`.
+  - 0.0.x builds are plain JS in `~/.copilot/pkg/universal/<ver>/index.js`.
+  - **Anchors:**
+    - Instructions: `enableOnDemandInstructionDiscovery`, `enableChildInstructions`, `instruction_discovered`, `Custom instructions from`.
+    - Hooks: `Invalid hook config version`, `Ignoring unknown hook event`, `Loading repo hooks in prompt mode`, `_vsCodeCompat`.
+    - MCP: `Loading workspace MCP sources`, `copilotcli-mcpmigrate`.
+  - **Dating:** `<pkgcache>/changelog.json`, `gh api repos/github/copilot-cli/releases --paginate`, `gh search issues --repo github/copilot-cli`.
+- **Pitfalls:**
+  - **Session files:** without a per-run `COPILOT_HOME`, sessions land in `~/.copilot/session-state/` and `session-store.db`, so record their ids for cleanup.
+  - **`grep` alias:** `grep` may be aliased to `ugrep`; use `LC_ALL=C command grep -a -o`.
+  - **Fixtures:**
+    - Generate them per run instead of copying with `cp -a`, because absolute hook paths would point at the original.
+    - Shell-quote hook tags: preToolUse fails closed, so a broken hook command denies the tool.
+    - Parent `CLAUDE_*` env vars leak into hooks.
 
 ---
 
