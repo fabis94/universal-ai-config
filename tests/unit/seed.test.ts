@@ -4,6 +4,7 @@ import { access, mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promise
 import { tmpdir } from "node:os";
 import { runCommand } from "citty";
 import { consola } from "consola";
+import { format, resolveConfig } from "prettier";
 import seedCommand from "../../src/commands/seed.js";
 import { collectDocTemplates, collectSkillTemplates } from "../../src/seed-types/shared.js";
 import { getTemplates } from "../../src/seed-types/meta-instructions/index.js";
@@ -243,12 +244,16 @@ describe("seed meta-instructions", () => {
 
   it("keeps this repo's seeded copies in sync with the seed sources", async () => {
     // The README links the rendered copies in .universal-ai-config/, so a seed
-    // source edited without reseeding would leave readers on stale docs
+    // source edited without reseeding would leave readers on stale docs. The
+    // pre-commit hook runs prettier on the copies (a rendered path can widen a
+    // table column), so both sides are compared as prettier formats them.
     const repoTemplatesDir = join(import.meta.dirname, "../../.universal-ai-config");
     for (const t of getTemplates(".universal-ai-config")) {
-      const committed = await readFile(join(repoTemplatesDir, t.relativePath), "utf-8");
+      const path = join(repoTemplatesDir, t.relativePath);
+      const options = { ...(await resolveConfig(path)), filepath: path };
+      const committed = await format(await readFile(path, "utf-8"), options);
       expect(committed, `${t.relativePath} is stale: run pnpm uac seed meta-instructions`).toBe(
-        t.content,
+        await format(t.content, options),
       );
     }
   });
