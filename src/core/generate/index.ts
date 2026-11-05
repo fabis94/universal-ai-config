@@ -59,7 +59,7 @@ function reportServedBy(
       ? `agentsMd.enable is on, so ${served.target} reads the AGENTS.md files instead of its own instruction files. ` +
         `${served.target} loses: ${served.loses}`
       : `${served.target} reads ${source} too, so uac skips ${served.target}'s own ${served.type} output. ` +
-        `Usually you only need one of these targets on a machine: set \`targets\` in universal-ai-config.overrides.ts. ` +
+        `Usually you only need one of these targets on a machine: set \`targets\` in universal-ai-config.overrides.ts (\`uac setup\` writes it). ` +
         `${served.target} loses: ${served.loses}`;
     run.sink.report({
       code: "served-by",
@@ -144,6 +144,7 @@ export async function generateProject(options: GenerateOptions = {}): Promise<Ge
 
   const typesWithTemplates = new Set<TemplateType>([...slots.values()].map((slot) => slot.type));
   for (const type of ["hooks", "mcp"] as const) {
+    if (!config.types.includes(type)) continue;
     if ((await discoverJsonFiles(root, config, type)).size > 0) typesWithTemplates.add(type);
   }
   reportServedBy(run, plan, typesWithTemplates);

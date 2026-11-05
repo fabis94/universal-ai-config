@@ -41,7 +41,7 @@ After the user approves the research findings, **enter plan mode** to design the
 3. **Review existing targets for patterns** — read through at least one existing target implementation (e.g., `src/targets/claude/index.ts`) and the shared types to understand the exact interfaces and conventions you need to follow.
 
 4. **Draft the implementation plan** — produce a detailed, step-by-step plan that includes:
-   - **Target definition**: the full `defineTarget()` structure — `name`, `outputDir`, `supportedTypes`, `reads`, and for each supported type:
+   - **Target definition**: the full `defineTarget()` structure — `name`, `label` (the product name `uac setup` shows, e.g. "Claude Code"), `outputDir`, `supportedTypes`, `reads`, and for each supported type:
      - `frontmatterMap` — every universal key and what it maps to (string rename or function transform), with reasoning
      - `outputPath` / `typeDir` / `ownedPaths` — the exact root-relative paths, including how `alwaysApply` or other flags affect routing
      - `render` / `combine` / `frontmatterStyle` if the defaults don't fit (see below)
@@ -70,6 +70,7 @@ After the user approves the research findings, **enter plan mode** to design the
 
    export default defineTarget({
      name: "<target-name>",
+     label: "<Product Name>",
      outputDir: ".<target-dir>",
      supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
      reads: {

@@ -23,7 +23,7 @@ Generate tool-specific AI config files from shared templates. Write your AI inst
   - [Template Precedence & Shadowing](#template-precedence--shadowing)
 - [CLI Reference](#cli-reference)
   - [`uac generate`](#uac-generate)
-  - [`uac init`](#uac-init)
+  - [`uac init` / `uac setup`](#uac-init--uac-setup)
   - [`uac clean`](#uac-clean)
   - [`uac seed`](#uac-seed)
   - [`uac skill add`](#uac-skill-add)
@@ -49,10 +49,11 @@ npm exec uac <command>
 ## Quick Start
 
 ```bash
-# Scaffold template directory with meta-instructions and config
-uac init
+# Set up uac: scaffolds the project the first time, then asks which coding agents
+# you use on this machine (saved to the gitignored overrides file)
+uac setup
 
-# Generate for the targets in your config (set yours in the overrides file, see below)
+# Generate for the targets in your config, as narrowed by your overrides file
 uac generate
 
 # Generate for specific targets — replaces the configured target set for this run
@@ -71,7 +72,7 @@ uac seed examples
 ## Shared Outputs: One Target Set per Machine
 
 > [!IMPORTANT]
-> **Generate only the tools you use on your machine.** Each developer sets `targets` in their own gitignored overrides file (`universal-ai-config.overrides.ts`, see [Configuration](#overrides-config-universal-ai-configoverridests--ideally-gitignored)), and the generated folders stay gitignored. Generating every target at once — let alone committing all of it — is not the intended setup.
+> **Generate only the tools you use on your machine.** Each developer sets `targets` in their own gitignored overrides file (`universal-ai-config.overrides.ts`, see [Configuration](#overrides-config-universal-ai-configoverridests--ideally-gitignored)) — `uac setup` asks and writes it — and the generated folders stay gitignored. Generating every target at once — let alone committing all of it — is not the intended setup.
 
 ```typescript
 // universal-ai-config.overrides.ts — gitignored, one per developer
@@ -589,7 +590,8 @@ export default defineConfig({
   // set their own in the overrides file — see "Shared Outputs" above
   targets: ["claude"],
 
-  // Which types to generate (default: all)
+  // Which template types uac handles at all (default: all). A type left out is
+  // never generated, cleaned, seeded or gitignored — e.g. to hand-write skills
   types: ["instructions", "skills", "agents", "hooks", "mcp"],
 
   // Custom EJS variables available in templates
@@ -822,7 +824,7 @@ export default defineConfig({
 
 ## CLI Reference
 
-When run without `--root`, every command except `uac init` searches **upward** from the current directory for the project root — the nearest ancestor that contains a `universal-ai-config.config.*` file or a `.universal-ai-config/` folder — so you can run uac from inside a package subdirectory of a monorepo and it still finds the root (printing an info line when it does). Passing `--root` disables the search. `uac init` always scaffolds into the current directory.
+When run without `--root`, every command except `uac init` / `uac setup` searches **upward** from the current directory for the project root — the nearest ancestor that contains a `universal-ai-config.config.*` file or a `.universal-ai-config/` folder — so you can run uac from inside a package subdirectory of a monorepo and it still finds the root (printing an info line when it does). Passing `--root` disables the search. `uac init` works in the current directory; in a terminal, from a subfolder of an existing project, it asks which one to set up.
 
 ### `uac generate`
 
@@ -831,38 +833,50 @@ Generate config files for specified targets.
 | Flag        | Short | Description                                           | Default         |
 | ----------- | ----- | ----------------------------------------------------- | --------------- |
 | `--target`  | `-t`  | Comma-separated targets (replaces the configured set) | All from config |
-| `--type`    |       | Comma-separated types                                 | All from config |
+| `--type`    |       | Comma-separated types or `all` (replaces config)      | All from config |
 | `--config`  | `-c`  | Config file path                                      | Auto-detected   |
 | `--root`    | `-r`  | Project root                                          | Nearest root ↑  |
 | `--dry-run` | `-d`  | Preview without writing                               | `false`         |
 | `--clean`   |       | Remove existing files first                           | `false`         |
 | `--verbose` | `-v`  | Per-file output instead of the summary                | `false`         |
 
-uac decides which outputs to generate from this run's target set only: `-t copilot` generates Copilot's own hooks and `.mcp.json` even if your config also lists claude. Combining `--clean` with `--dry-run` previews the removals instead of performing them. Run `--clean` after switching targets or `agentsMd.variation`, so the old layout is removed. `--clean` is scoped by `--type`, and by `--target` when given; with no `--target` it removes artifacts for **every** target, not just the ones in your config — that's what clears stale output for a target you've since dropped from `targets`. Use [`preserveOnClean`](#preserving-files-from-clean) to protect hand-authored files.
+uac decides which outputs to generate from this run's target set only: `-t copilot` generates Copilot's own hooks and `.mcp.json` even if your config also lists claude. Combining `--clean` with `--dry-run` previews the removals instead of performing them. Run `--clean` after switching targets or `agentsMd.variation`, so the old layout is removed. `--clean` is scoped by the run's types (your config's `types`, or `--type`, which replaces it), and by `--target` when given; with no `--target` it removes artifacts for **every** target, not just the ones in your config — that's what clears stale output for a target you've since dropped from `targets`. Use [`preserveOnClean`](#preserving-files-from-clean) to protect hand-authored files.
 
-### `uac init`
+### `uac init` / `uac setup`
 
-Scaffold `.universal-ai-config/` directory with meta-instruction templates and a `universal-ai-config.config.ts` config file. Seeds instruction and skill templates that teach AI tools how to manage universal-ai-config templates. Adds `universal-ai-config.overrides.*` to `.gitignore`.
+Set up uac for a project, or for this machine in a project that already uses it. In a terminal it's a short wizard:
 
-| Flag     | Short | Description  | Default |
-| -------- | ----- | ------------ | ------- |
-| `--root` | `-r`  | Project root | cwd     |
+- **First time** (no `.universal-ai-config/` yet): creates `universal-ai-config.config.ts` listing every target, seeds the meta-instructions and adds the `.gitignore` block, then asks which coding agents you use on this machine (saved to the gitignored `universal-ai-config.overrides.ts`), whether to add example templates, and whether to generate.
+- **Existing project**: one menu — pick this machine's coding agents, update uac's meta-instructions, update the `.gitignore` block, add examples — with each item preselected when it would change something (no overrides yet, meta-instructions seeded by an older uac, a `.gitignore` block that no longer matches your config). Then it offers to generate, cleaning first when your coding agents changed.
+
+Without a terminal (CI, scripts, coding agents), or with any of the flags below, it doesn't prompt: a first-time run scaffolds as above; an existing project gets its `.gitignore` block refreshed, plus what the flags ask for. See [cli.md](src/seed-types/meta-instructions/templates/docs/uac/cli.md#uac-init-alias-uac-setup) for the details.
+
+| Flag         | Short | Description                                        | Default |
+| ------------ | ----- | -------------------------------------------------- | ------- |
+| `--target`   | `-t`  | Save this machine's coding agents (overrides file) |         |
+| `--examples` |       | Add example templates                              | `false` |
+| `--reseed`   |       | Re-seed the meta-instructions (overwrites edits)   | `false` |
+| `--force`    |       | Replace an existing overrides file                 | `false` |
+| `--yes`      | `-y`  | Don't prompt; use flags and defaults               | `false` |
+| `--root`     | `-r`  | Project root                                       | cwd     |
 
 ### `uac clean`
 
-Remove all generated config directories.
+Remove what uac generated: the paths and keys it owns, for every target and the enabled types.
 
 | Flag        | Short | Description                      | Default        |
 | ----------- | ----- | -------------------------------- | -------------- |
 | `--target`  | `-t`  | Comma-separated targets to clean | All registered |
-| `--type`    |       | Comma-separated types to clean   | All            |
+| `--type`    |       | Comma-separated types or `all`   | `types`        |
 | `--config`  | `-c`  | Config file path                 | Auto-detected  |
 | `--root`    | `-r`  | Project root                     | Nearest root ↑ |
 | `--dry-run` | `-d`  | Print removals without deleting  | `false`        |
 
 With no `--target`, clean removes artifacts for **every registered target** rather than only those in your config's `targets` — so dropping `codex` from `targets` still lets a later `uac clean` remove its stale `AGENTS.md` files and `.agents/skills/`. `--target` names the set being cleaned: everything those targets would generate goes, shared files included (`clean -t copilot` removes `.mcp.json`; the next generate restores it). Files shared with your own settings lose only uac's key (`hooks` in `.claude/settings.json`, `mcp_servers` in `.codex/config.toml`), and `.github/hooks/` keeps your hook scripts — only `hooks.json` is uac's. Use [`preserveOnClean`](#preserving-files-from-clean) to protect hand-authored files at uac-managed paths.
 
-Config is loaded so that `outputDirs`, `preserveOnClean`, `templatesDir` and `agentsMd` are honored.
+Types are the opposite: clean only touches the types in your config's `types`, so a type you turned off (and maybe hand-write) is never cleaned. `--type` replaces `types` for one run — `uac clean --type skills` removes what uac generated before you turned skills off, and `--type all` cleans every type.
+
+Config is loaded so that `outputDirs`, `preserveOnClean`, `templatesDir`, `types` and `agentsMd` are honored.
 
 ### `uac seed`
 
@@ -870,7 +884,7 @@ Seed the templates directory with pre-built template sets. Available seed types:
 
 - **`meta-instructions`** — Instruction and skill templates that teach AI tools how to create, update, and manage universal-ai-config templates. This bootstraps the AI's ability to extend its own configuration. Also seeded automatically by `uac init`.
 - **`examples`** — Example templates (instruction, skill, agent, hook) demonstrating template structure and frontmatter fields. Good for learning the format.
-- **`gitignore`** — Updates `.gitignore` with patterns for all generated output files (target config dirs, MCP files, every `AGENTS.md`, the configured `agentsMd.indexDir`). Only `.github/hooks/hooks.json` is ignored, so hook scripts next to it can be committed. Also run automatically by `uac init`.
+- **`gitignore`** — Updates `.gitignore` with patterns for the generated output of the types in `types` (target config dirs, MCP files, every `AGENTS.md`, the configured `agentsMd.indexDir`). `uac generate` says when the block no longer matches your config. Only `.github/hooks/hooks.json` is ignored, so hook scripts next to it can be committed. Also run automatically by `uac init`.
 
 ```bash
 # Seed meta-instructions (also done by uac init)

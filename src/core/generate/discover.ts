@@ -241,6 +241,7 @@ export async function discoverTemplates(
   }
 
   for (const inMem of inMemory) {
+    if (!config.types.includes(inMem.type)) continue;
     const relativePath =
       inMem.type === "skills" ? `skills/${inMem.name}/SKILL.md` : `${inMem.type}/${inMem.name}.md`;
     addCandidate(inMem.type, inMem.name, {

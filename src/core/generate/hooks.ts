@@ -189,7 +189,7 @@ function checkDuplicateRuns(
           code: "duplicate-hook-run",
           message:
             `${check.target} also runs ${check.against}'s ${event} hook ${what}, because its own hooks don't have the identical command (it skips only identical ones). ` +
-            `Usually you only need one of these targets on a machine: set \`targets\` in universal-ai-config.overrides.ts.`,
+            `Usually you only need one of these targets on a machine: set \`targets\` in universal-ai-config.overrides.ts (\`uac setup\` writes it).`,
           detail: {
             against: check.against,
             event,
@@ -231,7 +231,7 @@ function checkRejectedFiles(
       type: "hooks",
       message:
         `${served.target} reads ${served.by}'s hook file instead of its own, but rejects that whole file because it has ${found.join(", ")} handlers — so ${served.target} runs none of these hooks. ` +
-        `Generate ${served.target} on its own (set \`targets\` in universal-ai-config.overrides.ts), or keep those handlers out of ${served.by} with per-target overrides.`,
+        `Generate ${served.target} on its own (set \`targets\` in universal-ai-config.overrides.ts; \`uac setup\` writes it), or keep those handlers out of ${served.by} with per-target overrides.`,
       detail: { kind: "handler-type", name: found.join(",") },
     });
   }

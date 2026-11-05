@@ -1,11 +1,10 @@
-import { isCancel, multiselect } from "@clack/prompts";
 import { defineCommand } from "citty";
 import { consola } from "consola";
 import { join } from "node:path";
 import { loadProjectConfig } from "../../config/loader.js";
 import { fetchSkills, installSkill } from "../../core/add-skill.js";
 import { filterSkillsByName, type DiscoveredSkill } from "../../core/skill-discovery.js";
-import { canPrompt as terminalCanPrompt, confirmAction } from "../interactive.js";
+import { canPrompt as terminalCanPrompt, confirmAction, selectMany } from "../interactive.js";
 import { resolveCliRoot } from "../resolve-root.js";
 import { formatSkillList } from "./list.js";
 import { buildSkillOptions } from "./options.js";
@@ -47,14 +46,10 @@ async function selectSkills(
     return skills;
   }
 
-  const chosen = await multiselect<string>({
-    message: "Select skills to install",
-    options: buildSkillOptions(skills),
-    required: false,
-  });
+  const chosen = await selectMany("Select skills to install", buildSkillOptions(skills));
 
-  // Ctrl+C / Esc resolves to a cancel symbol — treat it as "nothing selected".
-  if (isCancel(chosen)) return [];
+  // Ctrl+C / Esc — treat it as "nothing selected".
+  if (!chosen) return [];
 
   const chosenNames = new Set(chosen);
   return skills.filter((skill) => chosenNames.has(skill.name));
@@ -63,8 +58,7 @@ async function selectSkills(
 export default defineCommand({
   meta: {
     name: "add",
-    description:
-      "Download skill(s) from a GitHub repo or local path into .universal-ai-config/skills",
+    description: "Copy skills from a GitHub repo or local path into your templates",
   },
   args: {
     source: {
@@ -101,7 +95,7 @@ export default defineCommand({
     root: {
       type: "string",
       alias: "r",
-      description: "Project root (default: nearest uac root, searching up from cwd)",
+      description: "Project root (default: nearest uac root above cwd)",
     },
   },
   async run({ args }) {
@@ -109,6 +103,12 @@ export default defineCommand({
     const source = args.source as string;
 
     const config = await loadProjectConfig({ root });
+    if (!config.types.includes("skills")) {
+      consola.warn(
+        "Skills are turned off: `types` in your config leaves out skills. Nothing installed.",
+      );
+      return;
+    }
     const skillsDir = join(root, config.templatesDir, "skills");
 
     consola.info(`Fetching skills from ${source}…`);

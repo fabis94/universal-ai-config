@@ -205,6 +205,7 @@ function scopedOnly(
 
 export default defineTarget({
   name: "copilot",
+  label: "GitHub Copilot",
   outputDir: ".github",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
   reads: {

@@ -93,6 +93,7 @@ function transformCursorMCP(servers: Record<string, UniversalMCPServer>): Record
 
 export default defineTarget({
   name: "cursor",
+  label: "Cursor",
   outputDir: ".cursor",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
   reads: {

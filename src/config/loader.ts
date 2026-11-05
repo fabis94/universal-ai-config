@@ -1,4 +1,6 @@
 import { loadConfig } from "c12";
+import { readFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
 import { userConfigSchema } from "./schema.js";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import { validateResolvedConfig } from "./validate.js";
@@ -11,6 +13,33 @@ export interface LoadConfigOptions {
   cliTypes?: TemplateType[];
   /** Inline config overrides — applied after overrides file, before CLI target/type overrides */
   inlineOverrides?: UserConfig;
+}
+
+let loads = 0;
+
+/**
+ * Load a config file as it is on disk now. Node caches native imports by URL,
+ * so without this a config written in the same process (setup saving the
+ * overrides file, then generating) would load stale. Like c12's own loader,
+ * it falls back to jiti, uncached, when Node can't import the file.
+ */
+async function importFresh(path: string): Promise<unknown> {
+  if (path.endsWith(".json")) return JSON.parse(await readFile(path, "utf-8"));
+  const url = pathToFileURL(path);
+  // Unique across processes too: tsx's transform cache on disk is keyed by URL
+  url.searchParams.set("uac-load", `${process.pid}-${Date.now()}-${++loads}`);
+  try {
+    return await import(url.href);
+  } catch (error) {
+    // A variable specifier: jiti is c12's optional peer, not a dependency
+    const jitiName = "jiti";
+    const jiti = (await import(jitiName).catch(() => {
+      throw error;
+    })) as {
+      createJiti(from: string, options: object): { import(id: string): Promise<unknown> };
+    };
+    return jiti.createJiti(path, { interopDefault: true, moduleCache: false }).import(path);
+  }
 }
 
 function mergeConfigs(base: ResolvedConfig, override: UserConfig): ResolvedConfig {
@@ -43,13 +72,14 @@ const OVERRIDES_NAME = "universal-ai-config.overrides";
  * name, so the exact name is tried first; the `.config.*` spelling is still
  * read when it's the only one present.
  */
-async function loadOverrides(root: string): Promise<UserConfig | undefined> {
+export async function loadOverrides(root: string): Promise<UserConfig | undefined> {
   const exact = await loadConfig<UserConfig>({
     name: OVERRIDES_NAME,
     configFile: OVERRIDES_NAME,
     cwd: root,
     dotenv: false,
     defaults: {},
+    import: importFresh,
   });
   if (exact.config && Object.keys(exact.config).length > 0) return exact.config;
 
@@ -58,6 +88,7 @@ async function loadOverrides(root: string): Promise<UserConfig | undefined> {
     cwd: root,
     dotenv: false,
     defaults: {},
+    import: importFresh,
   });
   return legacy.config;
 }
@@ -72,6 +103,7 @@ export async function loadProjectConfig(options: LoadConfigOptions = {}): Promis
     configFile: options.configPath,
     dotenv: false,
     defaults: {},
+    import: importFresh,
   });
 
   const baseParsed = userConfigSchema.parse(baseRaw ?? {});

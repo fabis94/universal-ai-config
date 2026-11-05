@@ -3,95 +3,145 @@ import { join } from "node:path";
 import { consola } from "consola";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { toPosixPath } from "../../core/plan/locate.js";
-import type { ResolvedConfig } from "../../types.js";
+import type { ResolvedConfig, TemplateType } from "../../types.js";
 
 const BLOCK_START = "# >>> universal-ai-config >>>";
 const BLOCK_END = "# <<< universal-ai-config <<<";
 
-// Specific output subdirs/files per target — not entire dirs like .github/
-// which contain non-AI content (workflows, issue templates, hook scripts, etc.)
-const PATTERNS = [
-  "/universal-ai-config.overrides.*",
+type BlockConfig = Pick<ResolvedConfig, "agentsMd" | "types">;
+
+/**
+ * Specific output subdirs/files per target — not entire dirs like .github/
+ * which contain non-AI content (workflows, issue templates, hook scripts, etc.).
+ * Each pattern belongs to the template type that writes it, so a type left out
+ * of `types` (whose files may be hand-written and committed) isn't ignored.
+ */
+const PATTERNS: Array<{ pattern: string; type?: TemplateType }> = [
+  { pattern: "/universal-ai-config.overrides.*" },
   // Claude
-  ".claude/rules/",
-  ".claude/skills/",
-  ".claude/agents/",
-  ".claude/settings.json",
-  ".claude/*.local.*",
+  { pattern: ".claude/rules/", type: "instructions" },
+  { pattern: ".claude/skills/", type: "skills" },
+  { pattern: ".claude/agents/", type: "agents" },
+  { pattern: ".claude/settings.json", type: "hooks" },
+  { pattern: ".claude/*.local.*" },
   // Copilot (.github/ has non-AI content, so list specific subdirs)
-  ".github/copilot-instructions.md",
-  ".github/instructions/",
-  ".github/skills/",
-  ".github/agents/",
+  { pattern: ".github/copilot-instructions.md", type: "instructions" },
+  { pattern: ".github/instructions/", type: "instructions" },
+  { pattern: ".github/skills/", type: "skills" },
+  { pattern: ".github/agents/", type: "agents" },
   // Only uac's own file: .github/hooks also holds hook scripts that must be committed
-  ".github/hooks/hooks.json",
+  { pattern: ".github/hooks/hooks.json", type: "hooks" },
   // Cursor
-  ".cursor/rules/",
-  ".cursor/skills/",
-  ".cursor/agents/",
-  ".cursor/hooks.json",
+  { pattern: ".cursor/rules/", type: "instructions" },
+  { pattern: ".cursor/skills/", type: "skills" },
+  { pattern: ".cursor/agents/", type: "agents" },
+  { pattern: ".cursor/hooks.json", type: "hooks" },
   // Codex (mix of root-relative + .codex/ + .agents/ outputs)
-  ".codex/",
-  ".agents/skills/",
+  { pattern: ".codex/agents/", type: "agents" },
+  { pattern: ".codex/hooks.json", type: "hooks" },
+  { pattern: ".codex/config.toml", type: "mcp" },
+  { pattern: ".agents/skills/", type: "skills" },
   // Every AGENTS.md, root and nested: uac generates them all (AGENTS.md output)
-  "AGENTS.md",
+  { pattern: "AGENTS.md", type: "instructions" },
   // MCP (root-relative output paths)
-  ".mcp.json",
-  ".cursor/mcp.json",
+  { pattern: ".mcp.json", type: "mcp" },
+  { pattern: ".cursor/mcp.json", type: "mcp" },
 ];
 
-function buildBlock(indexDir: string): string {
-  const scoped = [
-    "# Scoped instructions of the AGENTS.md `index` variation",
-    `/${toPosixPath(indexDir)}/`,
-  ];
-  return [BLOCK_START, ...PATTERNS, ...scoped, BLOCK_END].join("\n");
+/** The uac `.gitignore` block this config produces, markers included. */
+export function buildGitignoreBlock(config: BlockConfig = DEFAULT_CONFIG): string {
+  const enabled = (type?: TemplateType): boolean => !type || config.types.includes(type);
+  const lines = PATTERNS.filter((entry) => enabled(entry.type)).map((entry) => entry.pattern);
+  if (enabled("instructions")) {
+    lines.push(
+      "# Scoped instructions of the AGENTS.md `index` variation",
+      `/${toPosixPath(config.agentsMd.indexDir)}/`,
+    );
+  }
+  return [BLOCK_START, ...lines, BLOCK_END].join("\n");
+}
+
+async function readGitignore(root: string): Promise<string> {
+  try {
+    return await readFile(join(root, ".gitignore"), "utf-8");
+  } catch {
+    return "";
+  }
+}
+
+/** Where the uac block sits in `.gitignore` text, markers included. */
+function findBlock(text: string): { start: number; end: number } | undefined {
+  const start = text.indexOf(BLOCK_START);
+  const endMarker = text.indexOf(BLOCK_END);
+  if (start === -1 || endMarker === -1) return undefined;
+  return { start, end: endMarker + BLOCK_END.length };
+}
+
+export type GitignoreBlockState =
+  | { status: "missing" }
+  | { status: "current" }
+  | { status: "stale"; added: string[]; removed: string[] };
+
+function patternLines(block: string): string[] {
+  return block
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "" && !line.startsWith("#"));
+}
+
+/** Whether `.gitignore` has the uac block this config produces, and how it differs. */
+export async function gitignoreBlockState(
+  root: string,
+  config: BlockConfig,
+): Promise<GitignoreBlockState> {
+  const text = await readGitignore(root);
+  const range = findBlock(text);
+  if (!range) return { status: "missing" };
+
+  const existing = text.slice(range.start, range.end);
+  const expected = buildGitignoreBlock(config);
+  if (existing === expected) return { status: "current" };
+
+  const before = patternLines(existing);
+  const after = patternLines(expected);
+  return {
+    status: "stale",
+    added: after.filter((line) => !before.includes(line)),
+    removed: before.filter((line) => !after.includes(line)),
+  };
 }
 
 /**
  * Write the uac block into `.gitignore`, replacing an existing block.
  *
- * @param config the project's resolved config: the block includes its
- *   `agentsMd.indexDir`, which can be anywhere in the project
+ * @param config the project's resolved config: the block follows its
+ *   `types`, and includes its `agentsMd.indexDir`, which can be anywhere
  */
-export async function run(
-  root: string,
-  config: Pick<ResolvedConfig, "agentsMd"> = DEFAULT_CONFIG,
-): Promise<void> {
+export async function run(root: string, config: BlockConfig = DEFAULT_CONFIG): Promise<void> {
   const gitignorePath = join(root, ".gitignore");
-  const block = buildBlock(config.agentsMd.indexDir);
-
-  let existing = "";
-  try {
-    existing = await readFile(gitignorePath, "utf-8");
-  } catch {
-    // File doesn't exist yet
-  }
-
-  const startIdx = existing.indexOf(BLOCK_START);
-  const endIdx = existing.indexOf(BLOCK_END);
+  const block = buildGitignoreBlock(config);
+  const existing = await readGitignore(root);
+  const range = findBlock(existing);
 
   let newContent: string;
-
-  if (startIdx !== -1 && endIdx !== -1) {
-    // Replace existing block
-    const before = existing.substring(0, startIdx);
-    const after = existing.substring(endIdx + BLOCK_END.length);
-    newContent = `${before}${block}${after}`;
+  if (range) {
+    newContent = `${existing.slice(0, range.start)}${block}${existing.slice(range.end)}`;
   } else if (!existing) {
-    // New file
     newContent = block + "\n";
   } else {
-    // Append to existing file
     const sep = existing.endsWith("\n") ? "\n" : "\n\n";
     newContent = `${existing}${sep}${block}\n`;
   }
 
+  if (newContent === existing) {
+    consola.info("universal-ai-config patterns in .gitignore are up to date");
+    return;
+  }
   await writeFile(gitignorePath, newContent, "utf-8");
 
   if (!existing) {
     consola.success("Created .gitignore with universal-ai-config patterns");
-  } else if (startIdx !== -1) {
+  } else if (range) {
     consola.success("Updated universal-ai-config patterns in .gitignore");
   } else {
     consola.success("Added universal-ai-config patterns to .gitignore");

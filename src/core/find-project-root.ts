@@ -19,9 +19,13 @@ function isDir(p: string): boolean {
  * file, so the custom directory name itself need not be detected).
  */
 function hasUacMarker(dir: string): boolean {
-  if (isDir(join(dir, TEMPLATES_DIR))) return true;
-  return CONFIG_EXTENSIONS.some((ext) =>
-    existsSync(join(dir, `universal-ai-config.config.${ext}`)),
+  return isDir(join(dir, TEMPLATES_DIR)) || findConfigFile(dir) !== undefined;
+}
+
+/** The `universal-ai-config.config.*` file name in `dir`, whatever its extension. */
+export function findConfigFile(dir: string): string | undefined {
+  return CONFIG_EXTENSIONS.map((ext) => `universal-ai-config.config.${ext}`).find((name) =>
+    existsSync(join(dir, name)),
   );
 }
 

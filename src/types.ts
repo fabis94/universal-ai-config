@@ -16,7 +16,10 @@ export interface UserConfig {
   additionalTemplateDirs?: string[];
   /** Which targets to generate config for. Default: all (`["claude", "copilot", "cursor", "codex"]`). */
   targets?: Target[];
-  /** Which template types to generate. Default: all (`["instructions", "skills", "agents", "hooks", "mcp"]`). */
+  /**
+   * Which template types uac handles at all. A type left out is off for every command: never
+   * generated, cleaned, seeded or gitignored. Default: all (`["instructions", "skills", "agents", "hooks", "mcp"]`).
+   */
   types?: TemplateType[];
   /**
    * Custom variables exposed to templates — EJS in markdown bodies, `{{varName}}` in hook/MCP JSON.
