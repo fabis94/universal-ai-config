@@ -7,7 +7,7 @@ Everything the config file (`universal-ai-config.config.ts`) supports, plus how 
 - `templatesDir` — templates directory (default: `.universal-ai-config`)
 - `additionalTemplateDirs` — extra directories to discover templates from; supports absolute paths, relative paths, and `~` for home directory (default: `[]`). On a name conflict the **first mention wins**: `templatesDir`, then each entry in order. See [Template precedence](#template-precedence--shadowing).
 - `targets` — which targets to generate (default: all). Usually set per developer in `universal-ai-config.overrides.ts` — see [Shared outputs](#shared-outputs-and-one-target-set-per-machine).
-- `types` — which template types to generate (default: all)
+- `types` — which template types uac handles at all (default: all). A type left out is off for every command: not generated, cleaned, seeded, gitignored, or installed by `uac skill add`. To remove what uac generated before you turned a type off, run `uac clean --type <type>`; `--type` replaces `types` for one run.
 - `variables` — custom variables for templates (EJS in markdown, typed `{{var}}` in JSON — see [Variables](#variables))
 - `outputDirs` — override default output directories per target
 - `exclude` — glob patterns to skip templates from generation (array or per-target object). Prefix a pattern with a source directory to skip just that copy — see [Template exclusion](#template-exclusion).
@@ -107,7 +107,7 @@ Set `agentsMd.keepOverrideFiles: true` if yours are hand-written: uac then never
 
 ## Shared outputs and one target set per machine
 
-**Generate only the tools you use on your machine.** Each developer sets `targets` in their own gitignored `universal-ai-config.overrides.ts` (or passes `-t`); the committed config doesn't have to list every tool. Generating every target at once, and committing all of it, isn't the intended setup.
+**Generate only the tools you use on your machine.** Each developer sets `targets` in their own gitignored `universal-ai-config.overrides.ts` — `uac setup` asks and writes it — or passes `-t`; the committed config doesn't have to list every tool. Generating every target at once, and committing all of it, isn't the intended setup.
 
 ```typescript
 // universal-ai-config.overrides.ts (gitignored, per developer)

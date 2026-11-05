@@ -364,6 +364,7 @@ function renderCodexAgent(
 
 export default defineTarget({
   name: "codex",
+  label: "Codex",
   outputDir: ".codex",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
 

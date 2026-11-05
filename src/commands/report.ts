@@ -196,7 +196,7 @@ export function printDiagnostics(
   if (overlap.length > 0) {
     consola.warn(
       "Several targets in this run read the same files. Usually you only need one of them on a machine: " +
-        "set `targets` in universal-ai-config.overrides.ts.",
+        "set `targets` in universal-ai-config.overrides.ts (`uac setup` writes it).",
     );
     printLines(formatServedBy(overlap, verbose));
   }

@@ -74,7 +74,7 @@ describe("printDiagnostics", () => {
       served("claude", "instructions", "agentsMd"),
     ]);
     expect(lines[0]).toMatch(
-      /^warn: Several targets .* set `targets` in universal-ai-config\.overrides\.ts\./,
+      /^warn: Several targets .* set `targets` in universal-ai-config\.overrides\.ts \(`uac setup` writes it\)\./,
     );
     expect(lines.slice(1).join("\n")).toContain(
       "claude and copilot both read claude's hooks — generating only claude's",

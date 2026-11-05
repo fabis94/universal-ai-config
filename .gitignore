@@ -16,8 +16,18 @@ dist/
 .github/instructions/
 .github/skills/
 .github/agents/
-.github/hooks/
+.github/hooks/hooks.json
 .cursor/rules/
 .cursor/skills/
+.cursor/agents/
 .cursor/hooks.json
+.codex/agents/
+.codex/hooks.json
+.codex/config.toml
+.agents/skills/
+AGENTS.md
+.mcp.json
+.cursor/mcp.json
+# Scoped instructions of the AGENTS.md `index` variation
+/.agents/uac-instructions/
 # <<< universal-ai-config <<<

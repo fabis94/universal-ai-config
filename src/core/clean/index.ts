@@ -174,7 +174,9 @@ function ownsAgentsMd(target: Target, options?: CleanOptions): boolean {
  * omitted every registered target is cleaned, not just the configured ones —
  * that's what removes the output of a target you dropped from `targets`.
  *
- * With `types`, only artifacts of those template types are removed.
+ * With `types`, only artifacts of those template types are removed; omitted,
+ * every type is. Pass the resolved `config.types` for the CLI's semantics,
+ * where a type left out of `types` is never touched.
  *
  * Returns the root-relative paths removed (or, under `dryRun`, that would be).
  */

@@ -17,16 +17,17 @@ It works from any subdirectory — uac searches upward for the project root. `--
 
 ## Commands
 
-- `uac generate` — render templates into target configs. `-t claude,codex` replaces the configured targets, `--type skills` limits types, `-d` previews, `-v` shows per-file output and warning details. Add `--clean` after renaming or deleting a template, changing `globs`, `targets` or `agentsMd.variation`, so stale outputs get removed.
-- `uac clean` — remove generated files (every target unless `-t` is given).
+- `uac generate` — render templates into target configs. `-t claude,codex` replaces the configured targets, `--type skills` limits types (`--type all` for every type), `-d` previews, `-v` shows per-file output and warning details. Add `--clean` after renaming or deleting a template, changing `globs`, `targets` or `agentsMd.variation`, so stale outputs get removed.
+- `uac clean` — remove generated files (every target unless `-t` is given; only the types in `types` unless `--type` is given).
 - `uac seed <meta-instructions|examples|gitignore>` — add pre-built template sets.
 - `uac skill add <source>` — copy skills from a GitHub repo or local path into the templates (`--list`, `-s <names>`, `--all`).
-- `uac init` — scaffold a new templates directory and config.
+- `uac init` (alias `uac setup`) — set up the project or this machine's targets; a wizard in a terminal, flags (`-t`, `--examples`, `--reseed`, `--yes`) otherwise.
 
 ## Config (`universal-ai-config.config.ts`)
 
 - `templatesDir` / `additionalTemplateDirs` — where templates come from; on a name conflict the first directory wins.
-- `targets` / `types` — what to generate. Set `targets` per developer in the overrides file: tools read each other's files, so generating several on one machine makes uac keep one copy and warn.
+- `targets` — what to generate. Set it per developer in the overrides file (`uac setup` writes it): tools read each other's files, so generating several on one machine makes uac keep one copy and warn.
+- `types` — template types uac handles at all; a type left out is never generated, cleaned, seeded or gitignored.
 - `variables` — values for EJS (markdown) and `{{var}}` (JSON) templates.
 - `outputDirs` — per-target output directory overrides.
 - `exclude` — skip templates by input path (per-target allowed).

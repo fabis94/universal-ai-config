@@ -185,6 +185,8 @@ export interface ForeignRead {
 
 export interface TargetDefinition {
   name: Target;
+  /** Product name shown to people, e.g. in `uac setup` */
+  label: string;
   /** Default output directory, relative to the project root */
   outputDir: string;
   supportedTypes: TemplateType[];

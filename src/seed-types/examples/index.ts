@@ -1,46 +1,44 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { DEFAULT_CONFIG } from "../../config/defaults.js";
+import type { TemplateType } from "../../types.js";
 import { renderTemplate, getSeedTemplatesDir, collectSkillTemplates } from "../shared.js";
 import type { SeedTemplate } from "../shared.js";
 
 const TEMPLATES_DIR = getSeedTemplatesDir("examples");
 
-export function getTemplates(templatesDir: string): SeedTemplate[] {
+/** Flat example files of one type: `.md` ones EJS-rendered, `.json` ones copied as-is. */
+function flatTemplates(
+  type: "instructions" | "agents" | "hooks",
+  vars: Record<string, string>,
+): SeedTemplate[] {
+  const dir = join(TEMPLATES_DIR, type);
+  const extension = type === "hooks" ? ".json" : ".md";
+  return readdirSync(dir)
+    .filter((file) => file.endsWith(extension))
+    .map((file) => ({
+      relativePath: `${type}/${file}`,
+      content:
+        extension === ".md"
+          ? renderTemplate(join(dir, file), vars)
+          : readFileSync(join(dir, file), "utf-8"),
+    }));
+}
+
+/** The example templates, without those of types left out of `types`. */
+export function getTemplates(
+  templatesDir: string,
+  types: readonly TemplateType[] = DEFAULT_CONFIG.types,
+): SeedTemplate[] {
   const vars = { templatesDir };
   const templates: SeedTemplate[] = [];
 
-  // Instructions: flat .md files
-  const instructionsDir = join(TEMPLATES_DIR, "instructions");
-  for (const file of readdirSync(instructionsDir)) {
-    if (!file.endsWith(".md")) continue;
-    templates.push({
-      relativePath: `instructions/${file}`,
-      content: renderTemplate(join(instructionsDir, file), vars),
-    });
+  if (types.includes("instructions")) templates.push(...flatTemplates("instructions", vars));
+  if (types.includes("skills")) {
+    templates.push(...collectSkillTemplates(join(TEMPLATES_DIR, "skills"), vars));
   }
-
-  // Skills: flat .md files and/or directories with SKILL.md + extras
-  templates.push(...collectSkillTemplates(join(TEMPLATES_DIR, "skills"), vars));
-
-  // Agents: flat .md files
-  const agentsDir = join(TEMPLATES_DIR, "agents");
-  for (const file of readdirSync(agentsDir)) {
-    if (!file.endsWith(".md")) continue;
-    templates.push({
-      relativePath: `agents/${file}`,
-      content: renderTemplate(join(agentsDir, file), vars),
-    });
-  }
-
-  // Hooks: flat .json files (no EJS rendering)
-  const hooksDir = join(TEMPLATES_DIR, "hooks");
-  for (const file of readdirSync(hooksDir)) {
-    if (!file.endsWith(".json")) continue;
-    templates.push({
-      relativePath: `hooks/${file}`,
-      content: readFileSync(join(hooksDir, file), "utf-8"),
-    });
-  }
+  if (types.includes("agents")) templates.push(...flatTemplates("agents", vars));
+  if (types.includes("hooks")) templates.push(...flatTemplates("hooks", vars));
 
   return templates;
 }

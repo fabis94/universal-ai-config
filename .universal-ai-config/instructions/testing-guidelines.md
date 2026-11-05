@@ -1,12 +1,13 @@
 ---
 description: How to write and organize tests
-globs: ["tests/**/*.ts", "**/*.test.ts"]
+globs: ["tests/**/*.ts", "**/*.test.ts", "src/commands/**", "scripts/tui.ts"]
 ---
 
 ## Test Organization
 
 - **Unit tests** (`tests/unit/`) — test pure functions in isolation: parser, config schema validation, resolve-overrides, target frontmatter mapping, the planner (`plan/`), AGENTS.md routing/layout (`agents-md/`), clean entries (`clean/`)
 - **Integration tests** (`tests/integration/`) — test the full generate pipeline end-to-end using fixtures. Commands that touch disk (`generate`, `clean`) are tested on a temp copy with `CliProject` from `tests/integration/cli-project.ts`
+- **E2E tests** (`tests/e2e/`) — the built CLI (`dist/`, built once per run by `tests/e2e/build.ts`) in a real pseudo-terminal: `TerminalSession` feeds its output through a terminal emulator and asserts on the screen a user sees. Use them for anything that renders: prompts, wizard flows, help text, line wrapping. `pnpm test:e2e` runs only these
 
 ## Writing Integration Tests
 
@@ -29,6 +30,22 @@ expect(text(rule)).toContain("expected output");
 - Assert on diagnostics by `code` and `detail`, not on console output. For target unit tests, `collectingContext()` from `tests/test-helpers.ts` gives a `ctx` whose `report` collects into `diagnostics`.
 - CLI prompts go through `src/commands/interactive.ts`. Tests `vi.mock` that module to choose whether a terminal is present and what the user answers (see `agents-overrides.test.ts`); without the mock, tests run with no terminal and nothing prompts.
 - `targets` replaces the fixture's configured set — overlapping targets change what's generated (AGENTS.md, Claude's hooks/`.mcp.json` shared with Copilot), so test a target's own rendering with that target alone.
+
+## Changing the CLI (prompts and output)
+
+A mocked `interactive.js` test proves the logic, never how a prompt renders: consola's broken prompt layout once shipped because nobody looked at real terminal output. For any new or changed prompt, wizard step, help text or output line:
+
+1. **Design the screens first.** Before coding, write a step-by-step walkthrough of every screen: exact messages, options, hints, defaults, preselection rules, and when each step appears. Agree it with the user, re-showing the whole walkthrough after every change, and put the agreed version in the plan.
+2. **Build on the shared pieces.** Prompts only through the `commands/interactive.ts` wrappers over `@clack/prompts`; output through `consola`; colors from `picocolors`. One function per step, reused by every flow and by the flag-driven path (see `commands/init/steps.ts`). Gate every prompt on `canPrompt()` and give it a flag, so CI, scripts and agents never block.
+3. **Test the logic with mocks.** Unit/integration tests mock `interactive.js` (see `agents-overrides.test.ts`) or test pure pieces like `setupMenu()` directly, asserting branching, preselection, hint strings and files written.
+4. **Test the rendering for real.** In `tests/e2e`, start the CLI with `useProjects()` / `project.start(args, { cols, rows })`, drive it with `session.press(...)` / `type(...)`, wait with `waitFor(text)` / `waitForExit()`, and snapshot `screenOf(session)` inline at every screen of the walkthrough:
+   - at 80 **and** 50 columns (long hints must wrap without breaking the layout);
+   - arrow through every option — clack shows a hint only on selected or focused options;
+   - moving down then back up must give an identical screen (no ghost or duplicated rows);
+   - ctrl-c cancels cleanly; `fitsWidth(screen, 80)` for help text.
+     Keep snapshots deterministic: relative paths, `screenOf()` replaces the uac version.
+5. **Look at it yourself.** Run `pnpm tui --cols 80 --keys "down*2,space,enter" -- <uac args>` (and `--cols 50`), read every frame, and compare it with the agreed walkthrough. It builds `dist/` first and prints the screen after startup, after each key, and on exit. `--cwd <dir>` runs it in another project; use a scratch directory, never this repo. tmux works too (`tmux new-session -d -x 80 -y 30 '…'`, `send-keys`, `capture-pane -p`).
+6. **Check the non-interactive path** never prompts (tests run without a terminal), and update the docs: `docs/uac/cli.md`, the README, and `uac-usage.md` for a new command.
 
 ## Fixture Projects
 

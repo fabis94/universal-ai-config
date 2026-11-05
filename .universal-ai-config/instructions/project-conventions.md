@@ -14,10 +14,15 @@ src/
 ├── cli.ts                         # CLI entry point (citty)
 ├── index.ts                       # Public API exports
 ├── types.ts                       # All TypeScript interfaces
-├── commands/                      # CLI commands: generate, init, clean, seed, skill/
+├── version.ts                     # UAC_VERSION (from package.json) + compareVersions
+├── commands/                      # CLI commands: generate, init/ (+ setup alias), clean, seed, skill/
+│   ├── init/                      # The setup wizard: state (checks, once), steps (one fn per
+│   │                              #   step), wizard (first-time flow + menu), index (flags)
 │   ├── report.ts                  # CLI summary + grouped diagnostics output
+│   ├── run-generate.ts            # Shared by `generate` and setup's generate step
 │   ├── run-clean.ts               # Shared by `clean` and `generate --clean`
-│   ├── interactive.ts             # canPrompt() + confirmAction(): the only prompt seam
+│   ├── setup-hints.ts             # "run uac setup" lines: old seed stamp, stale .gitignore block
+│   ├── interactive.ts             # The only module importing @clack/prompts: the prompt seam
 │   └── agents-overrides.ts        # Asks to delete leftover AGENTS.override.md files
 ├── core/
 │   ├── generate/                  # The pipeline: index (generateProject/generate), discover,
@@ -34,19 +39,24 @@ src/
 │   ├── parser.ts                  # Frontmatter + EJS, path helpers
 │   ├── shell.ts                   # shellQuote / flattenCommand
 │   └── …                          # resolve-overrides, exclude, normalize-globs, safe-path, scan-files, …
-├── config/                        # loader (c12), schema (Zod), defaults, validate, merge-field
+├── config/                        # loader (c12), schema (Zod), defaults, validate, merge-field,
+│                                  #   config-files (find/render/write config + overrides files)
 ├── targets/                       # define-target.ts + claude/, copilot/, cursor/, codex/
 └── seed-types/                    # Seedable template sets
     ├── shared.ts                  # Common seed utilities
-    ├── meta-instructions/         # Meta-instructions about uac
+    ├── meta-instructions/         # Meta-instructions about uac; state.ts: version stamp + drift
     │   └── templates/             # instructions/, skills/, docs/uac/ (seed sources)
-    ├── gitignore/                 # .gitignore block (reads agentsMd.indexDir)
+    ├── gitignore/                 # .gitignore block (follows `types` + agentsMd.indexDir), its state
     └── examples/                  # Example templates
 tests/
 ├── test-helpers.ts                # expectYamlField, text(file), collectingContext()
 ├── unit/                          # Pure functions: parser, config, plan/, agents-md/, clean/, targets/, …
 ├── integration/                   # Full pipeline with fixtures; cli-project.ts drives CLI commands
+├── e2e/                           # The built CLI in a real pseudo-terminal (terminal.ts), screens
+│                                  #   as inline snapshots
 └── fixtures/                      # Self-contained test projects
+scripts/
+└── tui.ts                         # `pnpm tui`: drive the CLI with keys, print every screen
 ```
 
 ## Core Pipeline
@@ -80,6 +90,7 @@ Each target in `src/targets/` implements `TargetDefinition` (`src/targets/define
 ```typescript
 {
   name: Target;
+  label: string;                        // product name shown to people, e.g. "Claude Code"
   outputDir: string;                    // e.g. ".claude"
   supportedTypes: TemplateType[];
   reads?: { [type]: ForeignRead[] };    // facts: other outputs the tool also loads
@@ -105,18 +116,19 @@ Each target in `src/targets/` implements `TargetDefinition` (`src/targets/define
 
 ## Config System
 
-- **`config/loader.ts`** — uses c12 to load `universal-ai-config.config.ts` (base) and `universal-ai-config.overrides.ts` (local overrides, gitignored; `universal-ai-config.overrides.config.ts` is read when it is the only one), then validates the merged result
+- **`config/loader.ts`** — uses c12 to load `universal-ai-config.config.ts` (base) and `universal-ai-config.overrides.ts` (local overrides, gitignored; `universal-ai-config.overrides.config.ts` is read when it is the only one), then validates the merged result. Every load reads the file as it is on disk now (`importFresh`), since setup writes the overrides file and generates in one process
 - **Merge strategy**: scalars replace, arrays replace entirely, objects deep-merge (`mcp` and `agentsMd` field by field)
 - **`config/schema.ts`** — Zod v4 validation + `defineConfig()` identity helper
 - **`config/defaults.ts`** — default `templatesDir`, `targets`, `types`, `outputDirs`, `variables`, `agentsMd`
 - **`config/validate.ts`** — checks that need the merged config (e.g. `agentsMd.indexDir` placement)
+- **`types`** — a type left out is off for **every** command: discovery, generation, clean (`runClean` passes `config.types`; `--type` replaces it, like `-t`), seeds, the `.gitignore` block, `skill add`
 
 ## CLI Commands
 
-All commands are in `src/commands/`:
+All commands are in `src/commands/`. Changing a prompt or CLI output follows the workflow in the testing guidelines ("Changing the CLI").
 
 - **`generate`** — main command; `-t` replaces the configured target set. Output and grouped diagnostics come from `report.ts`
-- **`init`** — scaffolds `.universal-ai-config/` dir, creates example config, adds the gitignore block, seeds meta-instructions
+- **`init`** (alias **`setup`**) — a wizard in a terminal: first-time setup (config, meta-instructions, gitignore block) or a menu for an existing project; asks this machine's coding agents and writes the overrides file. Flags instead of prompts otherwise
 - **`clean`** — removes generated output; `-t` names the set being cleaned
 - **`seed <type>`** — seeds pre-built template sets (`meta-instructions`, `examples`, `gitignore`)
 - **`skill add`** — copies skills from a GitHub repo or local path into the templates dir
@@ -138,7 +150,7 @@ Seed templates are EJS-rendered with `config.templatesDir` as a variable. Skills
 - **Identity helpers** — use `defineTarget()`, `defineConfig()` for type-safe object literals
 - **Zod v4** — use `z.record(z.string(), z.unknown())`, never `z.record(z.unknown())` (Zod v4 requires explicit key schema)
 - **No default exports** except for target definitions and the config file
-- **Interactive prompts** — use `@clack/prompts` (`multiselect`/`confirm`/`select` + `isCancel`); never `consola.prompt`. Gate every prompt on `canPrompt()` from `commands/interactive.ts` (no prompt without a terminal: CI, scripts, agents), and put yes/no questions through its `confirmAction()` so tests can mock one module. consola bundles a stale, frozen fork of pre-1.0 clack that mis-renders wrapped/multiline options (ghost rows, duplicates). consola is for logging only.
+- **CLI libraries** — the ones the `skill` commands use, everywhere: `@clack/prompts` for prompts, `consola` for output, `picocolors` for colors. Every prompt (confirm, select, multiselect, note, intro/outro) goes through the wrappers in `commands/interactive.ts` (`askYesNo`/`confirmAction`, `selectOne`, `selectMany`, `showNote`, `startFlow`/`endFlow`); no other module imports clack, so tests mock one module. Gate every prompt on `canPrompt()` (no prompt without a terminal: CI, scripts, agents) and give it a flag equivalent. Never `consola.prompt`: consola bundles a stale, frozen fork of pre-1.0 clack that mis-renders wrapped/multiline options (ghost rows, duplicates).
 - **TypeScript strict mode** — `strict`, `noUncheckedIndexedAccess`, `noUnusedLocals`, `noUnusedParameters`
 - **Build** — tsdown (configured in `tsdown.config.ts`), outputs `dist/cli.mjs` + `dist/index.mjs`
 
@@ -153,6 +165,7 @@ Exported from `src/index.ts`:
 
 - **Unit tests** (`tests/unit/`) — parser, config, diagnostics, writer, shell, planner (`plan/`), AGENTS.md (`agents-md/`), clean entries (`clean/`), per-target mapping (`targets/`)
 - **Integration tests** (`tests/integration/`) — full `generateProject()` pipeline with fixtures; CLI-level tests (generate/clean on a temp copy) use `CliProject` from `cli-project.ts`
+- **E2E tests** (`tests/e2e/`, vitest project `e2e`) — the built CLI in a real pseudo-terminal, asserting on the screen a user sees; `pnpm test:e2e` runs only these
 - **Fixtures** (`tests/fixtures/`) — each is a self-contained project:
   - `basic-project` — minimal templates, one of each type
   - `complete-project` — exercises all frontmatter fields
@@ -161,7 +174,7 @@ Exported from `src/index.ts`:
   - `pick-one-project` — which outputs overlapping targets generate
 - When adding features, prefer extending an existing fixture or creating a new one over modifying `basic-project`
 - When making any kind of change evaluate if tests need modifying/adding. Generally speaking we want full coverage for everything.
-- Run **`pnpm check`** (lint + format + knip + test) before considering work complete
+- Run **`pnpm check`** (lint + knip + test + tsc) before considering work complete
 
 ## Documentation
 

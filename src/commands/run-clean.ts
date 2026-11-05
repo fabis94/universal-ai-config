@@ -14,7 +14,7 @@ interface RunCleanOptions {
   root: string;
   /** CLI `--target` selection: the set to clean. When omitted every registered target is cleaned. */
   targets?: Target[];
-  /** CLI `--type` selection. When omitted every type is cleaned. */
+  /** CLI `--type` selection, replacing the configured `types`. When omitted, `types` from config. */
   types?: TemplateType[];
   configPath?: string;
   verbose?: boolean;
@@ -29,17 +29,18 @@ interface RunCleanOptions {
 /**
  * Shared implementation behind `uac clean` and `uac generate --clean`.
  *
- * Loads config for `outputDirs` / `preserveOnClean` / `templatesDir` /
- * `agentsMd` but deliberately does NOT scope targets to `config.targets` —
- * cleaning every registered target is what removes stale output for a target
- * you've since dropped from your config. Narrow it with `--target`.
+ * Targets are deliberately NOT scoped to `config.targets`: cleaning every
+ * registered target is what removes stale output for a target you've since
+ * dropped from your config. Narrow it with `--target`. Types ARE scoped to
+ * `config.types` (or `--type`, which replaces it, as in generate): a type left
+ * out of `types` is off for every command, so its files are never touched.
  */
 export async function runClean(options: RunCleanOptions): Promise<string[]> {
   const { root, targets, types, configPath, verbose, dryRun = false } = options;
-  const config = await loadProjectConfig({ root, configPath });
+  const config = await loadProjectConfig({ root, configPath, cliTypes: types });
 
   const preserved: string[] = [];
-  const cleaned = await cleanTargetFiles(root, targets, types, {
+  const cleaned = await cleanTargetFiles(root, targets, config.types, {
     dryRun,
     outputDirs: config.outputDirs,
     preserveOnClean: config.preserveOnClean,
@@ -63,7 +64,7 @@ export async function runClean(options: RunCleanOptions): Promise<string[]> {
     }
   }
 
-  if ((options.askAboutOverrideFiles ?? true) && (!types || types.includes("instructions"))) {
+  if ((options.askAboutOverrideFiles ?? true) && config.types.includes("instructions")) {
     const overrides = await findAgentsOverrideFiles(root, config);
     if (overrides.length > 0) {
       const sink = new DiagnosticSink();

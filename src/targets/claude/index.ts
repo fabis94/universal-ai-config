@@ -172,6 +172,7 @@ function transformClaudeMCP(
 
 export default defineTarget({
   name: "claude",
+  label: "Claude Code",
   outputDir: ".claude",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
   reads: {
