@@ -167,7 +167,6 @@ describe("seed meta-instructions", () => {
     expect(guide).toContain("<%%= target %>");
     expect(guide).toContain("<%% if (target === 'claude') { %>");
     expect(guide).toContain("<%%= skillDirPath('deploy', 'reference.md') %>");
-    expect(guide).toContain("<%%= docPath('name') %>");
 
     // Real-value tags OUTSIDE the EJS Templating section stay single-escaped:
     // they intentionally resolve to real paths in the final output.
@@ -195,9 +194,8 @@ describe("seed meta-instructions", () => {
     expect(content).toContain("`<%= target %>` prints the target being generated");
     expect(content).toContain("`<% if (target === 'claude') { %>` … `<% } %>` keeps text");
     expect(content).toContain("e.g. `<%= skillDirPath('deploy', 'reference.md') %>` for a file");
-    expect(content).toContain(
-      "Link one from an instruction, skill, or agent with `<%= docPath('name') %>`",
-    );
+    // docs/ is uac's: the guide never sends agents there for their own files.
+    expect(content).toContain("Never add or edit files in `.universal-ai-config/docs/`");
 
     // The bug we are guarding against: examples evaluated to real values.
     expect(content).not.toContain("`claude` prints the target being generated");

@@ -194,7 +194,7 @@ The full reference lives in [`.universal-ai-config/docs/uac/`](.universal-ai-con
 | ----------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | [cli](.universal-ai-config/docs/uac/cli.md)                 | Every command and flag, root resolution, what `clean` removes                |
 | [config](.universal-ai-config/docs/uac/config.md)           | Options, AGENTS.md layouts, shared outputs, exclusion, precedence, overrides |
-| [templates](.universal-ai-config/docs/uac/templates.md)     | EJS variables, path helpers, per-tool values, reference docs                 |
+| [templates](.universal-ai-config/docs/uac/templates.md)     | EJS variables, path helpers, per-tool values                                 |
 | [frontmatter](.universal-ai-config/docs/uac/frontmatter.md) | Every instruction, skill and agent field, and which tools support it         |
 | [hooks](.universal-ai-config/docs/uac/hooks.md)             | Handler fields, event names per tool, matchers                               |
 | [mcp](.universal-ai-config/docs/uac/mcp.md)                 | Server fields per tool, output paths, opt-in filtering                       |

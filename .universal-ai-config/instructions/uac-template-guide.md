@@ -55,7 +55,7 @@ Ask yourself:
 3. **Does it need an isolated AI with restricted tools?** → Agent
 4. **Should it run automatically on a lifecycle event?** → Hook
 5. **Does it connect the AI to an external tool server?** → MCP Server
-6. **Is it long reference material only needed occasionally?** → a [reference doc](#reference-docs) linked from an instruction or skill, so it isn't loaded into every session
+6. **Is it long reference material only needed occasionally?** → a file agents read only when they need it, linked from an instruction or skill (see [Long Reference Material](#long-reference-material))
 
 ## Important: Avoid Backticks with Exclamation Marks in Skill Templates
 
@@ -78,7 +78,7 @@ Body content with instructions for the AI.
 
 Template bodies (not frontmatter) are rendered with EJS once per target: `<%%= target %>` prints the target being generated (`claude`, `copilot`, `cursor`, `codex`), and `<%% if (target === 'claude') { %>` … `<%% } %>` keeps text for one target. `type`, `consumers`, `config` and the config's `variables` are in scope too.
 
-**Always use path helpers when referencing other templates** — never hardcode target-specific paths. `instructionPath`, `skillPath`, `skillDirPath` and `agentPath` return a template's output path for the target being generated (e.g. `<%%= skillDirPath('deploy', 'reference.md') %>` for a file next to a skill's `SKILL.md`), the `…TemplatePath` helpers its source path, `docPath` a reference doc, and `mcpToolRef` the target's name for an MCP tool.
+**Always use path helpers when referencing other templates** — never hardcode target-specific paths. `instructionPath`, `skillPath`, `skillDirPath` and `agentPath` return a template's output path for the target being generated (e.g. `<%%= skillDirPath('deploy', 'reference.md') %>` for a file next to a skill's `SKILL.md`), the `…TemplatePath` helpers its source path, `docPath` one of uac's reference docs, and `mcpToolRef` the target's name for an MCP tool.
 
 Every variable and helper, and what each returns per target: `<%= docPath('uac/templates') %>`
 
@@ -86,15 +86,17 @@ Every variable and helper, and what each returns per target: `<%= docPath('uac/t
 
 Any frontmatter field, hook handler field or MCP server field can take per-target values: an object whose keys are all target names or `default`, e.g. `model: { claude: claude-sonnet-5-5, copilot: claude-sonnet-5.5 }`. A target with no matching key and no `default` drops the field. Details: `<%= docPath('uac/templates') %>`
 
-## Reference Docs
+## Long Reference Material
 
-Files under `<%= config.templatesDir %>/docs/` (or `docs/` in any `additionalTemplateDirs` entry) are **reference docs**: uac never generates them, and no AI tool loads them automatically. Link one from an instruction, skill, or agent with `<%%= docPath('name') %>`, and agents read it only when they need it. This keeps always-on instructions short while the detail stays one link away. uac's own reference docs live in `docs/uac/` and are refreshed by `uac seed meta-instructions` — don't edit them. Paths, precedence and links between docs: `<%= docPath('uac/templates') %>`
+Keep always-on instructions short. Move long reference material (full tables, API details, edge cases) into a file agents read only when they need it: a supporting file next to a skill's `SKILL.md`, or a doc elsewhere in the repo that an instruction links to by its path.
+
+Never add or edit files in `<%= config.templatesDir %>/docs/`: that folder belongs to uac. It holds uac's own reference docs, which `uac seed meta-instructions` overwrites, and uac may change anything in it.
 
 ## Frontmatter Fields
 
 ### Instructions
 
-Fields: `description`, `globs` (string or array), `alwaysApply`, and Copilot-only `name` and `excludeAgent`. `alwaysApply` instructions are loaded into **every** session on every target (they go in the root `AGENTS.md` when AGENTS.md is generated), so keep them short and move detail into [reference docs](#reference-docs). All instruction fields: `<%= docPath('uac/frontmatter') %>`
+Fields: `description`, `globs` (string or array), `alwaysApply`, and Copilot-only `name` and `excludeAgent`. `alwaysApply` instructions are loaded into **every** session on every target (they go in the root `AGENTS.md` when AGENTS.md is generated), so keep them short and move detail into [files read on demand](#long-reference-material). All instruction fields: `<%= docPath('uac/frontmatter') %>`
 
 ### AGENTS.md
 

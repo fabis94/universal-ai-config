@@ -35,7 +35,7 @@ Find every `AGENTS.md` in the project, skipping dependency and build folders and
 
 - Plain markdown: no frontmatter, no EJS.
 - Never edit between `<!-- >>> universal-ai-config >>> -->` and `<!-- <<< universal-ai-config <<< -->`: `uac seed meta-instructions` rewrites that block.
-- Keep the root file short. It loads into every session on every tool, and Codex reads at most 32 KiB per folder chain. Put long reference material in a doc under `<%%= config.templatesDir %>/docs/` and link it by path.
+- Keep the root file short. It loads into every session on every tool, and Codex reads at most 32 KiB per folder chain. Put long reference material in a doc elsewhere in the repo and link it by its path (never in `<%%= config.templatesDir %>/docs/`, which belongs to uac).
 - Don't add a `CLAUDE.md`: Claude ignores every AGENTS.md while one has content.
 
 How each tool loads nested files: `<%%= docPath('uac/standards') %>`
@@ -103,7 +103,7 @@ Key fields: `description`, `globs`, `alwaysApply`, `excludeAgent`. Every field w
 
 ### Keep always-on instructions short
 
-`alwaysApply` instructions load into every session on every target. When an instruction needs long reference material (full tables, API details, edge cases), put that material in a reference doc under `<%%= config.templatesDir %>/docs/` and link it with `<%%%= docPath('name') %>`, so agents read it only when they need it. See **Reference Docs** in `<%%= <%= guidePathHelper %>('uac-template-guide') %%>`.
+`alwaysApply` instructions load into every session on every target. When an instruction needs long reference material (full tables, API details, edge cases), put that material in a doc elsewhere in the repo and link it by its path, so agents read it only when they need it. See **Long Reference Material** in `<%%= <%= guidePathHelper %>('uac-template-guide') %%>`.
 
 ### AGENTS.md routing
 

@@ -26,7 +26,7 @@ Based on the user's request, decide which type of template to work with:
 - **Specialized AI persona with restricted tools** → Agent template
 - **Automatic lifecycle automation (on events)** → Hook template
 - **MCP server configuration** → MCP template
-- **Long reference material only needed occasionally** → a reference doc in `<%%= config.templatesDir %>/docs/`, linked from an instruction or skill with `docPath()` (see **Reference Docs** in the template guide)
+- **Long reference material only needed occasionally** → a supporting file next to a skill's `SKILL.md`, or a doc elsewhere in the repo linked by its path (see **Long Reference Material** in the template guide)
 
 Examples:
 

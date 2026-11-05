@@ -14,7 +14,7 @@ Output: `.claude/rules/<name>.md`, `.github/instructions/<name>.instructions.md`
 | `name`         | Copilot | Display name shown in the UI (defaults to the file name)                                                                                       |
 | `excludeAgent` | Copilot | Exclude from specific agents: `"code-review"` or `"cloud-agent"` (GitHub Copilot cloud only, not VS Code Copilot Chat locally)                 |
 
-`alwaysApply` instructions are loaded into **every** session on every target (they go in the root `AGENTS.md` when AGENTS.md is generated), so keep them short and move detail into [reference docs](templates.md#reference-docs). While AGENTS.md is generated, `description` becomes the instruction's `##` heading (the template name when it has none), `globs` only place an instruction in an AGENTS.md file (with a one-line scope note where needed), and `name` and `excludeAgent` have no effect.
+`alwaysApply` instructions are loaded into **every** session on every target (they go in the root `AGENTS.md` when AGENTS.md is generated), so keep them short and move long reference material into a file agents read only when they need it ([where](templates.md#reference-docs)). While AGENTS.md is generated, `description` becomes the instruction's `##` heading (the template name when it has none), `globs` only place an instruction in an AGENTS.md file (with a one-line scope note where needed), and `name` and `excludeAgent` have no effect.
 
 ## Skills
 

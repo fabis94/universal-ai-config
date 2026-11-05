@@ -1,6 +1,6 @@
 # Template reference: EJS, path helpers and per-target values
 
-Instruction, skill and agent templates in `.universal-ai-config/` are rendered once per target. This page has everything in scope while they render, what each path helper returns per target, how per-target values work, and how reference docs are linked. Frontmatter fields are in [frontmatter.md](frontmatter.md).
+Instruction, skill and agent templates in `.universal-ai-config/` are rendered once per target. This page has everything in scope while they render, what each path helper returns per target, how per-target values work, and how uac's reference docs are linked. Frontmatter fields are in [frontmatter.md](frontmatter.md).
 
 ## EJS
 
@@ -38,7 +38,7 @@ They return where a template lands for the target being generated, following `ou
 | `skillPath(name?)`          | A skill's `SKILL.md`, or the skills directory                         |
 | `skillDirPath(name, file?)` | A skill's folder, or a file inside it (references, scripts, examples) |
 | `agentPath(name?)`          | An agent's output file, or the agents directory                       |
-| `docPath(name?)`            | A [reference doc](#reference-docs), or the docs directory             |
+| `docPath(name?)`            | One of uac's [reference docs](#reference-docs), or the docs directory |
 
 What they return per target (the Claude, Copilot and Cursor `instructionPath` cells assume AGENTS.md isn't generated; see below):
 
@@ -79,22 +79,12 @@ They return a template's source path, the same for every target. Omit the name t
 
 ## Reference docs
 
-Files under `docs/` in the templates dir, or in any `additionalTemplateDirs` entry, are reference docs. uac never generates them, and no tool loads them on its own. Link one with `docPath()` and agents read it only when they need it, which keeps always-on instructions short:
+`docs/` in a template directory belongs to uac: it holds uac's own reference docs (`docs/uac/`), which `uac seed meta-instructions` overwrites, and uac may change anything in it. Don't add or edit files there. For your own long reference material, use a supporting file next to a skill's `SKILL.md` (linked with `skillDirPath()`), or a doc elsewhere in the repo that an instruction links to by its path.
 
-```markdown
----
-description: API conventions
-alwaysApply: true
----
+No tool loads uac's reference docs on its own. uac's instructions and skills link them with `docPath()`, and agents read them only when they need them:
 
-Return errors as `{ code, message }`. Full error code table: <%= docPath('api-errors') %>
-```
-
-- `docPath('api-errors')` returns `.universal-ai-config/docs/api-errors.md`. Nested names such as `docPath('api/errors')` work too.
-- The path is relative to the project root, or absolute when the doc lives in a template directory outside the project (e.g. `~/.universal-ai-config/docs/`).
-- The first template directory that has the doc wins, like templates. A name with no matching doc prints a `missing-doc` warning during `uac generate`.
-- Docs are read as they are: EJS and path helpers inside them are not rendered. Link sibling docs with relative links (`[errors](errors.md)`).
-- uac's own docs live in `docs/uac/` and are refreshed by `uac seed meta-instructions`; don't edit them.
+- `docPath('uac/hooks')` returns `.universal-ai-config/docs/uac/hooks.md`, relative to the project root.
+- A name with no matching doc prints a `missing-doc` warning during `uac generate`.
 
 ## Per-target values
 

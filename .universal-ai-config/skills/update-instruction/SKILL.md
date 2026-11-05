@@ -66,7 +66,7 @@ Key fields: `description`, `globs`, `alwaysApply`, `excludeAgent`. Every field w
 
 ### Keep always-on instructions short
 
-`alwaysApply` instructions load into every session on every target. When an instruction needs long reference material (full tables, API details, edge cases), put that material in a reference doc under `<%= config.templatesDir %>/docs/` and link it with `<%%= docPath('name') %>`, so agents read it only when they need it. See **Reference Docs** in `<%= instructionPath('uac-template-guide') %>`.
+`alwaysApply` instructions load into every session on every target. When an instruction needs long reference material (full tables, API details, edge cases), put that material in a doc elsewhere in the repo and link it by its path, so agents read it only when they need it. See **Long Reference Material** in `<%= instructionPath('uac-template-guide') %>`.
 
 ### AGENTS.md routing
 
