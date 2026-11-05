@@ -2,9 +2,10 @@ import { rm } from "node:fs/promises";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { targets } from "../../targets/index.js";
 import type { DiagnosticInput } from "../diagnostics.js";
+import { sourcedTypes } from "../plan/standards.js";
 import { createPreserveMatcher } from "../preserve-on-clean.js";
 import { safePath } from "../safe-path.js";
-import type { PerTargetValue, Target } from "../../types.js";
+import type { PerTargetValue, StandardsSetting, Target, TemplateType } from "../../types.js";
 import { findFilesOutsideInputs, templateDirsWithin } from "./agents-files.js";
 
 /**
@@ -16,6 +17,8 @@ import { findFilesOutsideInputs, templateDirsWithin } from "./agents-files.js";
  */
 const AGENTS_OVERRIDE = "AGENTS.override.md";
 
+const ALL_TYPES = DEFAULT_CONFIG.types;
+
 export interface AgentsOverrideOptions {
   /** Templates dir: its input folders are never scanned. */
   templatesDir?: string;
@@ -25,12 +28,20 @@ export interface AgentsOverrideOptions {
   preserveOnClean?: PerTargetValue<string[]>;
   /** With `keepOverrideFiles: true` the files are the user's, and none are returned. */
   agentsMd?: { keepOverrideFiles?: boolean };
+  /**
+   * With instructions from AGENTS.md (`standards`), AGENTS.override.md files
+   * are hand-written instructions like the rest, and none are returned.
+   */
+  standards?: StandardsSetting;
+  /** The project's `types`, which `standards` applies within. Default: every type. */
+  types?: TemplateType[];
 }
 
 /**
  * The AGENTS.override.md files uac warns about and offers to delete: every
  * one in the project except template inputs and paths `preserveOnClean`
- * keeps, or none when `agentsMd.keepOverrideFiles` is set. Root-relative,
+ * keeps. None when they're the project's own: `agentsMd.keepOverrideFiles`
+ * is set, or instructions come from AGENTS.md (`standards`). Root-relative,
  * sorted.
  */
 export async function findAgentsOverrideFiles(
@@ -38,6 +49,8 @@ export async function findAgentsOverrideFiles(
   options: AgentsOverrideOptions = {},
 ): Promise<string[]> {
   if (options.agentsMd?.keepOverrideFiles === true) return [];
+  const facts = { standards: options.standards ?? false, types: options.types ?? ALL_TYPES };
+  if (sourcedTypes(facts).has("instructions")) return [];
   const templateDirs = templateDirsWithin(root, [
     options.templatesDir ?? DEFAULT_CONFIG.templatesDir,
     ...(options.additionalTemplateDirs ?? []),

@@ -19,4 +19,5 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
     variation: "nested",
     indexDir: ".agents/uac-instructions",
   },
+  standards: false,
 };

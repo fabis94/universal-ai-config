@@ -6,13 +6,14 @@ import { createLocator } from "../plan/locate.js";
 import { targets } from "../../targets/index.js";
 import type { GeneratedFile, GenerateOptions, TemplateType } from "../../types.js";
 import { generateAgentsMdFiles } from "./agents-md.js";
-import { assertNoPathCollisions } from "./collisions.js";
+import { assertNoPathCollisions, assertNoStandardWrites } from "./collisions.js";
 import type { GenerateRun } from "./context.js";
 import { buildDocsIndex, discoverJsonFiles, discoverTemplates } from "./discover.js";
 import { generateHooksFiles } from "./hooks.js";
 import { generateMCPFiles } from "./mcp.js";
 import { FileReader } from "./read-cache.js";
 import { resolveWinners } from "./select.js";
+import { generateFromStandards, setAsideSourcedTemplates } from "./standards/index.js";
 import { buildTemplatesIndexes, generateTemplateFiles } from "./templates.js";
 
 export interface GenerateResult {
@@ -119,6 +120,8 @@ export async function generateProject(options: GenerateOptions = {}): Promise<Ge
   reportForcedAgentsMd(run, plan);
 
   const slots = await discoverTemplates(root, config, options.templates);
+  // Types read from a standard have no templates: the template pipeline never sees them
+  setAsideSourcedTemplates(run, plan, slots);
   resolveWinners(slots, config.targets, config, run.shadow);
 
   const reader = new FileReader();
@@ -130,6 +133,7 @@ export async function generateProject(options: GenerateOptions = {}): Promise<Ge
 
   const files = await generateTemplateFiles(run, slots, reader, indexes, plan);
   files.push(...(await generateAgentsMdFiles(run, plan, slots, reader, indexes)));
+  files.push(...(await generateFromStandards(run, plan, reader)));
 
   for (const name of missingDocs) {
     sink.report({
@@ -154,6 +158,7 @@ export async function generateProject(options: GenerateOptions = {}): Promise<Ge
     const overrides = await findAgentsOverrideFiles(root, config);
     if (overrides.length > 0) sink.report(agentsOverrideDiagnostic(overrides));
   }
+  assertNoStandardWrites(files, plan.sourced);
   return { files: assertNoPathCollisions(files), diagnostics: sink.items, plan };
 }
 

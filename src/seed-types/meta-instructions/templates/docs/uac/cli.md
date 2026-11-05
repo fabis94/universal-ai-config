@@ -86,11 +86,13 @@ Types work the other way: clean only touches the types in your config's `types`.
 
 `--target` is the set being cleaned, like `-t` in generate: everything those targets would generate goes, **including files they share** — `clean -t copilot` removes the root `.mcp.json` even though Claude writes it too (the next `generate` restores it). Files that hold user settings lose only uac's key: `hooks` in `.claude/settings.json`, `mcp_servers` in `.codex/config.toml`. Copilot's entry is `.github/hooks/hooks.json` only, so hook scripts in `.github/hooks/` survive. Clean also removes outputs older uac versions wrote, such as Copilot's `.vscode/mcp.json`.
 
-Clean loads your config so `outputDirs`, `preserveOnClean`, `templatesDir`, `types` and `agentsMd` are honored. Files matching `preserveOnClean` are never deleted (see [config.md](config.md#preserving-files-from-clean)).
+Clean loads your config so `outputDirs`, `preserveOnClean`, `templatesDir`, `types`, `agentsMd` and `standards` are honored. Files matching `preserveOnClean` are never deleted (see [config.md](config.md#preserving-files-from-clean)).
+
+With `standards`, a type kept in an open standard is cleaned only where uac copies it: Claude's skill folder. Clean never removes the AGENTS.md files, `.agents/skills`, or the instruction and skill folders of tools that read them (`.cursor/rules`, `.github/skills`, …), which may be hand-written. See [standards.md](standards.md).
 
 ### AGENTS.md files
 
-Cleaning `codex` — or, with `agentsMd.enable: true`, any target that reads AGENTS.md (claude, cursor, copilot) — removes the AGENTS.md output:
+Cleaning `codex` — or, with `agentsMd.enable: true`, any target that reads AGENTS.md (claude, cursor, copilot) — removes the AGENTS.md output (never while instructions come from AGENTS.md, `standards`):
 
 - every `AGENTS.md` in the project, root and nested, found by **scanning the project tree** (their folders come from template `globs`, so they move when templates change; a scan also finds orphans from a deleted template or an edited `globs`);
 - the configured `agentsMd.indexDir`.
@@ -108,7 +110,7 @@ uac 2.x wrote `<dir>/AGENTS.override.md` files for Codex, and Codex reads one in
 
 ## `uac skill add <source>`
 
-Download skill(s) from a GitHub repo or local path and write them into `<%= templatesDir %>/skills/<name>/` as new skill templates. Each downloaded skill becomes a normal uac skill template — run `uac generate` afterwards to produce the per-target outputs. Skills are always **copied** into the current project (no global installs or symlinks). Re-adding an existing skill **overrides** it (a clean update — stale files are removed).
+Download skill(s) from a GitHub repo or local path and write them into `<%= templatesDir %>/skills/<name>/` as new skill templates. Each downloaded skill becomes a normal uac skill template — run `uac generate` afterwards to produce the per-target outputs. While skills come from `.agents/skills` (`standards`), they go to `.agents/skills/<name>/` instead, and when a source has several copies of a skill the plain Agent Skills folder wins over a uac template (which has EJS); uac warns if it has to take a template. Skills are always **copied** into the current project (no global installs or symlinks). Re-adding an existing skill **overrides** it (a clean update — stale files are removed).
 
 The `source` accepts:
 

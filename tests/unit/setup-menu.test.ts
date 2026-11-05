@@ -14,7 +14,7 @@ function state(over: Partial<SetupState> = {}): SetupState {
     overrides: { file: "universal-ai-config.overrides.ts", keys: ["targets"], targets: ["claude"] },
     gitignore: { status: "current" },
     stamp: UAC_VERSION,
-    drift: { missing: 0, differ: 0 },
+    drift: { missing: 0, differ: 0, misplaced: 0 },
     ...over,
   };
 }
@@ -86,7 +86,7 @@ describe("setup menu: each item is preselected exactly when it would change some
     });
 
     it("no stamp and files missing or different: preselected", () => {
-      const s = state({ stamp: undefined, drift: { missing: 1, differ: 2 } });
+      const s = state({ stamp: undefined, drift: { missing: 1, differ: 2, misplaced: 0 } });
       expect(item(s, "meta")).toMatchObject({
         hint: "2 out of date, 1 missing — overwrites edits to them",
         preselected: true,
@@ -101,8 +101,33 @@ describe("setup menu: each item is preselected exactly when it would change some
     });
 
     it("stamp equals uac: up to date, even if files were edited", () => {
-      const s = state({ drift: { missing: 0, differ: 3 } });
+      const s = state({ drift: { missing: 0, differ: 3, misplaced: 0 } });
       expect(item(s, "meta")).toMatchObject({ hint: "up to date", preselected: false });
+    });
+
+    it("stamp equals uac but `standards` changed: files to move, preselected", () => {
+      const s = state({ drift: { missing: 4, differ: 0, misplaced: 10 } });
+      expect(item(s, "meta")).toEqual({
+        hint: "10 files to move for `standards` — overwrites edits to them",
+        disabled: false,
+        preselected: true,
+      });
+      expect(item(state({ drift: { missing: 0, differ: 0, misplaced: 1 } }), "meta").hint).toBe(
+        "1 file to move for `standards` — overwrites edits to them",
+      );
+    });
+
+    it("no stamp and files to move: the move wins over drift counts", () => {
+      const s = state({ stamp: undefined, drift: { missing: 2, differ: 0, misplaced: 3 } });
+      expect(item(s, "meta")).toMatchObject({
+        hint: "3 files to move for `standards` — overwrites edits to them",
+        preselected: true,
+      });
+    });
+
+    it("a newer stamp stays disabled even with files to move", () => {
+      const s = state({ stamp: "999.0.0", drift: { missing: 0, differ: 0, misplaced: 3 } });
+      expect(item(s, "meta")).toMatchObject({ disabled: true, preselected: false });
     });
 
     it("stamp newer than uac: disabled", () => {

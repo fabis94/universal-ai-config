@@ -9,8 +9,8 @@ function config(
   targets: Target[],
   agentsMd: ResolvedConfig["agentsMd"] = { variation: "nested", indexDir: ".agents/x" },
   types: TemplateType[] = ALL_TYPES,
-): Pick<ResolvedConfig, "targets" | "types" | "agentsMd"> {
-  return { targets, types, agentsMd };
+): Pick<ResolvedConfig, "targets" | "types" | "agentsMd" | "standards"> {
+  return { targets, types, agentsMd, standards: false };
 }
 
 describe("buildPlan with the real targets — instructions", () => {

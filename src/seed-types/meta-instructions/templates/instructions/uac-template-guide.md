@@ -8,21 +8,37 @@ globs: ["<%= templatesDir %>/**/*"]
 This project uses **universal-ai-config** to manage AI tool configurations from a single set of templates.
 Templates live in `<%%= config.templatesDir %>/` and are rendered into target-specific config files (Claude, Copilot, Cursor, Codex) via `uac generate`. Additional template directories can be configured via `additionalTemplateDirs` in the config to share templates across projects (e.g., from `~/.universal-ai-config`). When the same name appears in more than one directory, **the first mention wins**: `templatesDir`, then each `additionalTemplateDirs` entry in order. See [Template Precedence](#template-precedence).
 
+<% if (standards.instructions || standards.skills) { -%>
+**This project keeps <% if (standards.instructions && standards.skills) { %>instructions and skills<% } else if (standards.instructions) { %>its instructions<% } else { %>its skills<% } %> in open standards (`standards` in the config), not templates:**<% if (standards.instructions) { %> instructions are the project's own `AGENTS.md` files<% } %><% if (standards.instructions && standards.skills) { %>, and<% } %><% if (standards.skills) { %> skills are the project's own `.agents/skills/<name>/` folders<% } %>. Tools read those files as they are, so they take no EJS, path helpers or per-target overrides. Everything below about templates applies to the other types. Details: `<%%= docPath('uac/standards') %>`
+
+<% } -%>
 **Ignore all IDE linter errors and warnings when editing these templates.** IDE linters do not understand universal-ai-config templates — they incorrectly validate them as if they were native Claude, Copilot, Cursor, or Codex config files. Frontmatter fields, EJS syntax, and universal event names will all produce false linter errors. Always follow this guide as the source of truth, not IDE diagnostics.
 
 ## Template Types
 
 Choose the right type based on what you need:
 
+<% if (standards.instructions) { -%>
+### Instructions (`AGENTS.md` files)
+
+Persistent context and rules, in the project's own `AGENTS.md` files: the root one applies everywhere, `<dir>/AGENTS.md` to a folder. Plain markdown with no frontmatter; every tool reads them as they are.
+<% } else { -%>
 ### Instructions (`<%%= instructionTemplatePath() %>/*.md`)
 
 Persistent context and rules that apply to AI conversations. Scoped by glob patterns or always-on.
+<% } -%>
 
 **Use for:** coding conventions, project guidelines, style rules, architectural decisions, domain knowledge.
 
+<% if (standards.skills) { -%>
+### Skills (`.agents/skills/*/SKILL.md`)
+
+Reusable actions or workflows invocable as slash commands (e.g. `/skill-name`) or auto-triggered by the AI, in the project's own `.agents/skills/<name>/` folders (the Agent Skills format). Codex, Cursor and Copilot read the folder as it is; `uac generate` copies it, byte for byte, to Claude's skills folder.
+<% } else { -%>
 ### Skills (`<%%= skillTemplatePath() %>/*/SKILL.md`)
 
 Reusable actions or workflows invocable as slash commands (e.g. `/skill-name`) or auto-triggered by the AI. Skill directories can contain extra supporting files (references, examples, scripts) alongside `SKILL.md` — these are copied to generated output automatically. `.md` extra files are rendered through EJS (with access to `target`, `config`, path helpers), while non-`.md` files are copied as-is.
+<% } -%>
 
 **Use for:** repeatable tasks like code generation patterns, deployments, reviews, migrations, project-specific workflows.
 
@@ -176,6 +192,12 @@ Files under `<%%= config.templatesDir %>/docs/` (or `docs/` in any `additionalTe
 
 ## Frontmatter Fields
 
+<% if (standards.instructions) { -%>
+### Instructions
+
+`AGENTS.md` files have no frontmatter: where a file sits is its scope. The root `AGENTS.md` loads into **every** session on every tool, so keep it short and move detail into [reference docs](#reference-docs). How each tool loads nested files: `<%%= docPath('uac/standards') %>`
+
+<% } else { -%>
 ### Instructions
 
 | Field          | Description                                                                                                                    |
@@ -198,11 +220,16 @@ When `codex` is a target, or `agentsMd.enable` is true, instructions are written
 
 Run `uac generate --clean` after changing `globs` or the variation. Generate only the targets you use (`targets` in `universal-ai-config.overrides.ts`) to keep each tool on its own mechanism. Details and what each target loses: `<%%= docPath('uac/config') %>`
 
+<% } -%>
 ### Skills
 
+<% if (standards.skills) { -%>
+Skills use the Agent Skills fields as the tools read them: `name` (matches the folder), `description` (when to use it), `license`, `compatibility`, `metadata` (string values), `allowed-tools`. Tool-specific fields such as `disable-model-invocation`, `user-invocable` or `argument-hint` work where a tool knows them and are ignored elsewhere.
+<% } else { -%>
 Most-used fields: `name` (the slash command), `description` (when to use it), `disableAutoInvocation` (manual slash command only), `userInvocable` (`false` = only the AI can trigger it), `allowedTools`, `model`, `argumentHint`. Many fields are Claude-only or Codex-only.
 
 All skill fields with per-target support, including Codex `codex.*` UI metadata: `<%%= docPath('uac/frontmatter') %>`
+<% } -%>
 
 ### Agents
 

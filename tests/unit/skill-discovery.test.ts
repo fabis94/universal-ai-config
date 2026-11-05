@@ -116,6 +116,30 @@ describe("discoverSkills", () => {
     expect(skills[0]?.relPath).toBe(join(".universal-ai-config", "skills", "dup"));
   });
 
+  it("prefer standards: .agents/skills, then plain folders, then tool folders, then templates", async () => {
+    const root = await createTempDir();
+    const write = async (dir: string, description: string) => {
+      await mkdir(join(root, dir, "dup"), { recursive: true });
+      await writeFile(
+        join(root, dir, "dup/SKILL.md"),
+        `---\nname: dup\ndescription: ${description}\n---\nbody\n`,
+      );
+    };
+    await write(".universal-ai-config/skills", "template");
+    await write(".claude/skills", "claude copy");
+    expect((await discoverSkills(root, undefined, "standards"))[0]?.description).toBe(
+      "claude copy",
+    );
+    await write("pack", "plain");
+    expect((await discoverSkills(root, undefined, "standards"))[0]?.description).toBe("plain");
+    await write(".agents/skills", "agent skills");
+    expect((await discoverSkills(root, undefined, "standards"))[0]?.description).toBe(
+      "agent skills",
+    );
+    // The default stays on the template source
+    expect((await discoverSkills(root))[0]?.description).toBe("template");
+  });
+
   it("deterministically picks the lowest path when ranks tie", async () => {
     const root = await createTempDir();
     // Two neutral (non-special) locations with the same skill name.

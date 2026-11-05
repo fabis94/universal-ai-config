@@ -124,9 +124,8 @@ export async function generateMCPFiles(
 
   for (const targetName of config.targets) {
     const targetDef = targets[targetName];
-    if (!targetDef?.mcp || !targetDef.supportedTypes.includes("mcp")) continue;
-    // Another target's file serves this one (see the plan)
-    if (plan.servedFor(targetName, "mcp")) continue;
+    // Only `own`: another target's file may serve this one (see the plan)
+    if (!targetDef?.mcp || plan.outputFor(targetName, "mcp").kind !== "own") continue;
 
     // Resolve same-named files and drop excluded ones — both are per-target
     const filteredFiles = selectJsonFiles(mcpSlots, "mcp", targetName, config, shadow);

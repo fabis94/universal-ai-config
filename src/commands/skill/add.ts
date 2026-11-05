@@ -1,13 +1,25 @@
 import { defineCommand } from "citty";
 import { consola } from "consola";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { loadProjectConfig } from "../../config/loader.js";
 import { fetchSkills, installSkill } from "../../core/add-skill.js";
+import { AGENT_SKILLS_DIR, skillSourceDir } from "../../core/plan/standards.js";
 import { filterSkillsByName, type DiscoveredSkill } from "../../core/skill-discovery.js";
 import { canPrompt as terminalCanPrompt, confirmAction, selectMany } from "../interactive.js";
 import { resolveCliRoot } from "../resolve-root.js";
 import { formatSkillList } from "./list.js";
 import { buildSkillOptions } from "./options.js";
+
+async function exists(path: string): Promise<boolean> {
+  return (await stat(path).catch(() => undefined)) !== undefined;
+}
+
+/** A SKILL.md with EJS in it is a uac template, which other tools can't read as it is. */
+async function isTemplateSource(skill: DiscoveredSkill): Promise<boolean> {
+  const content = await readFile(join(skill.dir, "SKILL.md"), "utf-8").catch(() => "");
+  return content.includes("<%");
+}
 
 function parseList(value: string | undefined): string[] {
   if (!value) return [];
@@ -109,10 +121,16 @@ export default defineCommand({
       );
       return;
     }
-    const skillsDir = join(root, config.templatesDir, "skills");
+    // .agents/skills when the project keeps its skills there (`standards`)
+    const installDir = skillSourceDir(config);
+    const toStandard = installDir === AGENT_SKILLS_DIR;
+    const skillsDir = join(root, installDir);
 
     consola.info(`Fetching skills from ${source}…`);
-    const { skills, cleanup } = await fetchSkills(source, { ref: args.ref });
+    const { skills, cleanup } = await fetchSkills(source, {
+      ref: args.ref,
+      prefer: toStandard ? "standards" : "templates",
+    });
 
     try {
       if (skills.length === 0) {
@@ -141,9 +159,15 @@ export default defineCommand({
       }
 
       if (canPrompt && !args.all) {
-        const summary = selected.map((skill) => `  • ${skill.name} (${skill.relPath})`).join("\n");
+        const lines: string[] = [];
+        for (const skill of selected) {
+          const replaces = (await exists(join(skillsDir, skill.name)))
+            ? ", replaces the existing one"
+            : "";
+          lines.push(`  • ${skill.name} (${skill.relPath}${replaces})`);
+        }
         const confirmed = await confirmAction(
-          `Install ${selected.length} skill(s) into ${config.templatesDir}/skills?\n${summary}`,
+          `Install ${selected.length} skill(s) into ${installDir}?\n${lines.join("\n")}`,
         );
         if (!confirmed) {
           consola.info("Aborted.");
@@ -154,6 +178,11 @@ export default defineCommand({
       let added = 0;
       let updated = 0;
       for (const skill of selected) {
+        if (toStandard && (await isTemplateSource(skill))) {
+          consola.warn(
+            `${skill.name} (${skill.relPath}) is a uac template with EJS in it; tools read ${AGENT_SKILLS_DIR} as it is, so check its SKILL.md`,
+          );
+        }
         const result = await installSkill(skill, skillsDir);
         if (result.updated) {
           updated += 1;
@@ -164,9 +193,10 @@ export default defineCommand({
         }
       }
 
-      consola.success(
-        `Done — ${added} added, ${updated} updated. Run \`uac generate\` to produce target configs.`,
-      );
+      const next = toStandard
+        ? `Tools that read ${AGENT_SKILLS_DIR} see them now; run \`uac generate\` for the copies the others need.`
+        : "Run `uac generate` to produce target configs.";
+      consola.success(`Done — ${added} added, ${updated} updated. ${next}`);
     } finally {
       await cleanup();
     }

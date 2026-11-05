@@ -31,6 +31,18 @@ function agentsItem(state: SetupState): { choice: Choice<MenuItem>; preselect: b
   };
 }
 
+/** `standards` changed since the last seed: uac's files are where the other setting puts them. */
+function movedItem(
+  label: string,
+  misplaced: number,
+): { choice: Choice<MenuItem>; preselect: boolean } {
+  const files = misplaced === 1 ? "1 file" : `${misplaced} files`;
+  return {
+    choice: { value: "meta", label, hint: `${files} to move for \`standards\` — ${OVERWRITES}` },
+    preselect: true,
+  };
+}
+
 function metaItem(state: SetupState): { choice: Choice<MenuItem>; preselect: boolean } {
   const label = "Update uac's meta-instructions";
   const { stamp, drift } = state;
@@ -57,8 +69,10 @@ function metaItem(state: SetupState): { choice: Choice<MenuItem>; preselect: boo
         preselect: false,
       };
     }
+    if (drift.misplaced > 0) return movedItem(label, drift.misplaced);
     return { choice: { value: "meta", label, hint: "up to date" }, preselect: false };
   }
+  if (drift.misplaced > 0) return movedItem(label, drift.misplaced);
   if (drift.missing + drift.differ > 0) {
     const parts = [
       drift.differ > 0 && `${drift.differ} out of date`,

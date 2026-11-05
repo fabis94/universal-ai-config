@@ -1,3 +1,4 @@
+import { writesIntoStandard, type StandardType } from "../plan/standards.js";
 import type { GeneratedFile, Target } from "../../types.js";
 
 function sameContent(a: string | Uint8Array, b: string | Uint8Array): boolean {
@@ -35,4 +36,22 @@ export function assertNoPathCollisions(files: GeneratedFile[]): GeneratedFile[] 
     existing.consumers = [...consumers];
   }
   return result;
+}
+
+/**
+ * No generated file may land on the source files of a standard the project
+ * keeps its instructions or skills in (`standards`). The plan never produces
+ * one; this guards against a bug in it overwriting the project's own files.
+ */
+export function assertNoStandardWrites(
+  files: GeneratedFile[],
+  sourced: ReadonlySet<StandardType>,
+): void {
+  for (const file of files) {
+    if (writesIntoStandard(file, sourced)) {
+      throw new Error(
+        `${file.target} would generate ${file.path}, one of the project's own ${file.type} files (\`standards\`)`,
+      );
+    }
+  }
 }

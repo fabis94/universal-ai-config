@@ -210,9 +210,9 @@ Pages titled "Permissions," "Permission modes," "Safety," "Auto-approve," "Trust
 
 **Where in uac**
 
-- `src/core/agents-md/` → AGENTS.md routing and the `nested` / `concatenate` / `index` layouts; `src/core/generate/agents-md.ts` → the CLAUDE.md and 32 KiB checks
-- `src/targets/<tool>/index.ts` → `reads.instructions` (whether the tool reads AGENTS.md) and `instructions: "agentsMd"` (Codex: reads nothing else)
-- `src/seed-types/meta-instructions/templates/docs/uac/config.md` and `codex.md` → the documented per-tool behavior
+- `src/core/agents-md/` → AGENTS.md routing and the `nested` / `concatenate` / `index` layouts; `src/core/agents-md/checks.ts` → the CLAUDE.md and 32 KiB checks (generated and hand-written files)
+- `src/targets/<tool>/index.ts` → `reads.instructions` (whether the tool reads AGENTS.md) and `instructions: "agentsMd"` (Codex: reads nothing else). These facts also drive **standards mode** (`plan/standards.ts`): a tool that reads AGENTS.md gets no instructions generated when a project keeps its own AGENTS.md files, so a stale fact there means a tool silently gets nothing — say so in the finding
+- `src/seed-types/meta-instructions/templates/docs/uac/config.md`, `codex.md` and `standards.md` → the documented per-tool behavior
 
 **What to look for in docs**
 
@@ -303,8 +303,8 @@ Which other tools' outputs each tool also loads, per template type — and what 
 
 **Where in uac**
 
-- `src/targets/<tool>/index.ts` → `reads` (one `ForeignRead` per type: `from`, `reconcile`, `loses`, and for hooks `events` / `onlyWithMatcher` / `rejectsHandlerTypes`)
-- `src/core/plan/build-plan.ts` → the single policy that turns those facts into which outputs are generated
+- `src/targets/<tool>/index.ts` → `reads` (one `ForeignRead` per type: `from`, `reconcile`, `loses`, and for hooks `events` / `onlyWithMatcher` / `rejectsHandlerTypes`), and `readsAgentSkills` (whether the tool loads `.agents/skills` on its own)
+- `src/core/plan/build-plan.ts` → the single policy that turns those facts into which outputs are generated; `src/core/plan/standards.ts` → the facts standards mode goes by (a tool that reads `.agents/skills` gets no skill copies, so a wrong `readsAgentSkills` means missing skills)
 - `src/seed-types/meta-instructions/templates/docs/uac/config.md` → the documented shared-output table, and README "Shared Outputs"
 
 **What to look for in docs**

@@ -9,7 +9,17 @@ import { collectDocTemplates, collectSkillTemplates } from "../../src/seed-types
 import { getTemplates } from "../../src/seed-types/meta-instructions/index.js";
 import { generate } from "../../src/core/generate/index.js";
 
-const UAC_DOCS = ["cli", "codex", "config", "frontmatter", "hooks", "mcp", "models", "tools"];
+const UAC_DOCS = [
+  "cli",
+  "codex",
+  "config",
+  "frontmatter",
+  "hooks",
+  "mcp",
+  "models",
+  "standards",
+  "tools",
+];
 
 describe("seed meta-instructions", () => {
   let tempDir: string;

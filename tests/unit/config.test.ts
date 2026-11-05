@@ -374,3 +374,67 @@ describe("overrides file name", () => {
     expect((await loadProjectConfig({ root })).targets).toEqual(["codex"]);
   });
 });
+
+describe("standards", () => {
+  const dirs: string[] = [];
+  afterEach(async () => {
+    for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
+  });
+  async function project(files: Record<string, string>): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "uac-standards-config-"));
+    dirs.push(dir);
+    for (const [file, content] of Object.entries(files)) {
+      await writeFile(join(dir, file), content, "utf-8");
+    }
+    return dir;
+  }
+
+  it("accepts true, false, 'instructions' and 'skills', and nothing else", () => {
+    for (const value of [true, false, "instructions", "skills"]) {
+      expect(userConfigSchema.parse({ standards: value }).standards).toBe(value);
+    }
+    expect(() => userConfigSchema.parse({ standards: "agents" })).toThrow();
+    expect(() => userConfigSchema.parse({ standards: ["skills"] })).toThrow();
+  });
+
+  it("defaults to false (template mode)", async () => {
+    const root = await project({});
+    expect((await loadProjectConfig({ root })).standards).toBe(false);
+  });
+
+  it("is read from the committed config and programmatic overrides", async () => {
+    const root = await project({
+      "universal-ai-config.config.json": JSON.stringify({ standards: "skills" }),
+    });
+    expect((await loadProjectConfig({ root })).standards).toBe("skills");
+    expect(
+      (await loadProjectConfig({ root, inlineOverrides: { standards: true } })).standards,
+    ).toBe(true);
+  });
+
+  it("can't be set in the per-machine overrides file", async () => {
+    const root = await project({
+      "universal-ai-config.config.json": JSON.stringify({ standards: true }),
+      "universal-ai-config.overrides.ts": "export default { standards: false };\n",
+    });
+    await expect(loadProjectConfig({ root })).rejects.toThrow(/team setting/);
+  });
+
+  it("skips agentsMd validation while instructions come from AGENTS.md", async () => {
+    const root = await project({
+      "universal-ai-config.config.json": JSON.stringify({
+        standards: "instructions",
+        agentsMd: { indexDir: ".claude/rules" },
+      }),
+    });
+    await expect(loadProjectConfig({ root })).resolves.toMatchObject({
+      standards: "instructions",
+    });
+    const templateMode = await project({
+      "universal-ai-config.config.json": JSON.stringify({
+        agentsMd: { indexDir: ".claude/rules" },
+      }),
+    });
+    await expect(loadProjectConfig({ root: templateMode })).rejects.toThrow(/indexDir/);
+  });
+});

@@ -4,7 +4,6 @@ import type { OutputPlan } from "../plan/build-plan.js";
 import type { Locator } from "../plan/locate.js";
 import { toPosixPath } from "../plan/locate.js";
 import { resolveOverrides } from "../resolve-overrides.js";
-import { targets } from "../../targets/index.js";
 import type {
   CombineEntry,
   MarkdownTemplateType,
@@ -44,7 +43,7 @@ export async function buildTemplatesIndexes(
       // A target reading AGENTS.md finds instructions where the shared files
       // put them, which follows the view target's frontmatter
       const source =
-        plan.agentsMd && plan.readsAgentsMdInstructions(targetName)
+        plan.agentsMd && plan.outputFor(targetName, "instructions").kind === "agentsMd"
           ? plan.agentsMd.view
           : targetName;
       const winner = slot.winnerByTarget.get(source);
@@ -148,9 +147,8 @@ export async function generateTemplateFiles(
       const template = slot.winnerByTarget.get(targetName);
       if (!template) continue;
 
-      const targetDef = targets[targetName];
-      if (!targetDef) continue;
-      if (!targetDef.supportedTypes.includes(type)) {
+      const mode = plan.outputFor(targetName, type);
+      if (mode.kind === "off" && mode.reason === "unsupported") {
         sink.report({
           code: "unsupported",
           target: targetName,
@@ -161,14 +159,9 @@ export async function generateTemplateFiles(
         });
         continue;
       }
-      // Another output serves this type for the target (AGENTS.md, or a
-      // file another target writes that this tool reads as well)
-      if (
-        plan.servedFor(targetName, type) ||
-        (type === "instructions" && locator.usesAgentsMd(targetName))
-      ) {
-        continue;
-      }
+      // Only `own` renders here: AGENTS.md and other targets' outputs are
+      // generated elsewhere
+      if (mode.kind !== "own") continue;
       const typeConfig = locator.typeConfig(targetName, type);
       if (!typeConfig) continue;
       const consumers = plan.consumersOf(targetName, type);

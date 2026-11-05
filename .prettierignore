@@ -2,3 +2,7 @@ dist/
 node_modules/
 pnpm-lock.yaml
 tests/fixtures/
+# Seed templates with EJS control flow (<% if %>…<% } %>): prettier reflows
+# those lines as markdown and breaks the rendered output
+src/seed-types/meta-instructions/templates/instructions/
+src/seed-types/meta-instructions/templates/skills/

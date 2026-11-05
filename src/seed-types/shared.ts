@@ -18,7 +18,10 @@ function findPackageRoot(): string {
   throw new Error("Could not find universal-ai-config package root");
 }
 
-export function renderTemplate(filePath: string, vars: Record<string, string>): string {
+/** Variables of a seed's EJS pass. */
+type SeedVars = Record<string, unknown>;
+
+export function renderTemplate(filePath: string, vars: SeedVars): string {
   const raw = readFileSync(filePath, "utf-8");
   return ejs.render(raw, vars);
 }
@@ -49,10 +52,7 @@ function collectFilesSync(
  * Collect seed templates from a skills directory.
  * Handles both flat .md files (legacy) and directories with SKILL.md + extras.
  */
-export function collectSkillTemplates(
-  skillsDir: string,
-  vars: Record<string, string>,
-): SeedTemplate[] {
+export function collectSkillTemplates(skillsDir: string, vars: SeedVars): SeedTemplate[] {
   const templates: SeedTemplate[] = [];
 
   for (const entry of readdirSync(skillsDir)) {
@@ -96,11 +96,46 @@ export function collectSkillTemplates(
  * generate time. Generate-time helpers (`docPath`, `instructionPath`, …) are
  * not available here.
  */
-export function collectDocTemplates(docsDir: string, vars: Record<string, string>): SeedTemplate[] {
+export function collectDocTemplates(docsDir: string, vars: SeedVars): SeedTemplate[] {
   return collectFilesSync(docsDir).map((file) => ({
     relativePath: `docs/${file.relativePath.split("\\").join("/")}`,
     content: file.relativePath.endsWith(".md")
       ? renderTemplate(file.filePath, vars)
       : readFileSync(file.filePath, "utf-8"),
   }));
+}
+
+/** The two lines that delimit a block uac owns inside a file the project also edits. */
+export interface BlockMarkers {
+  start: string;
+  end: string;
+}
+
+/** Where a marked block sits in `text`, markers included. */
+export function findBlock(
+  text: string,
+  markers: BlockMarkers,
+): { start: number; end: number } | undefined {
+  const start = text.indexOf(markers.start);
+  const endMarker = text.indexOf(markers.end);
+  if (start === -1 || endMarker === -1) return undefined;
+  return { start, end: endMarker + markers.end.length };
+}
+
+/** `content` between the markers, as one block. */
+export function wrapBlock(content: string, markers: BlockMarkers): string {
+  return `${markers.start}\n${content.trimEnd()}\n${markers.end}`;
+}
+
+/**
+ * `text` with `block` (markers included) in place of its existing block, or
+ * appended after a blank line when it has none. Everything outside the block
+ * is left as it is.
+ */
+export function upsertBlock(text: string, block: string, markers: BlockMarkers): string {
+  const range = findBlock(text, markers);
+  if (range) return `${text.slice(0, range.start)}${block}${text.slice(range.end)}`;
+  if (!text) return `${block}\n`;
+  const sep = text.endsWith("\n") ? "\n" : "\n\n";
+  return `${text}${sep}${block}\n`;
 }

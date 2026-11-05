@@ -63,7 +63,24 @@ export interface UserConfig {
    * (claude, cursor, copilot) skips its own instruction output.
    */
   agentsMd?: AgentsMdConfig;
+  /**
+   * Use the open standards as the source of instructions and/or skills,
+   * instead of uac templates: hand-written `AGENTS.md` files (root and nested)
+   * for instructions, `.agents/skills/<name>/` for skills. uac never
+   * generates, cleans or gitignores them, and generates copies only for tools
+   * that don't read them (Claude gets `.claude/skills/`). Hooks, MCP and
+   * agents stay uac templates.
+   *
+   * `true` = both, `"instructions"` or `"skills"` = just that one. A team
+   * setting: it can't be set in the per-machine overrides file. With
+   * instructions from AGENTS.md, the `agentsMd` options don't apply.
+   * Template mode (the default, `false`) is the recommended setup.
+   */
+  standards?: StandardsSetting;
 }
+
+/** Which template types come from the open standards instead of uac templates. */
+export type StandardsSetting = boolean | "instructions" | "skills";
 
 /** How instruction templates are laid out across AGENTS.md files. */
 export type AgentsMdVariation = "nested" | "concatenate" | "index";
@@ -111,6 +128,7 @@ export interface ResolvedConfig {
   preserveOnClean: PerTargetValue<string[]>;
   mcp: MCPConfig;
   agentsMd: ResolvedAgentsMdConfig;
+  standards: StandardsSetting;
 }
 
 /** `agentsMd` with defaults applied. `enable` stays undefined unless set, so an explicit `false` can be told apart. */

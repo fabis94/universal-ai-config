@@ -1,0 +1,5 @@
+{
+  "hooks": {
+    "sessionStart": [{ "command": "echo start", "timeout": 5 }]
+  }
+}

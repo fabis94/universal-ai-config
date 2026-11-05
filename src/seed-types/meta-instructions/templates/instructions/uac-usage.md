@@ -5,9 +5,23 @@ alwaysApply: true
 
 # Universal AI Config (uac)
 
+<% if (standards.instructions || standards.skills) { -%>
+This project uses **universal-ai-config** (`uac`) to manage AI tool configurations for Claude, Copilot, Cursor, and Codex. It keeps some of them in open standards instead of uac templates (`standards` in the config):
+
+<% if (standards.instructions) { -%>
+- **Instructions** are the project's own `AGENTS.md` files (root, and nested ones for a folder). Every tool reads them; edit them directly.
+<% } -%>
+<% if (standards.skills) { -%>
+- **Skills** are the project's own `.agents/skills/<name>/` folders (Agent Skills format, no EJS). Edit them directly; uac copies them for Claude, which doesn't read that folder.
+<% } -%>
+- Everything else comes from templates in `<%%= config.templatesDir %>/`, the source of truth for it.
+
+**Do not edit generated config files directly** — changes will be overwritten. Edit the source (templates in `<%%= config.templatesDir %>/`<% if (standards.instructions) { %>, `AGENTS.md`<% } %><% if (standards.skills) { %>, `.agents/skills/`<% } %>), then run `uac generate`.
+<% } else { -%>
 This project uses **universal-ai-config** (`uac`) to manage AI tool configurations for Claude, Copilot, Cursor, and Codex from a single set of templates. Templates in `<%%= config.templatesDir %>/` are the source of truth.
 
 **Do not edit generated config files directly** — changes will be overwritten. Edit the source templates in `<%%= config.templatesDir %>/`, then run `uac generate`.
+<% } -%>
 
 ## Invoking uac
 
@@ -20,7 +34,7 @@ It works from any subdirectory — uac searches upward for the project root. `--
 - `uac generate` — render templates into target configs. `-t claude,codex` replaces the configured targets, `--type skills` limits types (`--type all` for every type), `-d` previews, `-v` shows per-file output and warning details. Add `--clean` after renaming or deleting a template, changing `globs`, `targets` or `agentsMd.variation`, so stale outputs get removed.
 - `uac clean` — remove generated files (every target unless `-t` is given; only the types in `types` unless `--type` is given).
 - `uac seed <meta-instructions|examples|gitignore>` — add pre-built template sets.
-- `uac skill add <source>` — copy skills from a GitHub repo or local path into the templates (`--list`, `-s <names>`, `--all`).
+- `uac skill add <source>` — copy skills from a GitHub repo or local path into <% if (standards.skills) { %>`.agents/skills/`<% } else { %>the templates<% } %> (`--list`, `-s <names>`, `--all`).
 - `uac init` (alias `uac setup`) — set up the project or this machine's targets; a wizard in a terminal, flags (`-t`, `--examples`, `--reseed`, `--yes`) otherwise.
 
 ## Config (`universal-ai-config.config.ts`)
@@ -33,7 +47,10 @@ It works from any subdirectory — uac searches upward for the project root. `--
 - `exclude` — skip templates by input path (per-target allowed).
 - `preserveOnClean` — output paths `uac clean` must never delete.
 - `mcp` — opt-in filtering of MCP servers by name.
+<% if (!standards.instructions) { -%>
 - `agentsMd` — AGENTS.md output (`enable`, `variation`, `indexDir`, `keepOverrideFiles`); always on with codex, and then Claude/Cursor/Copilot use it instead of their own instruction files.
+<% } -%>
+- `standards` — keep instructions (`AGENTS.md`) and/or skills (`.agents/skills`) as hand-written sources instead of templates; template mode is recommended: `<%%= docPath('uac/standards') %>`
 
 `universal-ai-config.overrides.ts` (gitignored) is merged over the config for local settings. Arrays there replace the base value; use `mergeField` to concatenate.
 

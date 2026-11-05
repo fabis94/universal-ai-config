@@ -48,6 +48,7 @@ export const userConfigSchema = z.object({
   preserveOnClean: stringArrayPerTarget.optional(),
   mcp: mcpConfigSchema.optional(),
   agentsMd: agentsMdConfigSchema.optional(),
+  standards: z.union([z.boolean(), z.enum(["instructions", "skills"])]).optional(),
 });
 
 export function defineConfig(config: UserConfig): UserConfig {

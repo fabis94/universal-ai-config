@@ -37,6 +37,7 @@ export type {
   AgentsMdConfig,
   AgentsMdVariation,
   ResolvedAgentsMdConfig,
+  StandardsSetting,
   HookHandlerType,
   UniversalSkillCodexFields,
   UniversalAgentCodexFields,
@@ -54,7 +55,7 @@ export type {
 export type { LoadConfigOptions } from "./config/loader.js";
 export type { FetchSkillsOptions, FetchedSkills, InstalledSkill } from "./core/add-skill.js";
 export type { ParsedSkillSource } from "./core/skill-source.js";
-export type { DiscoveredSkill } from "./core/skill-discovery.js";
+export type { DiscoveredSkill, SkillPreference } from "./core/skill-discovery.js";
 export type {
   TargetDefinition,
   TemplateTypeConfig,

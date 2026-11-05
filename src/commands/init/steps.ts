@@ -7,6 +7,7 @@ import {
   renderConfigFile,
   writeOverridesFile,
 } from "../../config/config-files.js";
+import { sourcedTypes } from "../../core/plan/standards.js";
 import { writeSeedStamp } from "../../seed-types/meta-instructions/state.js";
 import { targets as registry } from "../../targets/index.js";
 import type { Target } from "../../types.js";
@@ -79,11 +80,13 @@ export async function saveCodingAgents(state: SetupState, picked: Target[]): Pro
   consola.success(`Saved ${agentLabels(picked)} to ${OVERRIDES_FILE}`);
 }
 
-function codingAgentChoices(): Choice<Target>[] {
+function codingAgentChoices(config: SetupState["config"]): Choice<Target>[] {
+  // The project's own AGENTS.md files aren't something uac generates
+  const generatesAgentsMd = !sourcedTypes(config).has("instructions");
   return ALL_TARGETS.map((name) => {
     const target = registry[name];
     const outputs = [`${target?.outputDir ?? name}/`];
-    if (target?.instructions === "agentsMd") outputs.push("AGENTS.md");
+    if (target?.instructions === "agentsMd" && generatesAgentsMd) outputs.push("AGENTS.md");
     return { value: name, label: target?.label ?? name, hint: `${name} · ${outputs.join(", ")}` };
   });
 }
@@ -114,10 +117,14 @@ export async function pickCodingAgents(state: SetupState): Promise<boolean> {
       `Run \`uac setup\` again when you switch. Saved to ${OVERRIDES_FILE} (gitignored).`,
   );
   const picked = answered(
-    await selectMany("Which coding agents do you use on this machine?", codingAgentChoices(), {
-      initial: overrides?.targets,
-      required: true,
-    }),
+    await selectMany(
+      "Which coding agents do you use on this machine?",
+      codingAgentChoices(state.config),
+      {
+        initial: overrides?.targets,
+        required: true,
+      },
+    ),
   );
   await saveCodingAgents(state, picked);
   const before = new Set(config.targets);

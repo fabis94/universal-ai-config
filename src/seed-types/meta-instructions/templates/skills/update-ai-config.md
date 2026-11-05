@@ -5,13 +5,17 @@ description: Create, update, or manage AI configuration templates. Analyzes what
 
 # Manage AI Config Templates
 
+<% if (standards.instructions || standards.skills) { -%>
+**IMPORTANT:** This project uses universal-ai-config (`uac`). AI configuration lives in the `<%%= config.templatesDir %>/` directory as universal templates, except<% if (standards.instructions) { %> instructions, which are the project's own `AGENTS.md` files<% } %><% if (standards.instructions && standards.skills) { %>, and<% } %><% if (standards.skills) { %> skills, which are the project's own `.agents/skills/` folders<% } %> — edit those directly. NEVER edit generated target-specific files (e.g. `.claude/`, `.github/copilot-instructions.md`, `.cursor/`, `.codex/`, `.mcp.json`) directly — those are overwritten on every `uac generate` run.
+<% } else { -%>
 **IMPORTANT:** This project uses universal-ai-config (`uac`). All AI configuration lives in the `<%%= config.templatesDir %>/` directory as universal templates. NEVER edit generated target-specific files (e.g. `.claude/`, `.github/copilot-instructions.md`, `.cursor/`, `.codex/`, `AGENTS.md` files, `.agents/`, `.mcp.json`) directly — those are overwritten on every `uac generate` run. Always modify the source templates in `<%%= config.templatesDir %>/`.
+<% } -%>
 
 When the user wants to add or change AI configuration for this project, follow these steps:
 
 ## 1. Understand the Request
 
-Read the template guide at `<%%= instructionPath('uac-template-guide') %>` to understand the available template types and when to use each. It links to detailed reference docs (full field tables, per-target event and tool names) — read those only when you need the exact detail.
+Read the template guide at `<%%= <%= guidePathHelper %>('uac-template-guide') %%>` to understand the available template types and when to use each. It links to detailed reference docs (full field tables, per-target event and tool names) — read those only when you need the exact detail.
 
 ## 2. Determine the Template Type
 
@@ -44,7 +48,11 @@ Read the detailed guide for the chosen template type and follow its instructions
 - **Hooks** → `<%%= skillPath('update-hook') %>`
 - **MCP** → `<%%= skillPath('update-mcp') %>`
 
+<% if (standards.instructions || standards.skills) { -%>
+These skills create or modify files inside `<%%= config.templatesDir %>/`<% if (standards.instructions) { %>, the project's `AGENTS.md` files<% } %><% if (standards.skills) { %>, `.agents/skills/`<% } %>. They may also modify files in directories listed under `additionalTemplateDirs` in the config — but only with explicit user confirmation, since those are shared templates that may affect other projects. Never edit generated output files in `.claude/`, `.cursor/`, `.github/`, `.codex/`, `.mcp.json`, or similar target-specific locations — those are regenerated and any direct changes will be lost.
+<% } else { -%>
 These skills primarily create or modify files inside `<%%= config.templatesDir %>/`. They may also modify files in directories listed under `additionalTemplateDirs` in the config — but only with explicit user confirmation, since those are shared templates that may affect other projects. Never edit generated output files in `.claude/`, `.cursor/`, `.github/`, `.codex/`, `.agents/`, any `AGENTS.md`, `.mcp.json`, or similar target-specific locations — those are regenerated from templates and any direct changes will be lost.
+<% } -%>
 
 ## Additional Template Directories
 

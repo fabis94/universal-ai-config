@@ -3,62 +3,106 @@ import { join } from "node:path";
 import { consola } from "consola";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { toPosixPath } from "../../core/plan/locate.js";
-import type { ResolvedConfig, TemplateType } from "../../types.js";
+import { ownedByUac, sourcedTypes } from "../../core/plan/standards.js";
+import { findBlock, upsertBlock, wrapBlock, type BlockMarkers } from "../shared.js";
+import type { ResolvedConfig, Target, TemplateType } from "../../types.js";
 
-const BLOCK_START = "# >>> universal-ai-config >>>";
-const BLOCK_END = "# <<< universal-ai-config <<<";
+const MARKERS: BlockMarkers = {
+  start: "# >>> universal-ai-config >>>",
+  end: "# <<< universal-ai-config <<<",
+};
 
-type BlockConfig = Pick<ResolvedConfig, "agentsMd" | "types">;
+type BlockConfig = Pick<ResolvedConfig, "agentsMd" | "types" | "standards">;
+
+/**
+ * Who writes the files a pattern matches:
+ *
+ * - `uac`: uac's own files, always ignored.
+ * - `output`: a target's output for a template type (`.mcp.json` is shared by
+ *   claude and copilot).
+ * - `agentsMd`: the AGENTS.md output, written for every target that reads it.
+ *
+ * A pattern is in the block only while uac writes those files, so files a
+ * project writes by hand are never ignored: a type left out of `types`, or
+ * one it keeps in an open standard (`standards`) — the standard's files and
+ * the folders of tools that read it.
+ */
+type PatternOwner =
+  | { kind: "uac" }
+  | { kind: "output"; type: TemplateType; targets: Target[] }
+  | { kind: "agentsMd" };
+
+const uac: PatternOwner = { kind: "uac" };
+const output = (type: TemplateType, ...targets: Target[]): PatternOwner => ({
+  kind: "output",
+  type,
+  targets,
+});
+const agentsMd: PatternOwner = { kind: "agentsMd" };
 
 /**
  * Specific output subdirs/files per target — not entire dirs like .github/
  * which contain non-AI content (workflows, issue templates, hook scripts, etc.).
- * Each pattern belongs to the template type that writes it, so a type left out
- * of `types` (whose files may be hand-written and committed) isn't ignored.
  */
-const PATTERNS: Array<{ pattern: string; type?: TemplateType }> = [
-  { pattern: "/universal-ai-config.overrides.*" },
+const PATTERNS: Array<{ pattern: string; owner: PatternOwner }> = [
+  { pattern: "/universal-ai-config.overrides.*", owner: uac },
   // Claude
-  { pattern: ".claude/rules/", type: "instructions" },
-  { pattern: ".claude/skills/", type: "skills" },
-  { pattern: ".claude/agents/", type: "agents" },
-  { pattern: ".claude/settings.json", type: "hooks" },
-  { pattern: ".claude/*.local.*" },
+  { pattern: ".claude/rules/", owner: output("instructions", "claude") },
+  { pattern: ".claude/skills/", owner: output("skills", "claude") },
+  { pattern: ".claude/agents/", owner: output("agents", "claude") },
+  { pattern: ".claude/settings.json", owner: output("hooks", "claude") },
+  { pattern: ".claude/*.local.*", owner: uac },
   // Copilot (.github/ has non-AI content, so list specific subdirs)
-  { pattern: ".github/copilot-instructions.md", type: "instructions" },
-  { pattern: ".github/instructions/", type: "instructions" },
-  { pattern: ".github/skills/", type: "skills" },
-  { pattern: ".github/agents/", type: "agents" },
+  { pattern: ".github/copilot-instructions.md", owner: output("instructions", "copilot") },
+  { pattern: ".github/instructions/", owner: output("instructions", "copilot") },
+  { pattern: ".github/skills/", owner: output("skills", "copilot") },
+  { pattern: ".github/agents/", owner: output("agents", "copilot") },
   // Only uac's own file: .github/hooks also holds hook scripts that must be committed
-  { pattern: ".github/hooks/hooks.json", type: "hooks" },
+  { pattern: ".github/hooks/hooks.json", owner: output("hooks", "copilot") },
   // Cursor
-  { pattern: ".cursor/rules/", type: "instructions" },
-  { pattern: ".cursor/skills/", type: "skills" },
-  { pattern: ".cursor/agents/", type: "agents" },
-  { pattern: ".cursor/hooks.json", type: "hooks" },
+  { pattern: ".cursor/rules/", owner: output("instructions", "cursor") },
+  { pattern: ".cursor/skills/", owner: output("skills", "cursor") },
+  { pattern: ".cursor/agents/", owner: output("agents", "cursor") },
+  { pattern: ".cursor/hooks.json", owner: output("hooks", "cursor") },
   // Codex (mix of root-relative + .codex/ + .agents/ outputs)
-  { pattern: ".codex/agents/", type: "agents" },
-  { pattern: ".codex/hooks.json", type: "hooks" },
-  { pattern: ".codex/config.toml", type: "mcp" },
-  { pattern: ".agents/skills/", type: "skills" },
+  { pattern: ".codex/agents/", owner: output("agents", "codex") },
+  { pattern: ".codex/hooks.json", owner: output("hooks", "codex") },
+  { pattern: ".codex/config.toml", owner: output("mcp", "codex") },
+  { pattern: ".agents/skills/", owner: output("skills", "codex") },
   // Every AGENTS.md, root and nested: uac generates them all (AGENTS.md output)
-  { pattern: "AGENTS.md", type: "instructions" },
+  { pattern: "AGENTS.md", owner: agentsMd },
   // MCP (root-relative output paths)
-  { pattern: ".mcp.json", type: "mcp" },
-  { pattern: ".cursor/mcp.json", type: "mcp" },
+  { pattern: ".mcp.json", owner: output("mcp", "claude", "copilot") },
+  { pattern: ".cursor/mcp.json", owner: output("mcp", "cursor") },
 ];
+
+/** Whether uac writes the files of a pattern's owner under this config. */
+function uacWrites(owner: PatternOwner, config: BlockConfig): boolean {
+  switch (owner.kind) {
+    case "uac":
+      return true;
+    case "output":
+      return (
+        config.types.includes(owner.type) &&
+        owner.targets.some((target) => ownedByUac(target, owner.type, config))
+      );
+    case "agentsMd":
+      return config.types.includes("instructions") && !sourcedTypes(config).has("instructions");
+  }
+}
 
 /** The uac `.gitignore` block this config produces, markers included. */
 export function buildGitignoreBlock(config: BlockConfig = DEFAULT_CONFIG): string {
-  const enabled = (type?: TemplateType): boolean => !type || config.types.includes(type);
-  const lines = PATTERNS.filter((entry) => enabled(entry.type)).map((entry) => entry.pattern);
-  if (enabled("instructions")) {
+  const lines = PATTERNS.filter((entry) => uacWrites(entry.owner, config)).map(
+    (entry) => entry.pattern,
+  );
+  if (uacWrites(agentsMd, config)) {
     lines.push(
       "# Scoped instructions of the AGENTS.md `index` variation",
       `/${toPosixPath(config.agentsMd.indexDir)}/`,
     );
   }
-  return [BLOCK_START, ...lines, BLOCK_END].join("\n");
+  return wrapBlock(lines.join("\n"), MARKERS);
 }
 
 async function readGitignore(root: string): Promise<string> {
@@ -67,14 +111,6 @@ async function readGitignore(root: string): Promise<string> {
   } catch {
     return "";
   }
-}
-
-/** Where the uac block sits in `.gitignore` text, markers included. */
-function findBlock(text: string): { start: number; end: number } | undefined {
-  const start = text.indexOf(BLOCK_START);
-  const endMarker = text.indexOf(BLOCK_END);
-  if (start === -1 || endMarker === -1) return undefined;
-  return { start, end: endMarker + BLOCK_END.length };
 }
 
 export type GitignoreBlockState =
@@ -95,7 +131,7 @@ export async function gitignoreBlockState(
   config: BlockConfig,
 ): Promise<GitignoreBlockState> {
   const text = await readGitignore(root);
-  const range = findBlock(text);
+  const range = findBlock(text, MARKERS);
   if (!range) return { status: "missing" };
 
   const existing = text.slice(range.start, range.end);
@@ -121,17 +157,8 @@ export async function run(root: string, config: BlockConfig = DEFAULT_CONFIG): P
   const gitignorePath = join(root, ".gitignore");
   const block = buildGitignoreBlock(config);
   const existing = await readGitignore(root);
-  const range = findBlock(existing);
-
-  let newContent: string;
-  if (range) {
-    newContent = `${existing.slice(0, range.start)}${block}${existing.slice(range.end)}`;
-  } else if (!existing) {
-    newContent = block + "\n";
-  } else {
-    const sep = existing.endsWith("\n") ? "\n" : "\n\n";
-    newContent = `${existing}${sep}${block}\n`;
-  }
+  const range = findBlock(existing, MARKERS);
+  const newContent = upsertBlock(existing, block, MARKERS);
 
   if (newContent === existing) {
     consola.info("universal-ai-config patterns in .gitignore are up to date");

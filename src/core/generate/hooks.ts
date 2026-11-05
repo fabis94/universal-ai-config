@@ -251,9 +251,8 @@ export async function generateHooksFiles(
 
   for (const targetName of config.targets) {
     const targetDef = targets[targetName];
-    if (!targetDef?.hooks || !targetDef.supportedTypes.includes("hooks")) continue;
-    // Another target's file serves this one (see the plan)
-    if (plan.servedFor(targetName, "hooks")) continue;
+    // Only `own`: another target's file may serve this one (see the plan)
+    if (!targetDef?.hooks || plan.outputFor(targetName, "hooks").kind !== "own") continue;
 
     // Resolve same-named files and drop excluded ones — both are per-target
     const filteredFiles = selectJsonFiles(hookSlots, "hooks", targetName, config, shadow);

@@ -41,7 +41,7 @@ Before fetching any docs, read uac's current implementation for each tool in sco
 - `src/targets/<tool>/index.ts` — `outputDir`, `supportedTypes`, `reads` (what the tool also loads from other targets and AGENTS.md), and per template type `frontmatterMap`, `outputPath`/`ownedPaths` and any `render`; the hooks block (`events`, `handlerTypes`, `transform`) and the MCP `transform`.
 - `src/types.ts` — `UniversalFrontmatter`, `UniversalHookHandler`, `UniversalMCPServer`, `UniversalMCPInput`, `TemplateType` union.
 - `src/seed-types/meta-instructions/templates/docs/uac/*.md` — the full reference docs: `frontmatter.md` (skill/agent fields), `hooks.md` (event mapping + handler fields), `mcp.md` (server fields), `tools.md`, `models.md`, `codex.md`, `cli.md`, `config.md`. Plus the core summaries in `src/seed-types/meta-instructions/templates/instructions/uac-template-guide.md`. Drift in any of these is a finding too.
-- `src/core/plan/build-plan.ts` — how `reads` decide which outputs are generated; `src/core/agents-md/` — AGENTS.md routing and layouts; `src/core/clean/` — what clean removes (derived from `ownedPaths`, plus `legacy.ts`).
+- `src/core/plan/build-plan.ts` — how `reads` decide which outputs are generated; `src/core/plan/standards.ts` — the facts standards mode goes by (which tools read AGENTS.md and `.agents/skills`, via `reads.instructions` and `readsAgentSkills`); `src/core/agents-md/` — AGENTS.md routing, layouts and checks; `src/core/clean/` — what clean removes (derived from `ownedPaths`, plus `legacy.ts`).
 
 Note specific identifiers (event names, frontmatter field names, tool names, output paths) so the comparison in Step 3 can be exact, not vague.
 

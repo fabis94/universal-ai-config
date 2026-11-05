@@ -47,6 +47,7 @@ export async function runClean(options: RunCleanOptions): Promise<string[]> {
     templatesDir: config.templatesDir,
     additionalTemplateDirs: config.additionalTemplateDirs,
     agentsMd: config.agentsMd,
+    standards: config.standards,
     onPreserve: (path) => {
       if (!preserved.includes(path)) preserved.push(path);
     },

@@ -6,6 +6,15 @@ import { consola } from "consola";
 import { vi } from "vitest";
 import cleanCommand from "../../src/commands/clean.js";
 import generateCommand from "../../src/commands/generate.js";
+import seedCommand from "../../src/commands/seed.js";
+import skillCommand from "../../src/commands/skill/index.js";
+
+const COMMANDS = {
+  generate: generateCommand,
+  clean: cleanCommand,
+  seed: seedCommand,
+  skill: skillCommand,
+};
 
 /** A temp project for CLI-level tests, optionally seeded from a fixture. */
 export class CliProject {
@@ -17,9 +26,9 @@ export class CliProject {
     return new CliProject(root);
   }
 
-  async write(rel: string, content = "generated"): Promise<void> {
+  async write(rel: string, content: string | Uint8Array = "generated"): Promise<void> {
     await mkdir(dirname(join(this.root, rel)), { recursive: true });
-    await writeFile(join(this.root, rel), content, "utf-8");
+    await writeFile(join(this.root, rel), content);
   }
 
   async read(rel: string): Promise<string> {
@@ -37,8 +46,11 @@ export class CliProject {
     await this.write("universal-ai-config.config.json", JSON.stringify(config, null, 2));
   }
 
-  /** Run a uac command; returns everything it logged. */
-  async run(command: "generate" | "clean", args: string[] = []): Promise<string[]> {
+  /**
+   * Run a uac command; returns everything it logged. `args` come first, so a
+   * subcommand or positional (`skill add <src>`, `seed <type>`) is found.
+   */
+  async run(command: keyof typeof COMMANDS, args: string[] = []): Promise<string[]> {
     const lines: string[] = [];
     const spies = (["info", "success", "warn", "log", "start"] as const).map((level) =>
       vi.spyOn(consola, level).mockImplementation((msg: unknown) => {
@@ -46,9 +58,7 @@ export class CliProject {
       }),
     );
     try {
-      await runCommand(command === "generate" ? generateCommand : cleanCommand, {
-        rawArgs: ["--root", this.root, ...args],
-      });
+      await runCommand(COMMANDS[command], { rawArgs: [...args, "--root", this.root] });
     } finally {
       for (const spy of spies) spy.mockRestore();
     }
