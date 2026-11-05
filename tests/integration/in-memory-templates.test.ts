@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { generate } from "../../src/core/generate.js";
-import { expectYamlField } from "../test-helpers.js";
+import { generate } from "../../src/core/generate/index.js";
+import { expectYamlField, text } from "../test-helpers.js";
 import type { InMemoryTemplate } from "../../src/types.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/basic-project");
@@ -89,7 +91,7 @@ describe("in-memory templates", () => {
     // Extra non-.md file — should be raw
     const config = files.find((f) => f.path.includes("data/config.txt"));
     expect(config).toBeDefined();
-    expect(config!.content).toBe("raw data content");
+    expect(text(config)).toBe("raw data content");
   });
 
   it("works alongside file-discovered templates", async () => {
@@ -233,13 +235,14 @@ describe("in-memory templates", () => {
       },
     ];
 
-    // Use a root that has no .universal-ai-config/ directory
+    // A root that has no .universal-ai-config/ directory
+    const root = await mkdtemp(join(tmpdir(), "uac-in-memory-"));
     const files = await generate({
-      root: "/tmp",
+      root,
       targets: ["claude"],
       types: ["instructions"],
       templates,
-    });
+    }).finally(() => rm(root, { recursive: true, force: true }));
 
     expect(files).toHaveLength(1);
     const rule = files[0];

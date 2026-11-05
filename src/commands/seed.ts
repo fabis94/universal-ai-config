@@ -5,6 +5,7 @@ import { consola } from "consola";
 import { loadProjectConfig } from "../config/loader.js";
 import { resolveCliRoot } from "./resolve-root.js";
 import type { SeedTemplate } from "../seed-types/shared.js";
+import type { ResolvedConfig } from "../types.js";
 
 const SEED_TYPES = ["meta-instructions", "examples", "gitignore"] as const;
 type SeedType = (typeof SEED_TYPES)[number];
@@ -29,6 +30,8 @@ async function loadSeedTemplates(
 
 interface RunSeedOptions {
   templatesDir?: string;
+  /** Resolved config to seed from; loaded from `root` when omitted */
+  config?: Pick<ResolvedConfig, "agentsMd">;
 }
 
 export async function runSeed(
@@ -43,7 +46,7 @@ export async function runSeed(
   // Gitignore seed has its own flow — writes to .gitignore, not templates dir
   if (seedType === "gitignore") {
     const { run } = await import("../seed-types/gitignore/index.js");
-    await run(root);
+    await run(root, options?.config ?? (await loadProjectConfig({ root })));
     return;
   }
 

@@ -2,6 +2,7 @@ import { defineCommand } from "citty";
 import { mkdir, writeFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { consola } from "consola";
+import { DEFAULT_CONFIG } from "../config/defaults.js";
 import { runSeed } from "./seed.js";
 
 const EXAMPLE_CONFIG = `import { defineConfig } from "universal-ai-config";
@@ -44,7 +45,9 @@ export default defineCommand({
     }
 
     // Seed gitignore patterns + meta-instructions
-    await runSeed("gitignore", root);
+    // The config was just scaffolded (or already existed); the gitignore
+    // block only needs its agentsMd settings, which init leaves at defaults
+    await runSeed("gitignore", root, { config: DEFAULT_CONFIG });
     await runSeed("meta-instructions", root, { templatesDir });
 
     consola.success("Initialized .universal-ai-config/");

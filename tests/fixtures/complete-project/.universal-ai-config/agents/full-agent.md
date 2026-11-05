@@ -9,7 +9,7 @@ skills: ["deploy-helper", "test-generation"]
 hooks:
   onStart: echo started
 memory: project
-target: "Manage and coordinate project tasks"
+target: github-copilot
 mcpServers:
   github:
     url: "https://github.mcp.example.com"

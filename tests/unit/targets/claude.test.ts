@@ -1,10 +1,14 @@
 import { describe, it, expect } from "vitest";
+import { collectingContext } from "../../test-helpers.js";
 import claude from "../../../src/targets/claude/index.js";
+import { mapFrontmatter } from "../../../src/core/generate/frontmatter.js";
 import type {
   UniversalFrontmatter,
   UniversalHookHandler,
   UniversalMCPServer,
 } from "../../../src/types.js";
+
+const { ctx } = collectingContext();
 
 describe("claude target", () => {
   it("has correct name and output dir", () => {
@@ -60,7 +64,9 @@ describe("claude target", () => {
 
     it("generates correct output path", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("my-rule", fm)).toBe("rules/my-rule.md");
+      expect(config.outputPath("my-rule", fm, { outputDir: ".claude" })).toBe(
+        ".claude/rules/my-rule.md",
+      );
     });
   });
 
@@ -76,8 +82,13 @@ describe("claude target", () => {
       expect(config.frontmatterMap.disableAutoInvocation).toBe("disable-model-invocation");
     });
 
-    it("maps userInvocable to user-invocable", () => {
-      expect(config.frontmatterMap.userInvocable).toBe("user-invocable");
+    it("maps userInvocable to user-invocable, booleans only", () => {
+      expect(mapFrontmatter({ userInvocable: false }, config)).toEqual({ "user-invocable": false });
+      const { ctx, diagnostics } = collectingContext();
+      expect(mapFrontmatter({ userInvocable: "/x" as unknown as boolean }, config, ctx)).toEqual(
+        {},
+      );
+      expect(diagnostics.map((d) => d.code)).toEqual(["suspicious-value"]);
     });
 
     it("maps allowedTools to allowed-tools", () => {
@@ -117,15 +128,22 @@ describe("claude target", () => {
       expect(config.frontmatterMap.skillPaths).toBe("paths");
     });
 
-    it("does not map copilot/cursor-only skill fields", () => {
-      expect(config.frontmatterMap).not.toHaveProperty("license");
-      expect(config.frontmatterMap).not.toHaveProperty("compatibility");
-      expect(config.frontmatterMap).not.toHaveProperty("metadata");
+    it("maps the Agent Skills spec fields Claude now accepts", () => {
+      expect(config.frontmatterMap.license).toBe("license");
+      expect(config.frontmatterMap.compatibility).toBe("compatibility");
+      expect(config.frontmatterMap.metadata).toBe("metadata");
+    });
+
+    it("does not map fields other targets own", () => {
+      expect(config.frontmatterMap).not.toHaveProperty("icon");
+      expect(config.frontmatterMap).not.toHaveProperty("version");
     });
 
     it("generates correct output path", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("test-gen", fm)).toBe("skills/test-gen/SKILL.md");
+      expect(config.outputPath("test-gen", fm, { outputDir: ".claude" })).toBe(
+        ".claude/skills/test-gen/SKILL.md",
+      );
     });
   });
 
@@ -170,7 +188,13 @@ describe("claude target", () => {
 
     it("generates correct output path", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("reviewer", fm)).toBe("agents/reviewer.md");
+      expect(config.outputPath("reviewer", fm, { outputDir: ".claude" })).toBe(
+        ".claude/agents/reviewer.md",
+      );
+    });
+
+    it("writes line-safe frontmatter, because Cursor also reads .claude/agents with a line parser", () => {
+      expect(config.frontmatterStyle).toBe("line-safe");
     });
   });
 
@@ -178,7 +202,7 @@ describe("claude target", () => {
     const config = claude.hooks!;
 
     it("has correct output path and merge key", () => {
-      expect(config.outputPath).toBe("settings.json");
+      expect(config.outputPath({ outputDir: ".claude" })).toBe(".claude/settings.json");
       expect(config.mergeKey).toBe("hooks");
     });
 
@@ -187,7 +211,7 @@ describe("claude target", () => {
         preToolUse: [{ command: "test.sh" }],
         sessionStart: [{ command: "init.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown> };
       expect(result.hooks).toHaveProperty("PreToolUse");
       expect(result.hooks).toHaveProperty("SessionStart");
       expect(result.hooks).not.toHaveProperty("preToolUse");
@@ -201,7 +225,7 @@ describe("claude target", () => {
           { command: "global-check.sh" },
         ],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       const groups = result.hooks.PreToolUse as Array<{ matcher?: string; hooks: unknown[] }>;
       expect(groups).toHaveLength(2);
 
@@ -224,7 +248,7 @@ describe("claude target", () => {
         preToolUse: [{ command: "test.sh" }],
         errorOccurred: [{ command: "error.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown> };
       expect(result.hooks).toHaveProperty("PreToolUse");
       expect(result.hooks).not.toHaveProperty("errorOccurred");
     });
@@ -261,7 +285,7 @@ describe("claude target", () => {
         taskCreated: [{ command: "a.sh" }],
         taskCompleted: [{ command: "a.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown> };
       expect(result.hooks).toHaveProperty("SessionStart");
       expect(result.hooks).toHaveProperty("SessionEnd");
       expect(result.hooks).toHaveProperty("UserPromptSubmit");
@@ -301,7 +325,7 @@ describe("claude target", () => {
         preToolUse: [
           { type: "http", url: "https://example.com/hook", allowedEnvVars: ["TOKEN"] },
           { type: "mcp_tool", server: "my-server", tool: "run", input: { key: "val" } },
-          { type: "prompt", prompt: "Summarize the change", model: "claude-opus-4-7" },
+          { type: "prompt", prompt: "Summarize the change", model: "claude-opus-5-5" },
           {
             command: "check.sh",
             async: true,
@@ -313,7 +337,7 @@ describe("claude target", () => {
           },
         ],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       const groups = result.hooks.PreToolUse as Array<{ hooks: unknown[] }>;
       const entries = groups[0]!.hooks as Record<string, unknown>[];
 
@@ -331,7 +355,7 @@ describe("claude target", () => {
       expect(entries[2]).toEqual({
         type: "prompt",
         prompt: "Summarize the change",
-        model: "claude-opus-4-7",
+        model: "claude-opus-5-5",
       });
       expect(entries[3]).toMatchObject({
         type: "command",
@@ -359,7 +383,7 @@ describe("claude target", () => {
           },
         ],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       const groups = result.hooks.PreToolUse as Array<{ hooks: unknown[] }>;
       const entry = groups[0]!.hooks[0] as Record<string, unknown>;
       expect(entry.headers).toEqual({ Authorization: "Bearer tok" });
@@ -371,7 +395,7 @@ describe("claude target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         sessionStart: [{ command: "node", args: ["./check.js", "--strict"] }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       const groups = result.hooks.SessionStart as Array<{ hooks: unknown[] }>;
       const entry = groups[0]!.hooks[0] as Record<string, unknown>;
       expect(entry.command).toBe("node");
@@ -418,7 +442,7 @@ describe("claude target", () => {
     const config = claude.mcp!;
 
     it("has correct output path", () => {
-      expect(config.outputPath).toBe(".mcp.json");
+      expect(config.outputPath({ outputDir: ".claude" })).toBe(".mcp.json");
     });
 
     it("passes through all basic fields", () => {
@@ -435,7 +459,7 @@ describe("claude target", () => {
           headers: { Authorization: "Bearer tok" },
         },
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         mcpServers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcpServers["my-server"]!;
@@ -458,7 +482,7 @@ describe("claude target", () => {
           oauth: { clientId: "abc", scopes: ["read"] },
         },
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         mcpServers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcpServers["my-server"]!;
@@ -476,7 +500,7 @@ describe("claude target", () => {
           dev: { watch: "./src" },
         } as UniversalMCPServer,
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         mcpServers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcpServers["my-server"]!;
@@ -493,7 +517,7 @@ describe("claude target", () => {
           auth: { CLIENT_ID: "id", CLIENT_SECRET: "sec", scopes: ["read"] },
         } as UniversalMCPServer,
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         mcpServers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcpServers["my-server"]!;
@@ -502,9 +526,124 @@ describe("claude target", () => {
     });
 
     it("wraps output in mcpServers key", () => {
-      const result = config.transform({ s: { command: "node" } }) as Record<string, unknown>;
+      const result = config.transform({ s: { command: "node" } }, undefined, ctx) as Record<
+        string,
+        unknown
+      >;
       expect(result).toHaveProperty("mcpServers");
       expect(result).not.toHaveProperty("s");
+    });
+  });
+});
+
+describe("claude target — 3.0 additions", () => {
+  it("maps the four new hook events", () => {
+    const { ctx } = collectingContext();
+    const result = claude.hooks!.transform(
+      {
+        messageDisplay: [{ command: "a" }],
+        directoryAdded: [{ command: "b" }],
+        preModelSwitch: [{ command: "c" }],
+        postModelSwitch: [{ command: "d" }],
+      },
+      ctx,
+    ) as { hooks: Record<string, unknown> };
+    expect(Object.keys(result.hooks)).toEqual([
+      "MessageDisplay",
+      "DirectoryAdded",
+      "PreModelSwitch",
+      "PostModelSwitch",
+    ]);
+  });
+
+  it("maps failClosed to onFailure on command and http handlers only", () => {
+    const { ctx } = collectingContext();
+    const result = claude.hooks!.transform(
+      {
+        preToolUse: [
+          { command: "a", failClosed: true },
+          { type: "http", url: "https://x", failClosed: false },
+          { type: "prompt", prompt: "p", failClosed: true },
+        ],
+      },
+      ctx,
+    ) as { hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> } };
+    const handlers = result.hooks.PreToolUse[0]!.hooks;
+    expect(handlers.map((h) => h.onFailure)).toEqual(["block", "continue", undefined]);
+    expect(handlers[0]).not.toHaveProperty("failClosed");
+  });
+
+  it("maps the new skill fields", () => {
+    expect(
+      mapFrontmatter(
+        {
+          disallowedTools: ["Bash"],
+          background: false,
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { owner: "team" },
+        },
+        claude.skills!,
+      ),
+    ).toEqual({
+      "disallowed-tools": ["Bash"],
+      background: false,
+      license: "MIT",
+      compatibility: "Requires git",
+      metadata: { owner: "team" },
+    });
+  });
+
+  it("maps the new agent fields", () => {
+    expect(
+      mapFrontmatter(
+        { autoCompactWindow: 200000, omitClaudeMd: true, experimental: { cacheTtl: "1h" } },
+        claude.agents!,
+      ),
+    ).toEqual({ autoCompactWindow: 200000, omitClaudeMd: true, experimental: { cacheTtl: "1h" } });
+  });
+
+  describe("mcp", () => {
+    it("emits an integer millisecond timeout", () => {
+      const { ctx, diagnostics } = collectingContext();
+      const result = claude.mcp!.transform(
+        { s: { command: "x", timeout: 30000 } },
+        undefined,
+        ctx,
+      ) as {
+        mcpServers: Record<string, Record<string, unknown>>;
+      };
+      expect(result.mcpServers.s!.timeout).toBe(30000);
+      expect(diagnostics).toEqual([]);
+    });
+
+    it("warns about a timeout that looks like seconds, and drops a non-integer one", () => {
+      const { ctx, diagnostics } = collectingContext();
+      const result = claude.mcp!.transform(
+        { a: { command: "x", timeout: 30 }, b: { command: "x", timeout: 1.5 } },
+        undefined,
+        ctx,
+      ) as { mcpServers: Record<string, Record<string, unknown>> };
+      expect(result.mcpServers.a!.timeout).toBe(30);
+      expect(result.mcpServers.b).not.toHaveProperty("timeout");
+      expect(diagnostics.map((d) => d.code)).toEqual(["suspicious-value", "suspicious-value"]);
+    });
+
+    it("drops a type outside Claude's set and flags sse as legacy", () => {
+      const { ctx, diagnostics } = collectingContext();
+      const result = claude.mcp!.transform(
+        {
+          local: { type: "local", command: "x" },
+          old: { type: "sse", url: "https://x" },
+          ws: { type: "ws", url: "wss://x" },
+        },
+        undefined,
+        ctx,
+      ) as { mcpServers: Record<string, Record<string, unknown>> };
+      expect(result.mcpServers.local).not.toHaveProperty("type");
+      expect(result.mcpServers.old!.type).toBe("sse");
+      expect(result.mcpServers.ws!.type).toBe("ws");
+      expect(diagnostics.map((d) => d.code)).toEqual(["unsupported", "legacy-field"]);
     });
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
-import { generate } from "../../src/core/generate.js";
+import { generate } from "../../src/core/generate/index.js";
 import { expectYamlField } from "../test-helpers.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/complete-project");
@@ -95,7 +95,7 @@ describe("complete-project (all frontmatter fields)", () => {
       expectYamlField(c, "name", "deploy-helper");
       expectYamlField(c, "description", "Assists with deployment tasks");
       expect(c).toContain("disable-model-invocation: true");
-      expectYamlField(c, "user-invocable", "/deploy");
+      expect(c).toContain("user-invocable: true");
       expect(c).toContain("allowed-tools:");
       expect(c).toContain("  - ");
       expectYamlField(c, "model", "sonnet");
@@ -104,10 +104,10 @@ describe("complete-project (all frontmatter fields)", () => {
       expectYamlField(c, "argument-hint", "<environment> [--dry-run]");
       expect(c).toContain("hooks:");
 
-      // Claude doesn't map license, compatibility, or metadata
-      expect(c).not.toContain("license:");
-      expect(c).not.toContain("compatibility:");
-      expect(c).not.toContain("metadata:");
+      // Agent Skills spec fields Claude accepts
+      expect(c).toContain("license:");
+      expect(c).toContain("compatibility:");
+      expect(c).toContain("metadata:");
     });
 
     it("copilot: maps copilot-specific skill fields only", async () => {
@@ -125,7 +125,7 @@ describe("complete-project (all frontmatter fields)", () => {
       expectYamlField(c, "name", "deploy-helper");
       expectYamlField(c, "description", "Assists with deployment tasks");
       expect(c).toContain("disable-model-invocation: true");
-      expectYamlField(c, "user-invocable", "/deploy");
+      expect(c).toContain("user-invocable: true");
       expectYamlField(c, "argument-hint", "<environment> [--dry-run]");
       expectYamlField(c, "license", "MIT");
       expectYamlField(c, "compatibility", ">=1.0.0");
@@ -135,7 +135,7 @@ describe("complete-project (all frontmatter fields)", () => {
       expect(c).toContain('context: "fork"');
 
       // Copilot doesn't map claude-specific fields
-      expect(c).not.toContain("allowed-tools");
+      expect(c).toContain("allowed-tools");
       expect(c).not.toContain("agent:");
       expect(c).not.toContain("hooks:");
     });
@@ -160,7 +160,8 @@ describe("complete-project (all frontmatter fields)", () => {
       expect(c).toContain("metadata:");
 
       // Cursor doesn't map claude-specific fields
-      expect(c).not.toContain("user-invocable");
+      // Cursor (CLI) honours user-invocable
+      expect(c).toContain("user-invocable");
       expect(c).not.toContain("allowed-tools");
       expect(c).not.toContain("agent:");
       expect(c).not.toContain("context:");
@@ -215,29 +216,32 @@ describe("complete-project (all frontmatter fields)", () => {
       expectYamlField(c, "description", "Manages project tasks and coordination");
       expectYamlField(c, "model", "opus");
       expect(c).toContain("tools:");
-      expectYamlField(c, "target", "Manage and coordinate project tasks");
+      expectYamlField(c, "target", "github-copilot");
       expect(c).toContain("mcp-servers:");
-      expect(c).toContain("handoffs:");
-
-      // Copilot now maps hooks for agents
       expect(c).toContain("hooks:");
+      expect(c).toContain("skills:");
+      // Local-harness only: dropped for the default Copilot harness
+      expect(c).not.toContain("handoffs:");
 
       // Copilot doesn't map claude-specific fields
       expect(c).not.toContain("disallowedTools:");
       expect(c).not.toContain("permissionMode:");
-      expect(c).not.toContain("skills:");
       expect(c).not.toContain("memory:");
     });
 
-    it("cursor: skips agents entirely", async () => {
+    it("cursor: writes .cursor/agents with Cursor's fields, line-safe", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["cursor"],
         types: ["agents"],
       });
 
-      const cursorAgents = files.filter((f) => f.type === "agents" && f.target === "cursor");
-      expect(cursorAgents).toHaveLength(0);
+      const agent = files.find((f) => f.type === "agents" && f.target === "cursor");
+      expect(agent!.path).toBe(".cursor/agents/full-agent.md");
+      expect(agent!.content).toBe(
+        "---\nname: project-manager\ndescription: Manages project tasks and coordination\nmodel: opus\n---\n" +
+          "You are a project manager agent. Coordinate tasks across the team and ensure quality.\n",
+      );
     });
   });
 
@@ -245,11 +249,29 @@ describe("complete-project (all frontmatter fields)", () => {
     it("merges multiple JSON files and generates for all targets", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
-        targets: ["claude", "copilot", "cursor"],
+        targets: ["claude", "cursor"],
         types: ["hooks"],
       });
+      expect(files.filter((f) => f.type === "hooks")).toHaveLength(2);
 
-      expect(files.filter((f) => f.type === "hooks")).toHaveLength(3);
+      const copilotOnly = await generate({
+        root: FIXTURES_DIR,
+        targets: ["copilot"],
+        types: ["hooks"],
+      });
+      expect(copilotOnly.filter((f) => f.type === "hooks")).toHaveLength(1);
+    });
+
+    it("claude + copilot: only Claude's hooks file, read by both", async () => {
+      const files = await generate({
+        root: FIXTURES_DIR,
+        targets: ["claude", "copilot"],
+        types: ["hooks"],
+        onDiagnostic: () => {},
+      });
+      expect(files.map((f) => [f.path, f.consumers])).toEqual([
+        [".claude/settings.json", ["claude", "copilot"]],
+      ]);
     });
 
     it("claude: PascalCase events, nested matcher groups, merged into settings.json", async () => {
@@ -288,7 +310,7 @@ describe("complete-project (all frontmatter fields)", () => {
       expect(sessionStart.hooks[0].command).toBe(".hooks/load-env.sh");
     });
 
-    it("copilot: maps events, uses bash field, drops unsupported events", async () => {
+    it("copilot: maps events, uses the cross-platform command field, drops unsupported events", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
@@ -300,23 +322,22 @@ describe("complete-project (all frontmatter fields)", () => {
       expect(hooks!.path).toBe(".github/hooks/hooks.json");
 
       const parsed = JSON.parse(hooks!.content);
-      expect(parsed.version).toBe("1");
+      expect(parsed.version).toBe(1);
 
       const h = parsed.hooks;
-      // Copilot supports preToolUse, postToolUse, sessionStart
       expect(h).toHaveProperty("preToolUse");
       expect(h).toHaveProperty("postToolUse");
       expect(h).toHaveProperty("sessionStart");
-      // Copilot maps userPromptSubmit → userPromptSubmitted
+      // Copilot maps userPromptSubmit → userPromptSubmitted, stop → agentStop
       expect(h).toHaveProperty("userPromptSubmitted");
       expect(h).not.toHaveProperty("userPromptSubmit");
-      // Copilot does NOT support stop
+      expect(h).toHaveProperty("agentStop");
       expect(h).not.toHaveProperty("stop");
 
-      // Verify bash field
-      expect(h.preToolUse[0].bash).toBe(".hooks/block-rm.sh");
+      expect(h.preToolUse[0].command).toBe(".hooks/block-rm.sh");
+      expect(h.preToolUse[0]).not.toHaveProperty("bash");
       expect(h.preToolUse[0].timeoutSec).toBe(30);
-      expect(h.preToolUse[0]).not.toHaveProperty("matcher");
+      expect(h.preToolUse[0].matcher).toBe("Bash");
     });
 
     it("cursor: camelCase events, flat handlers, version 1", async () => {

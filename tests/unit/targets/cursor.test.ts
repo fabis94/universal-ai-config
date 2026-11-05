@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { collectingContext } from "../../test-helpers.js";
+import { mapFrontmatter } from "../../../src/core/generate/frontmatter.js";
 import cursor from "../../../src/targets/cursor/index.js";
 import type {
   UniversalFrontmatter,
@@ -6,15 +8,50 @@ import type {
   UniversalMCPServer,
 } from "../../../src/types.js";
 
+const { ctx } = collectingContext();
+
 describe("cursor target", () => {
   it("has correct name and output dir", () => {
     expect(cursor.name).toBe("cursor");
     expect(cursor.outputDir).toBe(".cursor");
   });
 
-  it("does not support agents", () => {
-    expect(cursor.supportedTypes).not.toContain("agents");
-    expect(cursor.agents).toBeUndefined();
+  describe("agents", () => {
+    const config = cursor.agents!;
+
+    it("supports agents at .cursor/agents/<name>.md", () => {
+      expect(cursor.supportedTypes).toContain("agents");
+      expect(config.outputPath("reviewer", {}, { outputDir: ".cursor" })).toBe(
+        ".cursor/agents/reviewer.md",
+      );
+    });
+
+    it("maps name, description, model, readonly and background → is_background", () => {
+      expect(
+        mapFrontmatter(
+          {
+            name: "reviewer",
+            description: "Reviews",
+            model: "composer-2.5",
+            readonly: true,
+            background: true,
+            tools: ["Read"],
+            permissionMode: "plan",
+          },
+          config,
+        ),
+      ).toEqual({
+        name: "reviewer",
+        description: "Reviews",
+        model: "composer-2.5",
+        readonly: true,
+        is_background: true,
+      });
+    });
+
+    it("writes line-safe frontmatter for Cursor's line-based agent parser", () => {
+      expect(config.frontmatterStyle).toBe("line-safe");
+    });
   });
 
   describe("instructions", () => {
@@ -48,7 +85,9 @@ describe("cursor target", () => {
 
     it("generates .mdc output path", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("my-rule", fm)).toBe("rules/my-rule.mdc");
+      expect(config.outputPath("my-rule", fm, { outputDir: ".cursor" })).toBe(
+        ".cursor/rules/my-rule.mdc",
+      );
     });
   });
 
@@ -76,8 +115,26 @@ describe("cursor target", () => {
       expect(config.frontmatterMap.metadata).toBe("metadata");
     });
 
+    it("maps user-invocable, paths (from skillPaths), icon and color", () => {
+      expect(
+        mapFrontmatter(
+          {
+            userInvocable: false,
+            skillPaths: ["src/**", "docs/**"],
+            icon: "rocket",
+            color: "cyan",
+          },
+          config,
+        ),
+      ).toEqual({
+        "user-invocable": false,
+        paths: ["src/**", "docs/**"],
+        icon: "rocket",
+        color: "cyan",
+      });
+    });
+
     it("does not map claude-only skill fields", () => {
-      expect(config.frontmatterMap).not.toHaveProperty("userInvocable");
       expect(config.frontmatterMap).not.toHaveProperty("argumentHint");
       expect(config.frontmatterMap).not.toHaveProperty("allowedTools");
       expect(config.frontmatterMap).not.toHaveProperty("model");
@@ -87,13 +144,14 @@ describe("cursor target", () => {
       expect(config.frontmatterMap).not.toHaveProperty("whenToUse");
       expect(config.frontmatterMap).not.toHaveProperty("arguments");
       expect(config.frontmatterMap).not.toHaveProperty("effort");
-      expect(config.frontmatterMap).not.toHaveProperty("skillPaths");
       expect(config.frontmatterMap).not.toHaveProperty("skillShell");
     });
 
     it("generates correct output path", () => {
       const fm: UniversalFrontmatter = {};
-      expect(config.getOutputPath("test-gen", fm)).toBe("skills/test-gen/SKILL.md");
+      expect(config.outputPath("test-gen", fm, { outputDir: ".cursor" })).toBe(
+        ".cursor/skills/test-gen/SKILL.md",
+      );
     });
   });
 
@@ -101,7 +159,7 @@ describe("cursor target", () => {
     const config = cursor.hooks!;
 
     it("has correct output path and no merge key", () => {
-      expect(config.outputPath).toBe("hooks.json");
+      expect(config.outputPath({ outputDir: ".cursor" })).toBe(".cursor/hooks.json");
       expect(config.mergeKey).toBeUndefined();
     });
 
@@ -109,7 +167,7 @@ describe("cursor target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ command: "test.sh" }],
       };
-      const result = config.transform(hooks) as { version: number };
+      const result = config.transform(hooks, ctx) as { version: number };
       expect(result.version).toBe(1);
     });
 
@@ -117,7 +175,7 @@ describe("cursor target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         userPromptSubmit: [{ command: "validate.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       expect(result.hooks).toHaveProperty("beforeSubmitPrompt");
       expect(result.hooks).not.toHaveProperty("userPromptSubmit");
     });
@@ -126,7 +184,7 @@ describe("cursor target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ matcher: "Bash", command: "test.sh", timeout: 30 }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       expect(result.hooks.preToolUse[0]).toEqual({
         type: "command",
         command: "test.sh",
@@ -140,7 +198,7 @@ describe("cursor target", () => {
         afterFileEdit: [{ command: "format.sh" }],
         beforeShellExecution: [{ command: "check.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       expect(result.hooks).toHaveProperty("afterFileEdit");
       expect(result.hooks).toHaveProperty("beforeShellExecution");
     });
@@ -153,7 +211,7 @@ describe("cursor target", () => {
         notification: [{ command: "n.sh" }],
         postToolBatch: [{ command: "b.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       expect(result.hooks).toHaveProperty("preToolUse");
       expect(result.hooks).not.toHaveProperty("permissionRequest");
       expect(result.hooks).not.toHaveProperty("errorOccurred");
@@ -174,7 +232,7 @@ describe("cursor target", () => {
         subagentStop: [{ command: "a.sh" }],
         preCompact: [{ command: "a.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       expect(result.hooks).toHaveProperty("sessionStart");
       expect(result.hooks).toHaveProperty("sessionEnd");
       expect(result.hooks).toHaveProperty("beforeSubmitPrompt");
@@ -202,7 +260,7 @@ describe("cursor target", () => {
         beforeTabFileRead: [{ command: "a.sh" }],
         afterTabFileEdit: [{ command: "a.sh" }],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       expect(result.hooks).toHaveProperty("workspaceOpen");
       expect(result.hooks).toHaveProperty("beforeShellExecution");
       expect(result.hooks).toHaveProperty("afterShellExecution");
@@ -231,7 +289,7 @@ describe("cursor target", () => {
           },
         ],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       const handler = result.hooks.preToolUse[0] as Record<string, unknown>;
       expect(handler).not.toHaveProperty("async");
       expect(handler).not.toHaveProperty("asyncRewake");
@@ -257,7 +315,7 @@ describe("cursor target", () => {
           },
         ],
       };
-      const result = config.transform(hooks) as { hooks: Record<string, unknown[]> };
+      const result = config.transform(hooks, ctx) as { hooks: Record<string, unknown[]> };
       const handlers = result.hooks.preToolUse as Record<string, unknown>[];
       expect(handlers[0]).toEqual({
         type: "prompt",
@@ -273,7 +331,7 @@ describe("cursor target", () => {
     const config = cursor.mcp!;
 
     it("has correct output path", () => {
-      expect(config.outputPath).toBe(".cursor/mcp.json");
+      expect(config.outputPath({ outputDir: ".cursor" })).toBe(".cursor/mcp.json");
     });
 
     it("passes through all basic fields", () => {
@@ -290,7 +348,7 @@ describe("cursor target", () => {
           headers: { Authorization: "Bearer tok" },
         },
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         mcpServers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcpServers["my-server"]!;
@@ -313,7 +371,7 @@ describe("cursor target", () => {
           auth: { CLIENT_ID: "id", scopes: ["read"] },
         },
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         mcpServers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcpServers["my-server"]!;
@@ -321,12 +379,27 @@ describe("cursor target", () => {
       expect(s.auth).toEqual({ CLIENT_ID: "id", scopes: ["read"] });
     });
 
-    it("omits type when not provided", () => {
-      const servers = { "my-server": { command: "npx" } };
-      const result = config.transform(servers) as {
-        mcpServers: Record<string, Record<string, unknown>>;
-      };
-      expect(result.mcpServers["my-server"]).not.toHaveProperty("type");
+    it("writes type stdio for a command server without a type (Cursor requires it)", () => {
+      const result = config.transform(
+        { local: { command: "npx" }, remote: { url: "https://x" } },
+        undefined,
+        ctx,
+      ) as { mcpServers: Record<string, Record<string, unknown>> };
+      expect(result.mcpServers.local!.type).toBe("stdio");
+      expect(result.mcpServers.remote).not.toHaveProperty("type");
+    });
+
+    it("emits auth only as an object (a string is Codex's auth mode)", () => {
+      const result = config.transform(
+        {
+          a: { url: "https://x", auth: "chatgpt" },
+          b: { url: "https://x", auth: { CLIENT_ID: "x" } },
+        },
+        undefined,
+        ctx,
+      ) as { mcpServers: Record<string, Record<string, unknown>> };
+      expect(result.mcpServers.a).not.toHaveProperty("auth");
+      expect(result.mcpServers.b!.auth).toEqual({ CLIENT_ID: "x" });
     });
 
     it("strips claude-only fields (oauth, alwaysLoad, headersHelper) from output", () => {
@@ -338,7 +411,7 @@ describe("cursor target", () => {
           headersHelper: "./gen.sh",
         } as UniversalMCPServer,
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         mcpServers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcpServers["my-server"]!;
@@ -356,7 +429,7 @@ describe("cursor target", () => {
           dev: { watch: "./src" },
         } as UniversalMCPServer,
       };
-      const result = config.transform(servers) as {
+      const result = config.transform(servers, undefined, ctx) as {
         mcpServers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcpServers["my-server"]!;
@@ -366,8 +439,36 @@ describe("cursor target", () => {
     });
 
     it("wraps output in mcpServers key", () => {
-      const result = config.transform({ s: { command: "node" } }) as Record<string, unknown>;
+      const result = config.transform({ s: { command: "node" } }, undefined, ctx) as Record<
+        string,
+        unknown
+      >;
       expect(result).toHaveProperty("mcpServers");
     });
+  });
+});
+
+describe("cursor target — user-invocable is boolean only", () => {
+  it("drops a non-boolean with a warning", () => {
+    const { ctx, diagnostics } = collectingContext();
+    expect(
+      mapFrontmatter({ userInvocable: "/x" as unknown as boolean }, cursor.skills!, ctx),
+    ).toEqual({});
+    expect(diagnostics.map((d) => d.code)).toEqual(["suspicious-value"]);
+  });
+});
+
+describe("cursor hooks — Claude tool names in matchers", () => {
+  it("warns that Bash never matches Cursor's Shell tool", () => {
+    const { ctx, diagnostics } = collectingContext();
+    cursor.hooks!.transform({ postToolUse: [{ command: "x", matcher: "Bash" }] }, ctx);
+    expect(diagnostics.map((d) => d.code)).toEqual(["suspicious-value"]);
+    expect(diagnostics[0]!.message).toContain("Bash → Shell");
+  });
+
+  it("stays quiet for Cursor's own names", () => {
+    const { ctx, diagnostics } = collectingContext();
+    cursor.hooks!.transform({ preToolUse: [{ command: "x", matcher: "Shell|Read" }] }, ctx);
+    expect(diagnostics).toEqual([]);
   });
 });

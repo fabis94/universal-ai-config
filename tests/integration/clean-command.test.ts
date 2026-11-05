@@ -44,28 +44,24 @@ describe("uac clean command", () => {
     await write(".claude/rules/a.md");
     await write("AGENTS.md");
     await write(".agents/skills/x/SKILL.md");
-    await write("packages/frontend-3/AGENTS.override.md");
 
     await runCommand(cleanCommand, { rawArgs: ["--root", tempDir] });
 
     expect(await exists(".claude/rules")).toBe(false);
     expect(await exists("AGENTS.md")).toBe(false);
     expect(await exists(".agents/skills")).toBe(false);
-    expect(await exists("packages/frontend-3/AGENTS.override.md")).toBe(false);
   });
 
   it("honors preserveOnClean from the config file", async () => {
     await writeConfig({ preserveOnClean: ["AGENTS.md"] });
     await write("AGENTS.md", "hand-written and committed");
     await write(".agents/skills/x/SKILL.md");
-    await write("packages/app/AGENTS.override.md");
 
     await runCommand(cleanCommand, { rawArgs: ["--root", tempDir] });
 
     expect(await exists("AGENTS.md")).toBe(true);
     expect(await readFile(join(tempDir, "AGENTS.md"), "utf-8")).toBe("hand-written and committed");
     expect(await exists(".agents/skills")).toBe(false);
-    expect(await exists("packages/app/AGENTS.override.md")).toBe(false);
   });
 
   it("honors outputDirs from the config file", async () => {
@@ -83,33 +79,23 @@ describe("uac clean command", () => {
   it("--dry-run deletes nothing", async () => {
     await writeConfig({});
     await write(".claude/rules/a.md");
-    await write("packages/app/AGENTS.override.md");
+    await write("packages/app/AGENTS.md");
 
     await runCommand(cleanCommand, { rawArgs: ["--root", tempDir, "--dry-run"] });
 
     expect(await exists(".claude/rules/a.md")).toBe(true);
-    expect(await exists("packages/app/AGENTS.override.md")).toBe(true);
+    expect(await exists("packages/app/AGENTS.md")).toBe(true);
   });
 
   it("--target narrows cleaning to the named target", async () => {
     await writeConfig({});
     await write(".claude/rules/a.md");
-    await write("packages/app/AGENTS.override.md");
+    await write("packages/app/AGENTS.md");
 
     await runCommand(cleanCommand, { rawArgs: ["--root", tempDir, "--target", "claude"] });
 
     expect(await exists(".claude/rules")).toBe(false);
-    expect(await exists("packages/app/AGENTS.override.md")).toBe(true);
-  });
-
-  it("does not delete override files living inside templatesDir", async () => {
-    await writeConfig({});
-    await write(".universal-ai-config/skills/x/AGENTS.override.md", "template input");
-    await write("packages/app/AGENTS.override.md");
-
-    await runCommand(cleanCommand, { rawArgs: ["--root", tempDir] });
-
-    expect(await exists(".universal-ai-config/skills/x/AGENTS.override.md")).toBe(true);
-    expect(await exists("packages/app/AGENTS.override.md")).toBe(false);
+    // Codex's output
+    expect(await exists("packages/app/AGENTS.md")).toBe(true);
   });
 });

@@ -5,7 +5,7 @@ alwaysApply: true
 
 ## Overview
 
-universal-ai-config (uac) generates target-specific AI tool configs (Claude, Copilot, Cursor) from a single set of universal templates. Templates live in `.universal-ai-config/` and get rendered per-target via `uac generate`.
+universal-ai-config (uac) generates target-specific AI tool configs (Claude, Copilot, Cursor, Codex) from a single set of universal templates. Templates live in `.universal-ai-config/` and get rendered per-target via `uac generate`.
 
 ## Project Structure
 
@@ -14,132 +14,112 @@ src/
 ├── cli.ts                         # CLI entry point (citty)
 ├── index.ts                       # Public API exports
 ├── types.ts                       # All TypeScript interfaces
-├── commands/                      # CLI command implementations
-│   ├── generate.ts                # Main generate command
-│   ├── init.ts                    # Scaffold new projects
-│   ├── clean.ts                   # Remove generated files
-│   └── seed.ts                    # Seed template sets
-├── core/                          # Core pipeline modules
-│   ├── generate.ts                # Main orchestrator
-│   ├── parser.ts                  # Frontmatter + EJS parsing
-│   ├── resolve-overrides.ts       # Per-target override resolution
-│   ├── writer.ts                  # File writing + cleanup
-│   ├── safe-path.ts               # Path traversal protection
-│   ├── exclude.ts                 # Template exclusion matching
-│   ├── normalize-globs.ts         # Glob pattern normalization
-│   └── resolve-json-variables.ts  # Typed variable resolution for JSON
-├── config/                        # Configuration system
-│   ├── loader.ts                  # c12-based config loading
-│   ├── schema.ts                  # Zod schema + defineConfig
-│   └── defaults.ts                # Default configuration values
-├── targets/                       # Target definitions
-│   ├── index.ts                   # Target registry
-│   ├── define-target.ts           # TargetDefinition interface
-│   ├── claude/index.ts            # Claude target
-│   ├── copilot/index.ts           # Copilot target
-│   └── cursor/index.ts            # Cursor target
+├── commands/                      # CLI commands: generate, init, clean, seed, skill/
+│   ├── report.ts                  # CLI summary + grouped diagnostics output
+│   ├── run-clean.ts               # Shared by `clean` and `generate --clean`
+│   ├── interactive.ts             # canPrompt() + confirmAction(): the only prompt seam
+│   └── agents-overrides.ts        # Asks to delete leftover AGENTS.override.md files
+├── core/
+│   ├── generate/                  # The pipeline: index (generateProject/generate), discover,
+│   │                              #   select, read-cache, templates, agents-md, hooks, mcp,
+│   │                              #   frontmatter (incl. line-safe), skill-spec, collisions
+│   ├── plan/
+│   │   ├── build-plan.ts          # Which outputs a run generates (from targets' `reads`)
+│   │   └── locate.ts              # The only place output paths are computed
+│   ├── agents-md/                 # AGENTS.md routing, nested/concatenate/index layouts, render
+│   ├── clean/                     # Clean entries from ownedPaths, legacy entries, AGENTS.md scan,
+│   │                              #   leftover AGENTS.override.md files (find/remove, never automatic)
+│   ├── diagnostics.ts             # Typed Diagnostic + DiagnosticSink
+│   ├── writer.ts                  # Writes files (bytes, mode, mergeKey) → WriteReport
+│   ├── parser.ts                  # Frontmatter + EJS, path helpers
+│   ├── shell.ts                   # shellQuote / flattenCommand
+│   └── …                          # resolve-overrides, exclude, normalize-globs, safe-path, scan-files, …
+├── config/                        # loader (c12), schema (Zod), defaults, validate, merge-field
+├── targets/                       # define-target.ts + claude/, copilot/, cursor/, codex/
 └── seed-types/                    # Seedable template sets
     ├── shared.ts                  # Common seed utilities
     ├── meta-instructions/         # Meta-instructions about uac
     │   └── templates/             # instructions/, skills/, docs/uac/ (seed sources)
+    ├── gitignore/                 # .gitignore block (reads agentsMd.indexDir)
     └── examples/                  # Example templates
 tests/
-├── unit/                          # Isolated function tests
-│   ├── parser.test.ts
-│   ├── resolve-overrides.test.ts
-│   ├── config.test.ts
-│   ├── init.test.ts
-│   ├── seed.test.ts
-│   ├── exclude.test.ts
-│   ├── normalize-globs.test.ts
-│   ├── resolve-json-variables.test.ts
-│   └── targets/                   # Per-target mapping tests
-├── integration/                   # Full pipeline tests
-│   ├── generate.test.ts
-│   ├── complete-project.test.ts
-│   ├── per-target-overrides.test.ts
-│   ├── additional-dirs.test.ts
-│   ├── exclude.test.ts
-│   └── variables.test.ts
+├── test-helpers.ts                # expectYamlField, text(file), collectingContext()
+├── unit/                          # Pure functions: parser, config, plan/, agents-md/, clean/, targets/, …
+├── integration/                   # Full pipeline with fixtures; cli-project.ts drives CLI commands
 └── fixtures/                      # Self-contained test projects
-    ├── basic-project/
-    ├── complete-project/
-    ├── complete-complex-project/
-    ├── exclude-project/
-    ├── additional-dirs-project/
-    └── variables-project/
 ```
 
 ## Core Pipeline
 
-The generation pipeline in `src/core/generate.ts` runs this sequence:
+`generateProject()` in `src/core/generate/index.ts` runs this sequence (`generate()` returns just its files):
 
-1. **Load Config** → merges base config + overrides + CLI flags
-2. **Discover Templates** → finds `.md` files in `instructions/`, `skills/`, `agents/` and `.json` files in `hooks/`, `mcp/`
-3. **For each template × target:**
-   - **Parse** (`parseTemplate`) → extract YAML frontmatter, render EJS body
-   - **Resolve Overrides** (`resolveOverrides`) → extract per-target values from override objects
-   - **Map Frontmatter** (`mapFrontmatter`) → transform universal keys to target-specific keys
-   - **Generate Output Path** → compute target-specific file location
-   - **Format Output** → assemble final frontmatter + body as markdown
-   - **Copy Extra Files** (skills only) → copy supporting files from skill directories (`.md` with EJS, others raw)
-4. **Generate Hooks** (separate path) → merge JSON files, resolve typed variables (`resolveJsonVariables`), resolve per-target overrides at handler level, transform to target format
-5. **Generate MCP** (separate path) → merge JSON files, resolve typed variables (`resolveJsonVariables`), resolve per-target overrides per server, transform to target format
-6. **Return** `GeneratedFile[]` — files aren't written until the caller invokes `writeGeneratedFiles()`
+1. **Load config** → base + overrides file + inline overrides + CLI `targets`/`types`, then validate (`config/validate.ts`)
+2. **Plan** (`buildPlan`) → from the run's targets and each target's `reads`: whether AGENTS.md is generated (codex in the run, or `agentsMd.enable`) and for whom, which targets skip a type because another output serves them (`servedBy`), and the duplicate hook-run checks
+3. **Discover + select** → candidates from every template source; the per-target winner after `exclude` (losers reported as `shadowed`)
+4. **Templates** (`templates.ts`) → for each winner × target not served elsewhere: parse + EJS, resolve overrides, `mapFrontmatter`, then the type's `render` or the default markdown render at `outputPath`; skill extra files copied as bytes next to it (`.md` ones EJS-rendered); same-path renders joined by `combine`
+5. **AGENTS.md** (`generate/agents-md.ts`) → instructions rendered for the plan's view target, laid out by `core/agents-md`; CLAUDE.md, 32 KiB and divergence checks
+6. **Hooks / MCP** → merge JSON files, resolve variables and overrides, filter handler types, transform; cross-target checks (Cursor duplicate runs, Copilot rejecting Claude's file)
+7. **Return** `{ files, diagnostics, plan }` after the collision check — nothing is written until `writeGeneratedFiles()`
 
 ### Key Modules
 
-- **`parser.ts`** — `parseFrontmatter()` uses gray-matter, `renderEjs()` provides target/type/config variables plus output and template path helpers. `docPath()` resolves reference docs from the docs index that `generate.ts` builds over every template source's `docs/` folder (first source wins; root-relative inside the project, absolute outside)
-- **`resolve-overrides.ts`** — detects per-target objects (all keys in `[claude, copilot, cursor, default]`), resolves to the target's value or `default`, returns `undefined` if no match (field dropped)
-- **`writer.ts`** — writes files to disk, handles `mergeKey` for JSON merge (e.g. Claude hooks → `settings.json`), handles cleanup per target
-- **`safe-path.ts`** — prevents `../` directory traversal attacks
-- **`exclude.ts`** — creates glob matchers from `exclude` config (supports per-target exclusion patterns)
-- **`normalize-globs.ts`** — `normalizeGlobs()` normalizes glob input (string, comma-separated string, or array) to a consistent array format
-- **`resolve-json-variables.ts`** — `resolveJsonVariables()` walks parsed JSON trees resolving `{{varName}}` placeholders: exact-match (`"{{var}}"` as entire value) preserves typed values (arrays, objects, etc.); embedded match does string interpolation
+- **`parser.ts`** — `parseFrontmatter()`, `renderEjs()` with target/type/config/`consumers` variables plus output and template path helpers. Output helpers go through the locator, so they honour `outputDirs` and AGENTS.md routing. `docPath()` resolves reference docs from the index built over every source's `docs/` folder
+- **`plan/locate.ts`** — `createLocator(config, plan?)`: template, type-dir, hooks and MCP paths, root-relative POSIX
+- **`diagnostics.ts`** — every warning goes through `sink.report({ code, message, detail, … })`; never `consola.warn` in core or targets. Targets get `ctx.report` in transforms, renderers and frontmatter mappers
+- **`resolve-overrides.ts`** — detects per-target objects (all keys in `[claude, copilot, cursor, codex, default]`), resolves to the target's value or `default`, returns `undefined` if no match (field dropped)
+- **`writer.ts`** — writes `string | Uint8Array` content, applies `mode`, merges `mergeKey` into JSON/TOML files, skips identical files
+- **`clean/`** — removes what targets own (`ownedPaths`, hooks/MCP paths and merge keys), legacy outputs, and every AGENTS.md when an owner is cleaned
+- **`exclude.ts`** / **`preserve-on-clean.ts`** — glob matchers on template inputs / output paths (per-target aware)
+- **`normalize-globs.ts`** — `normalizeGlobs()` splits comma-separated globs (commas inside `{…}` stay) into an array
+- **`resolve-json-variables.ts`** — `{{varName}}` placeholders in hooks/MCP JSON: exact match keeps the typed value, embedded match interpolates
 
 ## Target System
 
-Each target in `src/targets/` implements the `TargetDefinition` interface:
+Each target in `src/targets/` implements `TargetDefinition` (`src/targets/define-target.ts`):
 
 ```typescript
 {
-  name: string;
+  name: Target;
   outputDir: string;                    // e.g. ".claude"
-  supportedTypes: TemplateType[];       // which types this target handles
-  instructions?: { frontmatterMap, getOutputPath };
-  skills?: { frontmatterMap, getOutputPath };
-  agents?: { frontmatterMap, getOutputPath };
-  hooks?: { transform, outputPath, mergeKey? };
-  mcp?: { transform, outputPath };      // MCP server config generation
+  supportedTypes: TemplateType[];
+  reads?: { [type]: ForeignRead[] };    // facts: other outputs the tool also loads
+  instructions?: TemplateTypeConfig | "agentsMd";  // "agentsMd": reads only AGENTS.md (Codex)
+  skills?: TemplateTypeConfig;
+  agents?: TemplateTypeConfig;
+  hooks?: { events, handlerTypes, transform, outputPath(ctx), mergeKey?, format? };
+  mcp?: { transform, outputPath(ctx), mergeKey?, format? };
 }
+// TemplateTypeConfig: frontmatterMap, frontmatterStyle?, outputPath(name, fm, ctx),
+//   typeDir(ctx), ownedPaths(ctx), render?(input, ctx), combine?(entries, ctx)
 ```
 
-**Frontmatter mapping** uses two forms:
-
-- **String**: simple rename (`"description" → "description"`)
-- **Function**: `(value, allFrontmatter) => Record<string, unknown>` — can return multiple fields, rename, or return `{}` to drop the field
+- **Paths** are root-relative POSIX and use `ctx.outputDir`; `ownedPaths` is what `uac clean` removes — there is no separate clean table.
+- **`reads`** are facts (`from`, `reconcile`: `loads-both` | `same-file` | `dedupes-identical` | `prefers-own`, `loses`); the policy lives only in `plan/build-plan.ts`.
+- **Frontmatter mapping** — a string renames; a function `(value, allFrontmatter, ctx) => Record<string, unknown>` can return several fields, `{}` to drop, and `ctx.report()` a diagnostic.
 
 **Adding a new target** requires:
 
 1. Create `src/targets/{name}/index.ts` implementing `TargetDefinition`
 2. Register it in `src/targets/index.ts`
-3. Add the target name to the `Target` union type in `src/types.ts`
+3. Add the name to the `Target` union in `src/types.ts` and every per-target key list (config schema, `OVERRIDE_KEYS`, `mergeField`'s `TARGET_KEYS`, default `outputDirs`)
 
 ## Config System
 
-- **`config/loader.ts`** — uses c12 to load `universal-ai-config.config.ts` (base) and `universal-ai-config.overrides.ts` (local overrides, gitignored)
-- **Merge strategy**: scalars replace, arrays replace entirely, objects deep-merge
+- **`config/loader.ts`** — uses c12 to load `universal-ai-config.config.ts` (base) and `universal-ai-config.overrides.ts` (local overrides, gitignored; `universal-ai-config.overrides.config.ts` is read when it is the only one), then validates the merged result
+- **Merge strategy**: scalars replace, arrays replace entirely, objects deep-merge (`mcp` and `agentsMd` field by field)
 - **`config/schema.ts`** — Zod v4 validation + `defineConfig()` identity helper
-- **`config/defaults.ts`** — default `templatesDir`, `targets`, `types`, `outputDirs`, `variables`
+- **`config/defaults.ts`** — default `templatesDir`, `targets`, `types`, `outputDirs`, `variables`, `agentsMd`
+- **`config/validate.ts`** — checks that need the merged config (e.g. `agentsMd.indexDir` placement)
 
 ## CLI Commands
 
 All commands are in `src/commands/`:
 
-- **`generate`** — main command
-- **`init`** — scaffolds `.universal-ai-config/` dir, creates example config, adds overrides to `.gitignore`, seeds meta-instructions
-- **`clean`** — removes generated config dirs, accepts `--target`
-- **`seed <type>`** — seeds pre-built template sets (`meta-instructions` or `examples`)
+- **`generate`** — main command; `-t` replaces the configured target set. Output and grouped diagnostics come from `report.ts`
+- **`init`** — scaffolds `.universal-ai-config/` dir, creates example config, adds the gitignore block, seeds meta-instructions
+- **`clean`** — removes generated output; `-t` names the set being cleaned
+- **`seed <type>`** — seeds pre-built template sets (`meta-instructions`, `examples`, `gitignore`)
+- **`skill add`** — copies skills from a GitHub repo or local path into the templates dir
 
 ## Seed System
 
@@ -158,7 +138,7 @@ Seed templates are EJS-rendered with `config.templatesDir` as a variable. Skills
 - **Identity helpers** — use `defineTarget()`, `defineConfig()` for type-safe object literals
 - **Zod v4** — use `z.record(z.string(), z.unknown())`, never `z.record(z.unknown())` (Zod v4 requires explicit key schema)
 - **No default exports** except for target definitions and the config file
-- **Interactive prompts** — use `@clack/prompts` (`multiselect`/`confirm`/`select` + `isCancel`); never `consola.prompt`. consola bundles a stale, frozen fork of pre-1.0 clack that mis-renders wrapped/multiline options (ghost rows, duplicates). consola is for logging only.
+- **Interactive prompts** — use `@clack/prompts` (`multiselect`/`confirm`/`select` + `isCancel`); never `consola.prompt`. Gate every prompt on `canPrompt()` from `commands/interactive.ts` (no prompt without a terminal: CI, scripts, agents), and put yes/no questions through its `confirmAction()` so tests can mock one module. consola bundles a stale, frozen fork of pre-1.0 clack that mis-renders wrapped/multiline options (ghost rows, duplicates). consola is for logging only.
 - **TypeScript strict mode** — `strict`, `noUncheckedIndexedAccess`, `noUnusedLocals`, `noUnusedParameters`
 - **Build** — tsdown (configured in `tsdown.config.ts`), outputs `dist/cli.mjs` + `dist/index.mjs`
 
@@ -166,17 +146,19 @@ Seed templates are EJS-rendered with `config.templatesDir` as a variable. Skills
 
 Exported from `src/index.ts`:
 
-- **Functions**: `generate()`, `defineConfig()`, `defineTarget()`
-- **Types**: `GeneratedFile`, `GenerateOptions`, `ResolvedConfig`, `UserConfig`, `Target`, `TemplateType`, `PerTargetValue`, `UniversalFrontmatter`, `UniversalHookHandler`, `UniversalMCPServer`, `UniversalMCPInput`, `TargetDefinition`, `TemplateTypeConfig`, `HooksTypeConfig`, `MCPTypeConfig`
+- **Functions**: `generateProject()`, `generate()`, `writeGeneratedFiles()`, `cleanTargetFiles()`, `findAgentsOverrideFiles()`, `removeAgentsOverrideFiles()`, `loadProjectConfig()`, `defineConfig()`, `defineTarget()`, `mergeField()`, plus the `skill add` helpers
+- **Types**: config (`UserConfig`, `ResolvedConfig`, `AgentsMdConfig`, …), templates (`UniversalFrontmatter`, `UniversalHookHandler`, `UniversalMCPServer`, …), results (`GeneratedFile`, `GenerateResult`, `OutputPlan`, `Diagnostic`, `WriteReport`, `CleanOptions`), and the target model (`TargetDefinition`, `TemplateTypeConfig`, `HooksTypeConfig`, `MCPTypeConfig`, `ForeignRead`, …)
 
 ## Testing
 
-- **Unit tests** (`tests/unit/`) — parser, resolve-overrides, config schema, init, seed, per-target mapping
-- **Integration tests** (`tests/integration/`) — full `generate()` pipeline with fixtures
+- **Unit tests** (`tests/unit/`) — parser, config, diagnostics, writer, shell, planner (`plan/`), AGENTS.md (`agents-md/`), clean entries (`clean/`), per-target mapping (`targets/`)
+- **Integration tests** (`tests/integration/`) — full `generateProject()` pipeline with fixtures; CLI-level tests (generate/clean on a temp copy) use `CliProject` from `cli-project.ts`
 - **Fixtures** (`tests/fixtures/`) — each is a self-contained project:
   - `basic-project` — minimal templates, one of each type
   - `complete-project` — exercises all frontmatter fields
   - `complete-complex-project` — per-target overrides on all field types
+  - `agents-md-project` — every glob shape AGENTS.md routing handles
+  - `pick-one-project` — which outputs overlapping targets generate
 - When adding features, prefer extending an existing fixture or creating a new one over modifying `basic-project`
 - When making any kind of change evaluate if tests need modifying/adding. Generally speaking we want full coverage for everything.
 - Run **`pnpm check`** (lint + format + knip + test) before considering work complete
@@ -193,7 +175,7 @@ The README is the public-facing overview for people discovering the package on n
 
 The seed templates in `src/seed-types/meta-instructions/templates/` are seeded into consumer projects on `uac init` / `uac seed meta-instructions`. They are the primary source of truth for AI tools working with uac, split into three tiers by how often they're loaded:
 
-- **`instructions/uac-usage.md`** — `alwaysApply`, so it's loaded into **every** session on every target (and concatenated into Codex's root `AGENTS.md`). Keep it a tiny cheat sheet: one line per command and per config option, plus links. Only touch it for a new command or config option.
+- **`instructions/uac-usage.md`** — `alwaysApply`, so it's loaded into **every** session on every target (and into the root `AGENTS.md` whenever AGENTS.md is generated). Keep it a tiny cheat sheet: one line per command and per config option, plus links. Only touch it for a new command or config option.
 - **`instructions/uac-template-guide.md`** — loaded when files in the templates dir are touched. The authoring core: template types, EJS + path helpers, per-target overrides, the instruction field table, and a short summary of each topic with a `docPath()` link to the full reference.
 - **`docs/uac/*.md`** — full reference, never loaded automatically; agents read a file only when a link sends them there. Seeded to `<templatesDir>/docs/uac/` and linked with `docPath('uac/<name>')`.
 - **Management skills** (`update-instruction`, `update-skill`, `update-agent`, `update-hook`, `update-mcp`, `update-ai-config`, `import-existing-ai-config`, `ai-config-compress`) — step-by-step workflows. They link to `docs/uac/*` instead of copying tables. Update them when template conventions or file structure change.

@@ -89,8 +89,9 @@ async function walk(
  * Find every file named exactly `fileName` under `root`, returning
  * root-relative POSIX paths in sorted order.
  *
- * Match on the basename only. Callers must never pass a name that users also
- * hand-author (`AGENTS.md`, `CLAUDE.md`) — this feeds a delete.
+ * Match on the basename only. The result feeds deletes, so a caller passes
+ * only a name uac owns in that context (AGENTS.md while it generates them), or
+ * asks before deleting (AGENTS.override.md).
  */
 export async function findFilesByName(
   root: string,

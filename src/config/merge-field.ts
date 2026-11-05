@@ -1,6 +1,12 @@
 import type { Target, PerTargetValue } from "../types.js";
 
-const TARGET_KEYS: ReadonlySet<string> = new Set(["claude", "copilot", "cursor", "default"]);
+const TARGET_KEYS: ReadonlySet<string> = new Set([
+  "claude",
+  "copilot",
+  "cursor",
+  "codex",
+  "default",
+]);
 
 type PerTargetObject<T> = Partial<Record<Target, T>> & { default?: T };
 

@@ -1,9 +1,10 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { mkdtemp, mkdir, rm, readFile, writeFile, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { generate } from "../../src/core/generate.js";
-import { writeGeneratedFiles, cleanTargetFiles } from "../../src/core/writer.js";
+import { generate } from "../../src/core/generate/index.js";
+import { writeGeneratedFiles } from "../../src/core/writer.js";
+import { cleanTargetFiles } from "../../src/core/clean/index.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/basic-project");
 const OVERRIDES_FIXTURE_DIR = join(import.meta.dirname, "../fixtures/codex-overrides-project");
@@ -224,19 +225,23 @@ describe("programmatic API parity", () => {
       });
       await writeGeneratedFiles(files, tempDir);
 
-      // User adds a [profiles.dev] section to config.toml after generate
+      // User adds their own settings to config.toml after generate
       const { writeFile } = await import("node:fs/promises");
       const configPath = join(tempDir, ".codex/config.toml");
       const existing = await readFile(configPath, "utf-8");
-      await writeFile(configPath, existing + '\n[profiles.dev]\nmodel = "gpt-5.4"\n', "utf-8");
+      await writeFile(
+        configPath,
+        'model = "gpt-6.1-sol"\n' + existing + '\n[tui]\ntheme = "dark"\n',
+        "utf-8",
+      );
 
       await cleanTargetFiles(tempDir, ["codex"]);
 
-      // Config still exists; mcp_servers gone, profiles.dev preserved
+      // Config still exists; mcp_servers gone, the user's keys preserved
       const after = await readFile(configPath, "utf-8");
       expect(after).not.toContain("[mcp_servers.");
-      expect(after).toContain("[profiles.dev]");
-      expect(after).toContain('model = "gpt-5.4"');
+      expect(after).toContain('model = "gpt-6.1-sol"');
+      expect(after).toContain("[tui]");
     });
 
     it("type-scoped clean gates the config.toml mcp_servers special-case", async () => {
@@ -259,131 +264,18 @@ describe("programmatic API parity", () => {
       await expect(readFile(configPath, "utf-8")).rejects.toThrow();
     });
 
-    describe("glob-derived AGENTS.override.md cleanup", () => {
-      async function exists(path: string): Promise<boolean> {
-        return access(path).then(
-          () => true,
-          () => false,
-        );
-      }
-
-      async function seedOverrides(tempDir: string): Promise<void> {
-        const files = await generate({
-          root: OVERRIDES_FIXTURE_DIR,
-          targets: ["codex"],
-          types: ["instructions"],
-        });
-        await writeGeneratedFiles(files, tempDir);
-      }
-
-      /** Hand-write a file that no template derives — i.e. an orphan. */
-      async function writeFileAt(tempDir: string, rel: string): Promise<string> {
-        const full = join(tempDir, rel);
-        await mkdir(dirname(full), { recursive: true });
-        await writeFile(full, "stale", "utf-8");
-        return full;
-      }
-
-      it("removes override files emitted from glob-prefixed instructions", async () => {
-        const tempDir = await createTempDir();
-        await seedOverrides(tempDir);
-
-        // Sanity: both derived paths exist, at shallow and deep nesting
-        expect(await exists(join(tempDir, "packages/frontend/AGENTS.override.md"))).toBe(true);
-        expect(await exists(join(tempDir, "packages/app/lib/tests/AGENTS.override.md"))).toBe(true);
-
-        const cleaned = await cleanTargetFiles(tempDir, ["codex"]);
-
-        expect(await exists(join(tempDir, "packages/frontend/AGENTS.override.md"))).toBe(false);
-        expect(await exists(join(tempDir, "packages/app/lib/tests/AGENTS.override.md"))).toBe(
-          false,
-        );
-        expect(cleaned).toContain("packages/frontend/AGENTS.override.md");
-        expect(cleaned).toContain("packages/app/lib/tests/AGENTS.override.md");
-        // The directories themselves are user source — never removed
-        expect(await exists(join(tempDir, "packages/frontend"))).toBe(true);
+    it("generate writes plain nested AGENTS.md files, never overrides", async () => {
+      const files = await generate({
+        root: OVERRIDES_FIXTURE_DIR,
+        targets: ["codex"],
+        types: ["instructions"],
       });
-
-      it("removes an orphan no template derives anymore", async () => {
-        // The regression guard for the whole design: after a template's `globs`
-        // change (or the template is deleted, or codex is dropped from
-        // `targets`), the old path is no longer derivable from frontmatter.
-        // Only a filesystem scan finds it.
-        const tempDir = await createTempDir();
-        const orphan = await writeFileAt(tempDir, "packages/legacy/AGENTS.override.md");
-
-        const cleaned = await cleanTargetFiles(tempDir, ["codex"]);
-
-        expect(await exists(orphan)).toBe(false);
-        expect(cleaned).toEqual(["packages/legacy/AGENTS.override.md"]);
-      });
-
-      it("does not scan when instructions are out of --type scope", async () => {
-        const tempDir = await createTempDir();
-        const orphan = await writeFileAt(tempDir, "pkg/AGENTS.override.md");
-
-        await cleanTargetFiles(tempDir, ["codex"], ["skills"]);
-
-        expect(await exists(orphan)).toBe(true);
-      });
-
-      it("does not scan for a non-codex target", async () => {
-        const tempDir = await createTempDir();
-        const orphan = await writeFileAt(tempDir, "pkg/AGENTS.override.md");
-
-        await cleanTargetFiles(tempDir, ["claude"]);
-
-        expect(await exists(orphan)).toBe(true);
-      });
-
-      it("scans by default when no targets are given", async () => {
-        const tempDir = await createTempDir();
-        const orphan = await writeFileAt(tempDir, "pkg/AGENTS.override.md");
-
-        await cleanTargetFiles(tempDir);
-
-        expect(await exists(orphan)).toBe(false);
-      });
-
-      it("skips vendored copies inside node_modules", async () => {
-        const tempDir = await createTempDir();
-        const real = await writeFileAt(tempDir, "packages/app/AGENTS.override.md");
-        const vendored = await writeFileAt(tempDir, "node_modules/some-dep/AGENTS.override.md");
-
-        await cleanTargetFiles(tempDir, ["codex"]);
-
-        expect(await exists(real)).toBe(false);
-        expect(await exists(vendored)).toBe(true);
-      });
-
-      it("skips override files inside templatesDir, which are inputs not artifacts", async () => {
-        const tempDir = await createTempDir();
-        const template = await writeFileAt(
-          tempDir,
-          ".universal-ai-config/skills/x/AGENTS.override.md",
-        );
-        const artifact = await writeFileAt(tempDir, "pkg/AGENTS.override.md");
-
-        await cleanTargetFiles(tempDir, ["codex"], undefined, {
-          templatesDir: ".universal-ai-config",
-        });
-
-        expect(await exists(template)).toBe(true);
-        expect(await exists(artifact)).toBe(false);
-      });
-
-      it("never touches a nested AGENTS.md, only the root one", async () => {
-        // Codex reads hand-authored nested AGENTS.md files that uac never writes,
-        // so the scan must match the override basename exactly.
-        const tempDir = await createTempDir();
-        await seedOverrides(tempDir);
-        const nested = await writeFileAt(tempDir, "packages/frontend/AGENTS.md");
-
-        await cleanTargetFiles(tempDir, ["codex"]);
-
-        expect(await exists(nested)).toBe(true);
-        expect(await exists(join(tempDir, "AGENTS.md"))).toBe(false);
-      });
+      const paths = files.map((f) => f.path).sort();
+      expect(paths).toEqual([
+        "AGENTS.md",
+        "packages/app/lib/tests/AGENTS.md",
+        "packages/frontend/AGENTS.md",
+      ]);
     });
   });
 
@@ -472,23 +364,6 @@ describe("programmatic API parity", () => {
       expect(JSON.parse(await readFile(settingsPath, "utf-8"))).toHaveProperty("hooks");
     });
 
-    it("keeps a preserved AGENTS.override.md found by the scan", async () => {
-      const tempDir = await createTempDir();
-      const keepPath = join(tempDir, "packages/keep/AGENTS.override.md");
-      const dropPath = join(tempDir, "packages/drop/AGENTS.override.md");
-      await mkdir(dirname(keepPath), { recursive: true });
-      await mkdir(dirname(dropPath), { recursive: true });
-      await writeFile(keepPath, "mine", "utf-8");
-      await writeFile(dropPath, "generated", "utf-8");
-
-      await cleanTargetFiles(tempDir, ["codex"], undefined, {
-        preserveOnClean: ["packages/keep/**"],
-      });
-
-      expect(await exists(keepPath)).toBe(true);
-      expect(await exists(dropPath)).toBe(false);
-    });
-
     it("resolves per-target preserve patterns", async () => {
       const tempDir = await createTempDir();
       const files = await generate({
@@ -523,18 +398,13 @@ describe("programmatic API parity", () => {
         types: ["instructions", "skills", "agents"],
       });
       await writeGeneratedFiles(files, tempDir);
-      const orphanDir = join(tempDir, "packages/legacy");
-      await mkdir(orphanDir, { recursive: true });
-      await writeFile(join(orphanDir, "AGENTS.override.md"), "stale", "utf-8");
 
       const cleaned = await cleanTargetFiles(tempDir, ["codex"], undefined, { dryRun: true });
 
       expect(cleaned).toContain("AGENTS.md");
       expect(cleaned).toContain(".agents/skills");
-      expect(cleaned).toContain("packages/legacy/AGENTS.override.md");
       expect(await exists(join(tempDir, "AGENTS.md"))).toBe(true);
       expect(await exists(join(tempDir, ".agents/skills/test-gen/SKILL.md"))).toBe(true);
-      expect(await exists(join(orphanDir, "AGENTS.override.md"))).toBe(true);
     });
 
     it("leaves hooks in settings.json untouched", async () => {

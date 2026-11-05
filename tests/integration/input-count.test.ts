@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
 import { consola } from "consola";
-import { generate } from "../../src/core/generate.js";
+import { generate } from "../../src/core/generate/index.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/input-count-project");
 
@@ -30,7 +30,7 @@ describe("inputCount reflects surviving contributions", () => {
       expect(mcp!.inputCount).toBe(1);
     });
 
-    it("copilot: surviving server file + inputs-only file both count", async () => {
+    it("copilot: only the surviving server file counts (inputs are dropped, so inputs-only doesn't)", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
@@ -39,8 +39,8 @@ describe("inputCount reflects surviving contributions", () => {
 
       const mcp = files.find((f) => f.type === "mcp" && f.target === "copilot");
       expect(mcp).toBeDefined();
-      // server-b.json (notion) + inputs-only.json (Copilot emits inputs)
-      expect(mcp!.inputCount).toBe(2);
+      // server-b.json (notion); inputs-only.json's inputs aren't emitted
+      expect(mcp!.inputCount).toBe(1);
     });
 
     it("cursor: forceOptIn=false → both server files count; inputs-only does not (Cursor drops inputs)", async () => {
@@ -55,7 +55,7 @@ describe("inputCount reflects surviving contributions", () => {
       expect(mcp!.inputCount).toBe(2);
     });
 
-    it("opt-in off for copilot: all three mcp files count (2 servers + inputs)", async () => {
+    it("opt-in off for copilot: both server files count, inputs-only does not", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
@@ -69,7 +69,7 @@ describe("inputCount reflects surviving contributions", () => {
 
       const mcp = files.find((f) => f.type === "mcp" && f.target === "copilot");
       expect(mcp).toBeDefined();
-      expect(mcp!.inputCount).toBe(3);
+      expect(mcp!.inputCount).toBe(2);
     });
   });
 

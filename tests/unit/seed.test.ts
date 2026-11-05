@@ -7,7 +7,7 @@ import { consola } from "consola";
 import seedCommand from "../../src/commands/seed.js";
 import { collectDocTemplates, collectSkillTemplates } from "../../src/seed-types/shared.js";
 import { getTemplates } from "../../src/seed-types/meta-instructions/index.js";
-import { generate } from "../../src/core/generate.js";
+import { generate } from "../../src/core/generate/index.js";
 
 const UAC_DOCS = ["cli", "codex", "config", "frontmatter", "hooks", "mcp", "models", "tools"];
 
@@ -68,7 +68,7 @@ describe("seed meta-instructions", () => {
 
     const agent = await readFile(join(templatesDir, "skills/update-agent/SKILL.md"), "utf-8");
     expect(agent).toContain("name: update-agent");
-    expect(agent).toContain("Cursor does not support agents");
+    expect(agent).toContain("Every target supports agents");
 
     const hook = await readFile(join(templatesDir, "skills/update-hook/SKILL.md"), "utf-8");
     expect(hook).toContain("name: update-hook");
@@ -303,8 +303,23 @@ describe("seed gitignore", () => {
     // Codex outputs
     expect(gitignore).toContain(".codex/");
     expect(gitignore).toContain(".agents/skills/");
-    expect(gitignore).toContain("AGENTS.md");
-    expect(gitignore).toContain("**/AGENTS.override.md");
+    // Unanchored on purpose: every AGENTS.md is uac output
+    expect(gitignore).toContain("\nAGENTS.md\n");
+    expect(gitignore).not.toContain("AGENTS.override.md");
+    expect(gitignore).toContain("/.agents/uac-instructions/");
+  });
+
+  it("ignores the configured agentsMd.indexDir", async () => {
+    await writeFile(
+      join(tempDir, "universal-ai-config.config.json"),
+      JSON.stringify({ agentsMd: { indexDir: "docs/ai/scoped/" } }),
+      "utf-8",
+    );
+    await runCommand(seedCommand, { rawArgs: ["gitignore", "--root", tempDir] });
+
+    const gitignore = await readFile(join(tempDir, ".gitignore"), "utf-8");
+    expect(gitignore).toContain("/docs/ai/scoped/");
+    expect(gitignore).not.toContain("uac-instructions");
   });
 
   it("appends block to existing .gitignore", async () => {

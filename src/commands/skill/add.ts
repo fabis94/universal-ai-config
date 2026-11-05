@@ -1,10 +1,11 @@
-import { confirm, isCancel, multiselect } from "@clack/prompts";
+import { isCancel, multiselect } from "@clack/prompts";
 import { defineCommand } from "citty";
 import { consola } from "consola";
 import { join } from "node:path";
 import { loadProjectConfig } from "../../config/loader.js";
 import { fetchSkills, installSkill } from "../../core/add-skill.js";
 import { filterSkillsByName, type DiscoveredSkill } from "../../core/skill-discovery.js";
+import { canPrompt as terminalCanPrompt, confirmAction } from "../interactive.js";
 import { resolveCliRoot } from "../resolve-root.js";
 import { formatSkillList } from "./list.js";
 import { buildSkillOptions } from "./options.js";
@@ -125,8 +126,8 @@ export default defineCommand({
         return;
       }
 
-      // Prompts require a real terminal on both ends; `--yes` opts out of them.
-      const canPrompt = Boolean(process.stdin.isTTY && process.stdout.isTTY) && !args.yes;
+      // `--yes` opts out of prompts
+      const canPrompt = terminalCanPrompt() && !args.yes;
 
       const selected = await selectSkills(skills, {
         skillNames: parseList(args.skill),
@@ -141,10 +142,10 @@ export default defineCommand({
 
       if (canPrompt && !args.all) {
         const summary = selected.map((skill) => `  • ${skill.name} (${skill.relPath})`).join("\n");
-        const confirmed = await confirm({
-          message: `Install ${selected.length} skill(s) into ${config.templatesDir}/skills?\n${summary}`,
-        });
-        if (isCancel(confirmed) || confirmed !== true) {
+        const confirmed = await confirmAction(
+          `Install ${selected.length} skill(s) into ${config.templatesDir}/skills?\n${summary}`,
+        );
+        if (!confirmed) {
           consola.info("Aborted.");
           return;
         }

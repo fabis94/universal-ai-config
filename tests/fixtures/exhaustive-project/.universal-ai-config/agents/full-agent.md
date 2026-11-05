@@ -1,7 +1,7 @@
 ---
 name: full-agent
 description: Exercises all agent fields
-model: claude-opus-4-7
+model: claude-opus-5-5
 tools: ["Read", "Bash"]
 disallowedTools: ["WebSearch"]
 permissionMode: acceptEdits

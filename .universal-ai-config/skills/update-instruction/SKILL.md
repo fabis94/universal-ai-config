@@ -68,14 +68,14 @@ See the **Instructions** section in `<%= instructionPath('uac-template-guide') %
 
 `alwaysApply` instructions load into every session on every target. When an instruction needs long reference material (full tables, API details, edge cases), put that material in a reference doc under `<%= config.templatesDir %>/docs/` and link it with `<%%= docPath('name') %>`, so agents read it only when they need it. See **Reference Docs** in `<%= instructionPath('uac-template-guide') %>`.
 
-### Codex routing
+### AGENTS.md routing
 
-Codex has no per-rule frontmatter, so instructions consolidate:
+When `codex` is a target or `agentsMd.enable` is set, instructions are written to AGENTS.md files, and Claude, Cursor and Copilot read those instead of their own instruction files. With the default `nested` variation:
 
-- `alwaysApply: true`, leading-wildcard `globs`, or no `globs` → root `AGENTS.md`
-- `globs` with a resolvable directory prefix (e.g. `packages/frontend/**`) → `<dir>/AGENTS.override.md`
+- `alwaysApply: true`, no `globs`, or globs without a folder (`**/*.ts`) → root `AGENTS.md`
+- folder-scoped `globs` (e.g. `packages/frontend/**`) → `packages/frontend/AGENTS.md`
 
-**Editing `globs` moves the Codex output file**, so run `uac generate --clean` (not plain `uac generate`) after any glob change. Per-target glob overrides and the full routing rules: `<%= docPath('uac/codex') %>`.
+Prefer folder-scoped `globs` over file patterns, since AGENTS.md can only scope by folder; a file pattern gets a one-line scope note in the root file. **Editing `globs` can move the output file**, so run `uac generate --clean` after any glob change. Variations and what each target loses: `<%= docPath('uac/config') %>`.
 
 ### Example
 

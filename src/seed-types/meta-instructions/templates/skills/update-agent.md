@@ -8,7 +8,7 @@ userInvocable: false
 
 Agents are specialized AI personas with scoped tools and permissions that run in isolated contexts.
 
-**Important:** Agents are supported by Claude, Copilot, and Codex. Cursor does not support agents — consider using a skill with `forkContext: true` as an alternative for Cursor. Codex emits each agent as a standalone `.codex/agents/<name>.toml` file (body becomes `developer_instructions`); see `<%%= docPath('uac/codex') %>`.
+Every target supports agents. Cursor agents (`.cursor/agents/<name>.md`) take only `name`, `description`, `model`, `readonly` and `background`. Codex emits each agent as a standalone `.codex/agents/<name>.toml` file (body becomes `developer_instructions`) and skips an agent with no `description` or an empty body; see `<%%= docPath('uac/codex') %>`.
 
 ## Finding Existing Agents
 
@@ -28,11 +28,11 @@ List files in `<%%= agentTemplatePath() %>/` to discover existing agent template
 
 ### Frontmatter Fields
 
-Key fields: `name`, `description`, `model`, `tools`, `permissionMode`, `hooks`, plus Codex-specific `nicknameCandidates` and `sandboxMode`. Every field with its per-target support: `<%%= docPath('uac/frontmatter') %>`. Per-target override syntax: `<%%= instructionPath('uac-template-guide') %>`.
+Key fields: `name`, `description`, `model`, `effort`, `tools`, `permissionMode`, `skills`, `hooks`, plus Cursor's `readonly`, Copilot's `modelPolicy`, and the Codex-only `codex` block. Every field with its per-target support: `<%%= docPath('uac/frontmatter') %>`. Per-target override syntax: `<%%= instructionPath('uac-template-guide') %>`.
 
 ### Cross-target gotchas for agents
 
-`model`, `permissionMode`, and `tools` don't carry over between targets. Set `model` per target, use `sandboxMode` for Codex instead of `permissionMode`, and restrict Codex tools per MCP server (`enabledTools`) instead of `tools`. Details: `<%%= docPath('uac/codex') %>`. Model IDs per target: `<%%= docPath('uac/models') %>`. Tool names per target: `<%%= docPath('uac/tools') %>`.
+`model`, `permissionMode`, and `tools` don't carry over between targets. Set `model` per target. Codex agents inherit the session's sandbox, approvals and MCP servers, so `permissionMode`, `tools`, `skills` and `mcpServers` are dropped for Codex (set sandboxing in `.codex/config.toml`; restrict tools per MCP server with `enabledTools`). Copilot's default harness rejects `handoffs`, `subAgents` and `argumentHint`, so uac drops them. Details: `<%%= docPath('uac/codex') %>`. Model IDs per target: `<%%= docPath('uac/models') %>`. Tool names per target: `<%%= docPath('uac/tools') %>`.
 
 ### Example
 
