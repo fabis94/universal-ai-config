@@ -30,7 +30,7 @@ npx uac setup      # scaffold the project and pick the coding agents you use on 
 npx uac generate   # render the templates for those agents
 ```
 
-`setup` creates the config file, adds a `.gitignore` block for the generated folders, and seeds instructions and skills that teach your coding agent how uac works. From there, ask your agent: `/update-ai-config add a rule that we use pnpm`, or `/import-existing-ai-config` to turn an existing `.claude/` or `.cursor/` setup into templates.
+`setup` creates the config file, adds a `.gitignore` block for the generated folders, and seeds instructions and skills that teach your coding agent how uac works. From there, ask your agent: `/update-ai-config add a rule that we use pnpm` (more in [Skills for your coding agent](#-skills-for-your-coding-agent)).
 
 For standards mode (see the two ways below), set `standards: true` in `universal-ai-config.config.ts` and run `uac setup` again: it offers to move uac's own instructions and skills into `AGENTS.md` and `.agents/skills/`. Moving existing templates over: [switching from template mode](.universal-ai-config/docs/uac/standards.md#switching-from-template-mode).
 
@@ -59,29 +59,6 @@ Instructions are your own `AGENTS.md` files and skills your own `.agents/skills/
 - ❌ No EJS or per-tool values in instructions and skills, and `exclude` only affects Claude's skill copies
 
 What each tool loads, what you give up, and how to switch: [standards mode](.universal-ai-config/docs/uac/standards.md).
-
-## ✨ What you get
-
-In template mode, uac writes each tool's own files:
-
-| Tool           | Generated into                            |
-| -------------- | ----------------------------------------- |
-| Claude Code    | `.claude/`, `.mcp.json`                   |
-| GitHub Copilot | `.github/`, `.mcp.json`                   |
-| Cursor         | `.cursor/`                                |
-| OpenAI Codex   | `.codex/`, `.agents/skills/`, `AGENTS.md` |
-
-In standards mode, the tools read your `AGENTS.md` and `.agents/skills/` themselves, and uac generates the rest into the same folders: agents, hooks, MCP servers, and skill copies for Claude ([what each tool gets](.universal-ai-config/docs/uac/standards.md#what-each-tool-gets)).
-
-- 🎯 **Native files for every tool:** agents, hooks and MCP servers in each tool's own format, from Claude's `settings.json` hooks to Codex's TOML agents.
-- 🧹 **Nothing loads twice:** where tools read each other's files, uac writes one copy and tells you.
-- 🤖 **Your coding agent manages it:** setup teaches it how uac works and adds skills to create, update and import config.
-
-## 🖥️ One set of tools per machine
-
-> ⚠️ **Generate only the tools you use.** `uac setup` saves your choice as `targets` in `universal-ai-config.overrides.ts`, which is gitignored, so every developer has their own.
-
-The tools read each other's files: Claude, Cursor and Copilot all read `AGENTS.md`, and Copilot runs Claude's hooks. When one run does include overlapping tools, uac writes one copy and warns about what each tool loses. Details: [shared outputs](.universal-ai-config/docs/uac/config.md#shared-outputs-and-one-target-set-per-machine).
 
 ## 🧩 Templates
 
@@ -113,20 +90,6 @@ Review the diff against the rules in <%= instructionPath("coding-style") %>.
 ```
 
 A field takes one value, or a value per tool (`claude`, `copilot`, `cursor`, `codex`, `default`); a tool with neither drops the field. `instructionPath()` resolves to wherever that rule lands for the tool being generated. Every EJS variable and path helper: [templates](.universal-ai-config/docs/uac/templates.md).
-
-## 📄 AGENTS.md
-
-In template mode, each tool gets its own instruction format by default. uac writes `AGENTS.md` files only when Codex is a target (it reads nothing else) or you set `agentsMd.enable`; Claude, Cursor and Copilot then read those instead of their own files.
-
-Always-on instructions go in the root `AGENTS.md`. `agentsMd.variation` decides where instructions scoped to a folder (`globs: packages/web/**`) go:
-
-| Variation          | Scoped instructions go to                      | Trade-off                                                                                                                                                                                                                                   |
-| ------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nested` (default) | `packages/web/AGENTS.md`                       | ⚠️ Least context, but tools load nested files inconsistently: Cursor on read or edit, Claude and Copilot only after reading a file in the folder, Codex only when launched inside it. An agent can edit code there without its instructions |
-| `concatenate`      | the root `AGENTS.md`, with a scope note        | ✅ Every tool loads the same file at startup, so nothing is missed; every session pays for every instruction                                                                                                                                |
-| `index`            | `<indexDir>/<name>.md`, listed in the root one | A short root file that loads the same way everywhere, but the agent has to follow the index and read the file                                                                                                                               |
-
-Pick `concatenate` when your scoped instructions are short and you want the same behavior in every tool, `index` when they're too long for every session, and `nested` when your team mostly uses Cursor. Details: [AGENTS.md output](.universal-ai-config/docs/uac/config.md#agentsmd-output).
 
 ## ⚙️ Configuration
 
@@ -185,6 +148,53 @@ Every option in detail, the merge rules, and which template wins when several fo
 | `uac skill add <source>` | Copy skills from a GitHub repo or a local folder into your templates |
 
 uac finds the project root from any subfolder. Every flag: [CLI reference](.universal-ai-config/docs/uac/cli.md).
+
+## 🤖 Skills for your coding agent
+
+You never write instructions, skills, agents, hooks or MCP configs yourself: tell your coding agent what you want, and the skills `uac setup` gives it write the right template in the right place.
+
+- **`/update-ai-config`** is the one to use. Describe what you want in plain words: "add a rule that API handlers validate input", "run the linter after every edit", "add the GitHub MCP server". It reads the template guide and your config, picks the right kind of template (instruction, skill, agent, hook or MCP server), and hands off to a skill for that type, which knows its fields, per-tool values and path helpers. The result lands where your setup keeps it: the templates folder, your own `AGENTS.md` or `.agents/skills/` in standards mode, or a shared template folder (only after asking). Then it runs `uac generate`.
+- **`/import-existing-ai-config`** brings an existing setup over from `.claude/`, `.github/`, `.cursor/` or `.codex/`: it converts each file into a uac template (or into `AGENTS.md` and `.agents/skills/` in standards mode), checks the result, and removes the originals once you agree.
+- **`/ai-config-compress`** rewrites instructions and skills to use fewer tokens while keeping what they make the agent do, so they take less context in every session.
+
+Setup also adds two instructions the skills rely on: a short uac cheat sheet loaded in every session, and the template guide, loaded when the agent edits templates.
+
+## ✨ What you get
+
+In template mode, uac writes each tool's own files:
+
+| Tool           | Generated into                            |
+| -------------- | ----------------------------------------- |
+| Claude Code    | `.claude/`, `.mcp.json`                   |
+| GitHub Copilot | `.github/`, `.mcp.json`                   |
+| Cursor         | `.cursor/`                                |
+| OpenAI Codex   | `.codex/`, `.agents/skills/`, `AGENTS.md` |
+
+In standards mode, the tools read your `AGENTS.md` and `.agents/skills/` themselves, and uac generates the rest into the same folders: agents, hooks, MCP servers, and skill copies for Claude ([what each tool gets](.universal-ai-config/docs/uac/standards.md#what-each-tool-gets)).
+
+- 🎯 **Native files for every tool:** agents, hooks and MCP servers in each tool's own format, from Claude's `settings.json` hooks to Codex's TOML agents.
+- 🧹 **Nothing loads twice:** where tools read each other's files, uac writes one copy and tells you.
+- 🤖 **Your coding agent manages it:** setup teaches it how uac works and adds skills to create, update and import config.
+
+## 🖥️ One set of tools per machine
+
+> ⚠️ **Generate only the tools you use.** `uac setup` saves your choice as `targets` in `universal-ai-config.overrides.ts`, which is gitignored, so every developer has their own.
+
+The tools read each other's files: Claude, Cursor and Copilot all read `AGENTS.md`, and Copilot runs Claude's hooks. When one run does include overlapping tools, uac writes one copy and warns about what each tool loses. Details: [shared outputs](.universal-ai-config/docs/uac/config.md#shared-outputs-and-one-target-set-per-machine).
+
+## 📄 AGENTS.md
+
+In template mode, each tool gets its own instruction format by default. uac writes `AGENTS.md` files only when Codex is a target (it reads nothing else) or you set `agentsMd.enable`; Claude, Cursor and Copilot then read those instead of their own files.
+
+Always-on instructions go in the root `AGENTS.md`. `agentsMd.variation` decides where instructions scoped to a folder (`globs: packages/web/**`) go:
+
+| Variation          | Scoped instructions go to                      | Trade-off                                                                                                                                                                                                                                   |
+| ------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nested` (default) | `packages/web/AGENTS.md`                       | ⚠️ Least context, but tools load nested files inconsistently: Cursor on read or edit, Claude and Copilot only after reading a file in the folder, Codex only when launched inside it. An agent can edit code there without its instructions |
+| `concatenate`      | the root `AGENTS.md`, with a scope note        | ✅ Every tool loads the same file at startup, so nothing is missed; every session pays for every instruction                                                                                                                                |
+| `index`            | `<indexDir>/<name>.md`, listed in the root one | A short root file that loads the same way everywhere, but the agent has to follow the index and read the file                                                                                                                               |
+
+Pick `concatenate` when your scoped instructions are short and you want the same behavior in every tool, `index` when they're too long for every session, and `nested` when your team mostly uses Cursor. Details: [AGENTS.md output](.universal-ai-config/docs/uac/config.md#agentsmd-output).
 
 ## 📚 Documentation
 
