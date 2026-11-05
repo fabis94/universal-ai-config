@@ -63,7 +63,7 @@ A mocked `interactive.js` test proves the logic, never how a prompt renders: con
    - ctrl-c cancels cleanly; `fitsWidth(screen, 80)` for help text.
      Keep snapshots deterministic: relative paths, `screenOf()` replaces the uac version.
 5. **Look at it yourself.** Run `pnpm tui --cols 80 --keys "down*2,space,enter" -- <uac args>` (and `--cols 50`), read every frame, and compare it with the agreed walkthrough. It builds `dist/` first and prints the screen after startup, after each key, and on exit. `--cwd <dir>` runs it in another project; use a scratch directory, never this repo. tmux works too (`tmux new-session -d -x 80 -y 30 '…'`, `send-keys`, `capture-pane -p`).
-6. **Check the non-interactive path** never prompts (tests run without a terminal), and update the docs: `docs/uac/cli.md`, the README, and `uac-usage.md` for a new command.
+6. **Check the non-interactive path** never prompts (tests run without a terminal), and update the docs: `docs/uac/cli.md`, plus the README's Commands table and `uac-usage.md` for a new command.
 
 ## Fixture Projects
 

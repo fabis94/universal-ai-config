@@ -1,6 +1,20 @@
-# Skill and agent frontmatter reference
+# Frontmatter reference
 
-Every frontmatter field uac understands for **skills** and **agents**, with the targets that use it. Fields a target doesn't support are dropped for that target (with a warning where the target would otherwise lose something). Any field can take per-target values (`{ claude: ..., copilot: ..., default: ... }`). The instructions field table lives in the template guide itself.
+Every frontmatter field uac understands for **instructions**, **skills** and **agents**, with the targets that use it. Fields a target doesn't support are dropped for that target (with a warning where the target would otherwise lose something). Any field can take per-target values (`{ claude: ..., copilot: ..., default: ... }`, see [templates.md](templates.md#per-target-values)).
+
+## Instructions
+
+Output: `.claude/rules/<name>.md`, `.github/instructions/<name>.instructions.md` (`.github/copilot-instructions.md` when `alwaysApply`), `.cursor/rules/<name>.mdc`, or the AGENTS.md files whenever those are generated ([config.md](config.md#agentsmd-output)).
+
+| Field          | Targets | Description                                                                                                                    |
+| -------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `description`  | All     | What the instruction covers                                                                                                    |
+| `globs`        | All     | File patterns to scope this instruction to (string or array)                                                                   |
+| `alwaysApply`  | All     | If true, applies to all conversations regardless of files                                                                      |
+| `name`         | Copilot | Display name shown in the UI (defaults to the file name)                                                                       |
+| `excludeAgent` | Copilot | Exclude from specific agents: `"code-review"` or `"cloud-agent"` (GitHub Copilot cloud only, not VS Code Copilot Chat locally) |
+
+`alwaysApply` instructions are loaded into **every** session on every target (they go in the root `AGENTS.md` when AGENTS.md is generated), so keep them short and move detail into [reference docs](templates.md#reference-docs). While AGENTS.md is generated, `globs` only place an instruction in an AGENTS.md file (with a one-line scope note where needed), and `name` and `excludeAgent` have no effect.
 
 ## Skills
 

@@ -13,7 +13,7 @@ describe("uac setup in a project without uac", () => {
     expect(screenOf(session)).toMatchInlineSnapshot(`
       "┌  uac setup
       ✔ Created universal-ai-config.config.ts (all coding agents)
-      ✔ Seeded meta-instructions (uac <uac>): 21 created
+      ✔ Seeded meta-instructions (uac <uac>): 22 created
       ✔ Created .gitignore with universal-ai-config patterns
       │
       ◇   ──────────────────────────────────────────────────────────────────────────╮
@@ -38,7 +38,7 @@ describe("uac setup in a project without uac", () => {
     expect(screenOf(session)).toMatchInlineSnapshot(`
       "┌  uac setup
       ✔ Created universal-ai-config.config.ts (all coding agents)
-      ✔ Seeded meta-instructions (uac <uac>): 21 created
+      ✔ Seeded meta-instructions (uac <uac>): 22 created
       ✔ Created .gitignore with universal-ai-config patterns
       │
       ◇   ──────────────────────────────────────────────────────────────────────────╮
@@ -64,7 +64,7 @@ describe("uac setup in a project without uac", () => {
     expect(screenOf(session)).toMatchInlineSnapshot(`
       "┌  uac setup
       ✔ Created universal-ai-config.config.ts (all coding agents)
-      ✔ Seeded meta-instructions (uac <uac>): 21 created
+      ✔ Seeded meta-instructions (uac <uac>): 22 created
       ✔ Created .gitignore with universal-ai-config patterns
       │
       ◇   ──────────────────────────────────────────────────────────────────────────╮
@@ -95,7 +95,7 @@ describe("uac setup in a project without uac", () => {
     expect(screenOf(session)).toMatchInlineSnapshot(`
       "┌  uac setup
       ✔ Created universal-ai-config.config.ts (all coding agents)
-      ✔ Seeded meta-instructions (uac <uac>): 21 created
+      ✔ Seeded meta-instructions (uac <uac>): 22 created
       ✔ Created .gitignore with universal-ai-config patterns
       │
       ◇   ──────────────────────────────────────────────────────────────────────────╮

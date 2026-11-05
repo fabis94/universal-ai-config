@@ -18,6 +18,7 @@ const UAC_DOCS = [
   "mcp",
   "models",
   "standards",
+  "templates",
   "tools",
 ];
 
@@ -163,10 +164,9 @@ describe("seed meta-instructions", () => {
     // verbatim in the final output need double-escaping (`<%%=`) here — a single
     // `<%=` would be evaluated by the generate render.
     expect(guide).toContain("<%%= target %>");
-    expect(guide).toContain("<%%= type %>");
-    expect(guide).toContain("<%%= skillPath('deploy') %>");
-    expect(guide).toContain("<%%= instructionPath('coding-style') %>");
-    expect(guide).toContain("<%%= mcpToolRef('server', 'tool') %>");
+    expect(guide).toContain("<%% if (target === 'claude') { %>");
+    expect(guide).toContain("<%%= skillDirPath('deploy', 'reference.md') %>");
+    expect(guide).toContain("<%%= docPath('name') %>");
 
     // Real-value tags OUTSIDE the EJS Templating section stay single-escaped:
     // they intentionally resolve to real paths in the final output.
@@ -191,15 +191,16 @@ describe("seed meta-instructions", () => {
     const content = guide!.content;
 
     // Helper syntax appears verbatim, NOT evaluated.
-    expect(content).toContain("- `<%= target %>` — current target");
-    expect(content).toContain("- `<%= skillPath('name') %>` — output path for a skill");
-    expect(content).toContain("For example, `<%= skillPath('deploy') %>` renders to:");
-    expect(content).toContain("And `<%= instructionPath('coding-style') %>` renders to:");
-    expect(content).toContain("- `<%= mcpToolRef('server', 'tool') %>` — specific tool reference:");
+    expect(content).toContain("`<%= target %>` prints the target being generated");
+    expect(content).toContain("`<% if (target === 'claude') { %>` … `<% } %>` keeps text");
+    expect(content).toContain("e.g. `<%= skillDirPath('deploy', 'reference.md') %>` for a file");
+    expect(content).toContain(
+      "Link one from an instruction, skill, or agent with `<%= docPath('name') %>`",
+    );
 
     // The bug we are guarding against: examples evaluated to real values.
-    expect(content).not.toContain("- `claude` — current target");
-    expect(content).not.toContain("For example, `.claude/skills/deploy/SKILL.md` renders to:");
+    expect(content).not.toContain("`claude` prints the target being generated");
+    expect(content).not.toContain("e.g. `.claude/skills/deploy/reference.md` for a file");
 
     // Tags outside the EJS Templating section still resolve to real values.
     expect(content).toContain("Templates live in `.universal-ai-config/`");
@@ -219,18 +220,36 @@ describe("seed meta-instructions", () => {
 
   it("renders docs once at seed time — no EJS tags survive and templatesDir is resolved", () => {
     // Docs are never touched by `uac generate`, so the seed render is their only
-    // pass. Any tag left in a seeded doc would reach the reader verbatim.
+    // pass. A tag left in prose would reach the reader verbatim; literal EJS is
+    // allowed only inside fenced examples, where templates.md shows the syntax.
     for (const templatesDir of [".universal-ai-config", "custom-ai-config"]) {
       const docs = getTemplates(templatesDir).filter((t) => t.relativePath.startsWith("docs/"));
       expect(docs.map((d) => d.relativePath).sort()).toEqual(
         UAC_DOCS.map((name) => `docs/uac/${name}.md`),
       );
       for (const doc of docs) {
-        expect(doc.content, doc.relativePath).not.toContain("<%");
-        expect(doc.content, doc.relativePath).not.toContain("%>");
+        const prose = doc.content.replace(/^```[^\n]*\n[\s\S]*?^```$/gm, "");
+        expect(prose, doc.relativePath).not.toContain("<%");
+        expect(prose, doc.relativePath).not.toContain("%>");
       }
       const cli = docs.find((d) => d.relativePath === "docs/uac/cli.md")!;
       expect(cli.content).toContain(`\`${templatesDir}/skills/<name>/\``);
+      // The escaped examples come out as working EJS, newlines kept
+      const templates = docs.find((d) => d.relativePath === "docs/uac/templates.md")!;
+      expect(templates.content).toContain("<%= instructionPath('coding-style') %>");
+      expect(templates.content).toContain("<% if (target === 'claude') { -%>\nRun `pnpm tsc`");
+    }
+  });
+
+  it("keeps this repo's seeded copies in sync with the seed sources", async () => {
+    // The README links the rendered copies in .universal-ai-config/, so a seed
+    // source edited without reseeding would leave readers on stale docs
+    const repoTemplatesDir = join(import.meta.dirname, "../../.universal-ai-config");
+    for (const t of getTemplates(".universal-ai-config")) {
+      const committed = await readFile(join(repoTemplatesDir, t.relativePath), "utf-8");
+      expect(committed, `${t.relativePath} is stale: run pnpm uac seed meta-instructions`).toBe(
+        t.content,
+      );
     }
   });
 

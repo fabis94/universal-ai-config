@@ -59,7 +59,7 @@ It works from any subdirectory — uac searches upward for the project root. `--
 - Creating or editing templates (types, frontmatter, EJS, path helpers, hooks, MCP): `<%%= instructionPath('uac-template-guide') %>`
 - Every CLI flag, root resolution, clean behavior, `skill add` sources: `<%%= docPath('uac/cli') %>`
 - Config options in depth, AGENTS.md variations, shared outputs and per-machine `targets`, exclusion, precedence/shadowing, `preserveOnClean`, `mergeField`, variables: `<%%= docPath('uac/config') %>`
-- Full skill and agent frontmatter fields: `<%%= docPath('uac/frontmatter') %>`
+- Every instruction, skill and agent frontmatter field: `<%%= docPath('uac/frontmatter') %>`
 - Hook handler fields, event names per target, matchers: `<%%= docPath('uac/hooks') %>`
 - MCP server fields per target, output paths, opt-in filtering: `<%%= docPath('uac/mcp') %>`
 - Tool names per target: `<%%= docPath('uac/tools') %>`

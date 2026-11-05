@@ -51,6 +51,10 @@ export const userConfigSchema = z.object({
   standards: z.union([z.boolean(), z.enum(["instructions", "skills"])]).optional(),
 });
 
+/**
+ * Type-checks a uac config or overrides file and returns it unchanged. Use it
+ * as the default export of `universal-ai-config.config.ts`.
+ */
 export function defineConfig(config: UserConfig): UserConfig {
   return config;
 }

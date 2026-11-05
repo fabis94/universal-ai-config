@@ -52,7 +52,7 @@ After the user approves the research findings, **enter plan mode** to design the
    - **Registration**: `src/targets/index.ts`, the `Target` union in `src/types.ts`, and every per-target key list (see step 8)
    - **Config**: `outputDirs` default in `src/config/defaults.ts` and the schema in `src/config/schema.ts`
    - **Tests**: which fixture(s) to use or create, and what assertions to write
-   - **Docs**: any updates needed to README, meta-instruction templates, or seed files
+   - **Docs**: a row in the README's "What you get" table, and the reference docs that the "Where to document a change" table in the project conventions names (edit seed sources, then reseed)
    - **Upstream validation reference**: draft the full content of a new `2.X <Tool Name>` section for [.universal-ai-config/skills/report-feature-changes/upstream-validation-reference.md](../report-feature-changes/upstream-validation-reference.md) (following the Part 4 template in that file) **as part of the plan** — include it inline so the user can review and correct the URLs and per-feature mappings before anything is written. The draft must cover:
      - At least one **Tier 1** authoritative reference URL (docs home, full reference, source repo if open).
      - At least one **Tier 2** changelog / release-notes / blog URL so future drift can be dated.

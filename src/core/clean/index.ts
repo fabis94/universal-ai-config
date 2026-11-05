@@ -177,6 +177,10 @@ async function removeKey(
  * every type is. Pass the resolved `config.types` for the CLI's semantics,
  * where a type left out of `types` is never touched.
  *
+ * Unlike `uac clean`, it doesn't read the config file: pass the options from
+ * `loadProjectConfig()`. Above all `standards` — without it, a project that
+ * keeps hand-written AGENTS.md files loses them.
+ *
  * Returns the root-relative paths removed (or, under `dryRun`, that would be).
  */
 export async function cleanTargetFiles(

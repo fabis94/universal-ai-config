@@ -7,9 +7,13 @@ import { validateResolvedConfig } from "./validate.js";
 import type { ResolvedConfig, UserConfig, Target, TemplateType } from "../types.js";
 
 export interface LoadConfigOptions {
+  /** Project root to load the config from. Default: `process.cwd()`. */
   root?: string;
+  /** Config file to load instead of the auto-detected `universal-ai-config.config.*`. */
   configPath?: string;
+  /** Replaces the resolved `targets` (what the CLI's `-t` does). */
   cliTargets?: Target[];
+  /** Replaces the resolved `types` (what the CLI's `--type` does). */
   cliTypes?: TemplateType[];
   /** Inline config overrides — applied after overrides file, before CLI target/type overrides */
   inlineOverrides?: UserConfig;
@@ -94,6 +98,13 @@ export async function loadOverrides(root: string): Promise<UserConfig | undefine
   return legacy.config;
 }
 
+/**
+ * Loads and resolves the project's config, later layers winning: built-in
+ * defaults, `universal-ai-config.config.*`, the gitignored
+ * `universal-ai-config.overrides.*`, `inlineOverrides`, then `cliTargets` and
+ * `cliTypes`. Arrays replace, objects merge. Throws when a layer fails
+ * validation or the overrides file sets `standards` (a team setting).
+ */
 export async function loadProjectConfig(options: LoadConfigOptions = {}): Promise<ResolvedConfig> {
   const root = options.root ?? process.cwd();
 

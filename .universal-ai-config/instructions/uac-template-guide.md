@@ -76,117 +76,25 @@ Body content with instructions for the AI.
 
 ### EJS Templating
 
-Template bodies support EJS for conditional content.
+Template bodies (not frontmatter) are rendered with EJS once per target: `<%%= target %>` prints the target being generated (`claude`, `copilot`, `cursor`, `codex`), and `<%% if (target === 'claude') { %>` … `<%% } %>` keeps text for one target. `type`, `consumers`, `config` and the config's `variables` are in scope too.
 
-**Variables:**
+**Always use path helpers when referencing other templates** — never hardcode target-specific paths. `instructionPath`, `skillPath`, `skillDirPath` and `agentPath` return a template's output path for the target being generated (e.g. `<%%= skillDirPath('deploy', 'reference.md') %>` for a file next to a skill's `SKILL.md`), the `…TemplatePath` helpers its source path, `docPath` a reference doc, and `mcpToolRef` the target's name for an MCP tool.
 
-- `<%%= target %>` — current target ("claude", "copilot", "cursor", "codex")
-- `<%%= type %>` — template type ("instructions", "skills", "agents")
-- `<%%= consumers %>` — every target that will read this output: `[target]`, or several for a shared file (e.g. AGENTS.md, rendered once with `target` set to codex or the first reader)
-- `<%%= config.templatesDir %>` — templates directory path
-- Custom variables from config are also available
-
-**Output path helpers** — resolve to the target-specific output path. Omit the name to get the directory:
-
-- `<%%= instructionPath('name') %>` — output path for an instruction
-- `<%%= skillPath('name') %>` — output path for a skill's `SKILL.md` file
-- `<%%= skillDirPath('name') %>` — output directory of a skill (the directory containing `SKILL.md`)
-- `<%%= skillDirPath('name', 'reference.md') %>` — file inside a skill's directory, sibling of `SKILL.md` (use this to link to supporting files like references, scripts, examples)
-- `<%%= agentPath('name') %>` — output path for an agent
-- `<%%= instructionPath() %>` — output directory for instructions (e.g. `.claude/rules`), or `AGENTS.md` for a target that reads the AGENTS.md output
-
-**Template path helpers** — resolve to the source template path. Omit the name to get the directory:
-
-- `<%%= instructionTemplatePath('name') %>` — template path for an instruction
-- `<%%= skillTemplatePath('name') %>` — template path for a skill
-- `<%%= agentTemplatePath('name') %>` — template path for an agent
-- `<%%= hookTemplatePath('name') %>` — template path for a hook
-- `<%%= mcpTemplatePath('name') %>` — template path for an MCP config
-- `<%%= instructionTemplatePath() %>` — template directory for instructions
-
-**Reference doc helper** — resolves to a doc under `docs/` in the templates directory (see [Reference Docs](#reference-docs)):
-
-- `<%%= docPath('name') %>` — path to `docs/name.md`; nested names like `docPath('api/errors')` work too
-
-**MCP reference helpers** — produce the target-appropriate syntax for an MCP tool reference. Use this in instruction bodies instead of writing target-conditional blocks manually:
-
-- `<%%= mcpToolRef('server', 'tool') %>` — specific tool reference:
-  - Claude/Codex: `mcp__server__tool`
-  - Copilot: `server/tool`
-  - Cursor: `MCP:tool`
-- `<%%= mcpToolRef('server') %>` — wildcard (all tools on server):
-  - Claude: `mcp__server__*`
-  - Codex: `mcp__server__.*` (regex, for hook matchers)
-  - Copilot: `server/*`
-  - Cursor: `MCP:.*` (no server qualifier in Cursor — hooks don't filter by server)
-
-For example, `<%%= skillPath('deploy') %>` renders to:
-
-- Claude: `.claude/skills/deploy/SKILL.md`
-- Copilot: `.github/skills/deploy/SKILL.md`
-- Cursor: `.cursor/skills/deploy/SKILL.md`
-- Codex: `.agents/skills/deploy/SKILL.md` (root-relative, per Codex's auto-discovery convention)
-
-And `<%%= skillDirPath('deploy', 'reference.md') %>` renders to:
-
-- Claude: `.claude/skills/deploy/reference.md`
-- Copilot: `.github/skills/deploy/reference.md`
-- Cursor: `.cursor/skills/deploy/reference.md`
-- Codex: `.agents/skills/deploy/reference.md`
-
-And `<%%= agentPath('reviewer') %>` renders to:
-
-- Claude: `.claude/agents/reviewer.md`
-- Copilot: `.github/agents/reviewer.agent.md`
-- Cursor: `.cursor/agents/reviewer.md`
-- Codex: `.codex/agents/reviewer.toml`
-
-And `<%%= instructionPath('coding-style') %>` renders to:
-
-- Claude: `.claude/rules/coding-style.md`
-- Copilot: `.github/instructions/coding-style.instructions.md` (`.github/copilot-instructions.md` when `alwaysApply`)
-- Cursor: `.cursor/rules/coding-style.mdc`
-- Codex, and every target while AGENTS.md is generated: the AGENTS.md file the template lands in — root `AGENTS.md`, its folder's `<dir>/AGENTS.md`, or its index file, depending on its `globs` and `agentsMd.variation` (see [AGENTS.md](#agentsmd)).
-
-**Always use path helpers when referencing other templates** — never hardcode target-specific paths.
+Every variable and helper, and what each returns per target: `<%= docPath('uac/templates') %>`
 
 ### Per-Target Overrides
 
-Any frontmatter field can have per-target values:
-
-```yaml
-model:
-  claude: claude-sonnet-5-5
-  copilot: claude-sonnet-5.5
-  cursor: composer-2.5
-  codex: gpt-6.1-sol
-  default: claude-sonnet-5-5
-```
-
-A target with no matching key and no `default` drops the field for that target. Per-target values work the same way inside hook handlers and MCP server configs.
+Any frontmatter field, hook handler field or MCP server field can take per-target values: an object whose keys are all target names or `default`, e.g. `model: { claude: claude-sonnet-5-5, copilot: claude-sonnet-5.5 }`. A target with no matching key and no `default` drops the field. Details: `<%= docPath('uac/templates') %>`
 
 ## Reference Docs
 
-Files under `<%= config.templatesDir %>/docs/` (or `docs/` in any `additionalTemplateDirs` entry) are **reference docs**. uac never generates them, and no AI tool loads them automatically. Link one from an instruction, skill, or agent with `<%%= docPath('name') %>`, and agents read it only when they need it. This keeps always-on instructions short while the detail stays one link away.
-
-- `docPath('api/errors')` points at `docs/api/errors.md`, as a project-root-relative path, or an absolute path when the doc lives in a template directory outside the project.
-- The first template directory containing that path wins, the same as templates. A `docPath()` name with no matching doc prints a warning during `uac generate`.
-- Docs are read as-is: EJS and path helpers inside them are **not** rendered. Link sibling docs with plain relative links (`[errors](errors.md)`).
-- uac's own reference docs live in `docs/uac/` and are refreshed by `uac seed meta-instructions` — don't edit them.
+Files under `<%= config.templatesDir %>/docs/` (or `docs/` in any `additionalTemplateDirs` entry) are **reference docs**: uac never generates them, and no AI tool loads them automatically. Link one from an instruction, skill, or agent with `<%%= docPath('name') %>`, and agents read it only when they need it. This keeps always-on instructions short while the detail stays one link away. uac's own reference docs live in `docs/uac/` and are refreshed by `uac seed meta-instructions` — don't edit them. Paths, precedence and links between docs: `<%= docPath('uac/templates') %>`
 
 ## Frontmatter Fields
 
 ### Instructions
 
-| Field          | Description                                                                                                                    |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `description`  | What the instruction covers                                                                                                    |
-| `globs`        | File patterns to scope this instruction to (string or array)                                                                   |
-| `alwaysApply`  | If true, applies to all conversations regardless of files                                                                      |
-| `name`         | Display name shown in the UI (Copilot only — defaults to file name)                                                            |
-| `excludeAgent` | Exclude from specific agents: `"code-review"` or `"cloud-agent"` (GitHub Copilot cloud only, not VS Code Copilot Chat locally) |
-
-`alwaysApply` instructions are loaded into **every** session on every target (they go in the root `AGENTS.md` when AGENTS.md is generated), so keep them short and move detail into [reference docs](#reference-docs).
+Fields: `description`, `globs` (string or array), `alwaysApply`, and Copilot-only `name` and `excludeAgent`. `alwaysApply` instructions are loaded into **every** session on every target (they go in the root `AGENTS.md` when AGENTS.md is generated), so keep them short and move detail into [reference docs](#reference-docs). All instruction fields: `<%= docPath('uac/frontmatter') %>`
 
 ### AGENTS.md
 

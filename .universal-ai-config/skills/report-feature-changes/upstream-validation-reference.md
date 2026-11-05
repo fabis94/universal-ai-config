@@ -305,7 +305,7 @@ Which other tools' outputs each tool also loads, per template type — and what 
 
 - `src/targets/<tool>/index.ts` → `reads` (one `ForeignRead` per type: `from`, `reconcile`, `loses`, and for hooks `events` / `onlyWithMatcher` / `rejectsHandlerTypes`), and `readsAgentSkills` (whether the tool loads `.agents/skills` on its own)
 - `src/core/plan/build-plan.ts` → the single policy that turns those facts into which outputs are generated; `src/core/plan/standards.ts` → the facts standards mode goes by (a tool that reads `.agents/skills` gets no skill copies, so a wrong `readsAgentSkills` means missing skills)
-- `src/seed-types/meta-instructions/templates/docs/uac/config.md` → the documented shared-output table, and README "Shared Outputs"
+- `src/seed-types/meta-instructions/templates/docs/uac/config.md` → the documented shared-output table, and the README's "One set of tools per machine" summary
 
 **What to look for in docs**
 

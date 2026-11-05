@@ -35493,9 +35493,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -35516,6 +35516,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -35540,9 +35545,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -35563,6 +35568,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -35587,9 +35597,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -35610,6 +35620,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -35634,9 +35649,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -35657,6 +35672,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -35681,9 +35701,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -35704,6 +35724,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -35728,9 +35753,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -35751,6 +35776,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -35775,9 +35805,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -35798,6 +35828,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -35807,14 +35842,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 13447,
@@ -35832,9 +35867,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -35855,6 +35890,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -35864,14 +35904,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,agents": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 13447,
@@ -35889,9 +35929,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -35912,6 +35952,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -35921,14 +35966,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,agents,hooks": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 13447,
@@ -35946,9 +35991,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -35969,6 +36014,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -35978,14 +36028,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,agents,hooks,mcp": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 13447,
@@ -36003,9 +36053,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -36026,6 +36076,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -36035,14 +36090,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,agents,mcp": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 13447,
@@ -36060,9 +36115,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -36083,6 +36138,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -36092,14 +36152,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,hooks": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 13447,
@@ -36117,9 +36177,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -36140,6 +36200,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -36149,14 +36214,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,hooks,mcp": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 13447,
@@ -36174,9 +36239,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -36197,6 +36262,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -36206,14 +36276,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,mcp": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 13447,
@@ -36231,9 +36301,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -36254,6 +36324,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -36263,14 +36338,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,skills": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 7192,
@@ -36338,9 +36413,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -36361,6 +36436,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -36370,14 +36450,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,skills,agents": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 7192,
@@ -36445,9 +36525,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -36468,6 +36548,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -36477,14 +36562,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,skills,agents,hooks": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 7192,
@@ -36552,9 +36637,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -36575,6 +36660,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -36584,14 +36674,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,skills,agents,hooks,mcp": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 7192,
@@ -36659,9 +36749,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -36682,6 +36772,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -36691,14 +36786,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,skills,agents,mcp": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 7192,
@@ -36766,9 +36861,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -36789,6 +36884,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -36798,14 +36898,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,skills,hooks": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 7192,
@@ -36873,9 +36973,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -36896,6 +36996,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -36905,14 +37010,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,skills,hooks,mcp": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 7192,
@@ -36980,9 +37085,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -37003,6 +37108,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -37012,14 +37122,14 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
   ],
   "instructions,skills,mcp": [
     {
-      "bytes": 17156,
+      "bytes": 12691,
       "relativePath": "instructions/uac-template-guide.md",
-      "sha": "c84678f5cd0a17db",
+      "sha": "df29348eb4ea5dbe",
     },
     {
-      "bytes": 4063,
+      "bytes": 4076,
       "relativePath": "instructions/uac-usage.md",
-      "sha": "46c69635d59a2d17",
+      "sha": "6a659ac596c13d18",
     },
     {
       "bytes": 7192,
@@ -37087,9 +37197,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -37110,6 +37220,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -37134,9 +37249,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -37157,6 +37272,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -37231,9 +37351,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -37254,6 +37374,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -37328,9 +37453,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -37351,6 +37476,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -37425,9 +37555,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -37448,6 +37578,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -37522,9 +37657,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -37545,6 +37680,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -37619,9 +37759,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -37642,6 +37782,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -37716,9 +37861,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -37739,6 +37884,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -37813,9 +37963,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -37836,6 +37986,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
@@ -37910,9 +38065,9 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "sha": "58821bdc5cf7cb32",
     },
     {
-      "bytes": 19541,
+      "bytes": 21316,
       "relativePath": "docs/uac/frontmatter.md",
-      "sha": "30d415662f9b4c6e",
+      "sha": "9c70121a3ddc773c",
     },
     {
       "bytes": 23679,
@@ -37933,6 +38088,11 @@ exports[`template-mode regression: seeds > meta-instructions for every types sub
       "bytes": 8398,
       "relativePath": "docs/uac/standards.md",
       "sha": "cfd3d7df5587a1cc",
+    },
+    {
+      "bytes": 9642,
+      "relativePath": "docs/uac/templates.md",
+      "sha": "1503dcba7bd541dc",
     },
     {
       "bytes": 11826,
