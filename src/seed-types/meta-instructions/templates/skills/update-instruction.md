@@ -1,8 +1,45 @@
 ---
 name: update-instruction
+<% if (standards.instructions) { -%>
+description: Create, update, or manage the project's AGENTS.md instructions. Handles finding the right AGENTS.md file, deciding whether to add or change content, and writing it.
+<% } else { -%>
 description: Create, update, or manage universal-ai-config instruction templates. Handles finding existing instructions, deciding whether to create or modify, and writing the template.
+<% } -%>
 userInvocable: false
 ---
+<% if (standards.instructions) { -%>
+
+# Manage Instructions (AGENTS.md)
+
+In this project, instructions are the project's own `AGENTS.md` files (`standards` in the uac config), not uac templates. Every tool reads them directly, so there is nothing to generate after a change.
+
+## Finding the Right File
+
+### 1. List the AGENTS.md files
+
+Find every `AGENTS.md` in the project, skipping dependency and build folders and skill folders. The root `AGENTS.md` applies everywhere; `<dir>/AGENTS.md` applies to work in that folder.
+
+### 2. Match the user's intent to existing content
+
+- **Exact match**: a section about the same subject exists → update it
+- **Partial overlap**: the topic fits a broader section → add to it rather than starting a new one
+- **Folder-specific**: the topic only applies to one part of the project → that folder's `AGENTS.md`
+
+### 3. Choose a file for new content
+
+1. **Search the codebase** for where the topic applies.
+2. **Universal** → the root `AGENTS.md`. **One area** → `<folder>/AGENTS.md` (create it if needed).
+3. AGENTS.md scopes by folder only. A rule for a file pattern (`**/*.test.ts`) goes in the folder holding those files, or in the root file with a sentence saying which files it's for.
+
+## Writing
+
+- Plain markdown: no frontmatter, no EJS.
+- Never edit between `<!-- >>> universal-ai-config >>> -->` and `<!-- <<< universal-ai-config <<< -->`: `uac seed meta-instructions` rewrites that block.
+- Keep the root file short. It loads into every session on every tool, and Codex reads at most 32 KiB per folder chain. Put long reference material in a doc under `<%%= config.templatesDir %>/docs/` and link it by path.
+- Don't add a `CLAUDE.md`: Claude ignores every AGENTS.md while one has content.
+
+How each tool loads nested files: `<%%= docPath('uac/standards') %>`
+<% } else { -%>
 
 # Manage Instruction Templates
 
@@ -56,7 +93,7 @@ If no existing instruction fits, investigate the project to decide where the ins
 
 ### Frontmatter Fields
 
-See the **Instructions** section in `<%%= instructionPath('uac-template-guide') %>` for the complete field reference. Key fields: `description`, `globs`, `alwaysApply`, `excludeAgent`.
+See the **Instructions** section in `<%%= <%= guidePathHelper %>('uac-template-guide') %%>` for the complete field reference. Key fields: `description`, `globs`, `alwaysApply`, `excludeAgent`.
 
 ### When to use `alwaysApply` vs `globs`
 
@@ -66,7 +103,7 @@ See the **Instructions** section in `<%%= instructionPath('uac-template-guide') 
 
 ### Keep always-on instructions short
 
-`alwaysApply` instructions load into every session on every target. When an instruction needs long reference material (full tables, API details, edge cases), put that material in a reference doc under `<%%= config.templatesDir %>/docs/` and link it with `<%%%= docPath('name') %>`, so agents read it only when they need it. See **Reference Docs** in `<%%= instructionPath('uac-template-guide') %>`.
+`alwaysApply` instructions load into every session on every target. When an instruction needs long reference material (full tables, API details, edge cases), put that material in a reference doc under `<%%= config.templatesDir %>/docs/` and link it with `<%%%= docPath('name') %>`, so agents read it only when they need it. See **Reference Docs** in `<%%= <%= guidePathHelper %>('uac-template-guide') %%>`.
 
 ### AGENTS.md routing
 
@@ -91,3 +128,4 @@ Follow these TypeScript conventions:
 - Prefer interfaces over type aliases for object shapes
 - Use explicit return types on exported functions
 ```
+<% } -%>

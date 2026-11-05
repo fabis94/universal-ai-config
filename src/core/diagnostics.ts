@@ -39,8 +39,12 @@ export interface DiagnosticDetails {
   "duplicate-hook-run": { against: Target; event: string; command: string };
   /** `agentsMd.enable: false` was ignored because codex is a target. */
   "agents-md-forced": { enable: false };
-  /** Claude reads AGENTS.md only while no non-empty CLAUDE.md exists. */
-  "claude-md-present": { files: string[] };
+  /**
+   * Claude reads AGENTS.md only while no non-empty CLAUDE.md exists.
+   * `importsAgentsMd` (hand-written AGENTS.md only): one of them imports the
+   * root file with `@AGENTS.md`.
+   */
+  "claude-md-present": { files: string[]; importsAgentsMd?: boolean };
   /** A folder's AGENTS.md chain is over Codex's combined budget. */
   "agents-md-size": { files: string[]; bytes: number; limit: number };
   /**
@@ -48,6 +52,21 @@ export interface DiagnosticDetails {
    * same-folder AGENTS.md from Codex. Silenced by `agentsMd.keepOverrideFiles`.
    */
   "agents-override-present": { paths: string[] };
+  /**
+   * Templates of a type the project keeps in an open standard instead
+   * (`standards`): uac ignores them.
+   */
+  "standard-ignored": { standard: "agentsMd" | "agentSkills"; paths: string[] };
+  /**
+   * A tool that reads `.agents/skills` has its own copy of a skill in its own
+   * folder, which wins over the `.agents/skills` one (usually left over from
+   * template mode).
+   */
+  "standard-shadowed": { skill: string; path: string };
+  /** A target's skills folder links into `.agents/skills`, so uac copies nothing into it. */
+  "standard-linked": { path: string };
+  /** Instructions come from AGENTS.md, but the project has no root AGENTS.md. */
+  "agents-md-missing": Record<string, never>;
   /** A glob that can't be expressed by AGENTS.md routing. */
   "agents-md-glob": { template: string; glob: string; reason: "negated" | "parent-segment" };
   /** A template type, hook handler type, hook event or field a target can't express. */
@@ -94,7 +113,7 @@ export type DiagnosticInput = {
 export type Reporter = (diagnostic: DiagnosticInput) => void;
 
 /** Codes that are informational by default; everything else warns. */
-const INFO_CODES: ReadonlySet<DiagnosticCode> = new Set(["shadowed"]);
+const INFO_CODES: ReadonlySet<DiagnosticCode> = new Set(["shadowed", "standard-linked"]);
 
 function dedupeKey(d: Diagnostic): string {
   return [

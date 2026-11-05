@@ -3,12 +3,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { simpleGit } from "simple-git";
 import { parseSkillSource } from "./skill-source.js";
-import { discoverSkills, filterSkillsByName, type DiscoveredSkill } from "./skill-discovery.js";
+import {
+  discoverSkills,
+  filterSkillsByName,
+  type DiscoveredSkill,
+  type SkillPreference,
+} from "./skill-discovery.js";
 import { safePath } from "./safe-path.js";
 
 export interface FetchSkillsOptions {
   /** Branch/tag/commit override, used when the source string carries no ref */
   ref?: string;
+  /** Which copy of a skill found in several places to take (default: `templates`) */
+  prefer?: SkillPreference;
 }
 
 export interface FetchedSkills {
@@ -75,7 +82,7 @@ export async function fetchSkills(
     baseDir = tempDir;
   }
 
-  let skills = await discoverSkills(baseDir, parsed.subpath);
+  let skills = await discoverSkills(baseDir, parsed.subpath, options.prefer);
   if (parsed.skillFilter) {
     skills = filterSkillsByName(skills, [parsed.skillFilter]);
   }

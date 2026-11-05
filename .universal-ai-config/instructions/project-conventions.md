@@ -7,6 +7,14 @@ alwaysApply: true
 
 universal-ai-config (uac) generates target-specific AI tool configs (Claude, Copilot, Cursor, Codex) from a single set of universal templates. Templates live in `.universal-ai-config/` and get rendered per-target via `uac generate`.
 
+## Code Quality
+
+Write every change as clean, maintainable, DRY and SOLID code. Prioritize organization, clarity and architecture over quick fixes, even when that takes longer:
+
+- Fix a problem where it belongs. If a change doesn't fit the current structure, refactor the structure instead of patching around it.
+- Give each module and function one responsibility; extract shared logic instead of duplicating it.
+- If the clean approach takes significantly longer, raise it with the user (the cost and the quicker alternative) before proceeding.
+
 ## Project Structure
 
 ```
@@ -26,12 +34,15 @@ src/
 │   └── agents-overrides.ts        # Asks to delete leftover AGENTS.override.md files
 ├── core/
 │   ├── generate/                  # The pipeline: index (generateProject/generate), discover,
-│   │                              #   select, read-cache, templates, agents-md, hooks, mcp,
-│   │                              #   frontmatter (incl. line-safe), skill-spec, collisions
+│   │   │                          #   select, read-cache, templates, agents-md, hooks, mcp,
+│   │   │                          #   frontmatter (incl. line-safe), skill-spec, collisions
+│   │   └── standards/             # Types read from a standard: Claude's skill copies, AGENTS.md checks
 │   ├── plan/
-│   │   ├── build-plan.ts          # Which outputs a run generates (from targets' `reads`)
+│   │   ├── standards.ts           # Facts about the standards; the only reader of `config.standards`
+│   │   ├── build-plan.ts          # How each target gets each type in a run (`outputFor`)
 │   │   └── locate.ts              # The only place output paths are computed
-│   ├── agents-md/                 # AGENTS.md routing, nested/concatenate/index layouts, render
+│   ├── agents-md/                 # AGENTS.md routing, nested/concatenate/index layouts, render,
+│   │                              #   checks (CLAUDE.md, Codex 32 KiB) for generated and hand-written files
 │   ├── clean/                     # Clean entries from ownedPaths, legacy entries, AGENTS.md scan,
 │   │                              #   leftover AGENTS.override.md files (find/remove, never automatic)
 │   ├── diagnostics.ts             # Typed Diagnostic + DiagnosticSink
@@ -44,7 +55,9 @@ src/
 ├── targets/                       # define-target.ts + claude/, copilot/, cursor/, codex/
 └── seed-types/                    # Seedable template sets
     ├── shared.ts                  # Common seed utilities
-    ├── meta-instructions/         # Meta-instructions about uac; state.ts: version stamp + drift
+    ├── meta-instructions/         # Meta-instructions about uac; placement (where each file goes per
+    │   │                          #   mode), destinations (read/write files and AGENTS.md blocks),
+    │   │                          #   state.ts: version stamp + drift
     │   └── templates/             # instructions/, skills/, docs/uac/ (seed sources)
     ├── gitignore/                 # .gitignore block (follows `types` + agentsMd.indexDir), its state
     └── examples/                  # Example templates
@@ -64,21 +77,23 @@ scripts/
 `generateProject()` in `src/core/generate/index.ts` runs this sequence (`generate()` returns just its files):
 
 1. **Load config** → base + overrides file + inline overrides + CLI `targets`/`types`, then validate (`config/validate.ts`)
-2. **Plan** (`buildPlan`) → from the run's targets and each target's `reads`: whether AGENTS.md is generated (codex in the run, or `agentsMd.enable`) and for whom, which targets skip a type because another output serves them (`servedBy`), and the duplicate hook-run checks
-3. **Discover + select** → candidates from every template source; the per-target winner after `exclude` (losers reported as `shadowed`)
-4. **Templates** (`templates.ts`) → for each winner × target not served elsewhere: parse + EJS, resolve overrides, `mapFrontmatter`, then the type's `render` or the default markdown render at `outputPath`; skill extra files copied as bytes next to it (`.md` ones EJS-rendered); same-path renders joined by `combine`
+2. **Plan** (`buildPlan`) → from the run's targets, each target's `reads` and `standards`: `outputFor(target, type)` says how each target gets each type (`own`, `agentsMd`, `served`, `native`, `copy`, `off`); plus whether AGENTS.md is generated and for whom, `servedBy`, and the duplicate hook-run checks
+3. **Discover + select** → candidates from every template source; templates of a type read from a standard are set aside (`standard-ignored`); the per-target winner after `exclude` (losers reported as `shadowed`)
+4. **Templates** (`templates.ts`) → for each winner × target whose mode is `own`: parse + EJS, resolve overrides, `mapFrontmatter`, then the type's `render` or the default markdown render at `outputPath`; skill extra files copied as bytes next to it (`.md` ones EJS-rendered); same-path renders joined by `combine`
 5. **AGENTS.md** (`generate/agents-md.ts`) → instructions rendered for the plan's view target, laid out by `core/agents-md`; CLAUDE.md, 32 KiB and divergence checks
-6. **Hooks / MCP** → merge JSON files, resolve variables and overrides, filter handler types, transform; cross-target checks (Cursor duplicate runs, Copilot rejecting Claude's file)
-7. **Return** `{ files, diagnostics, plan }` after the collision check — nothing is written until `writeGeneratedFiles()`
+6. **Standards** (`generate/standards/`) → types read from a standard: byte-for-byte skill copies for `copy` targets (Claude), checks on the project's AGENTS.md files
+7. **Hooks / MCP** → merge JSON files, resolve variables and overrides, filter handler types, transform; cross-target checks (Cursor duplicate runs, Copilot rejecting Claude's file)
+8. **Return** `{ files, diagnostics, plan }` after the collision check and the guard against writing into a standard — nothing is written until `writeGeneratedFiles()`
 
 ### Key Modules
 
 - **`parser.ts`** — `parseFrontmatter()`, `renderEjs()` with target/type/config/`consumers` variables plus output and template path helpers. Output helpers go through the locator, so they honour `outputDirs` and AGENTS.md routing. `docPath()` resolves reference docs from the index built over every source's `docs/` folder
-- **`plan/locate.ts`** — `createLocator(config, plan?)`: template, type-dir, hooks and MCP paths, root-relative POSIX
+- **`plan/standards.ts`** — `sourcedTypes`, `readsStandard`, `ownedByUac` (what clean removes and `.gitignore` ignores: a fact about the config, not a run), `writesIntoStandard`, `resolvesIntoAgentSkills` (symlinks), `skillSourceDir`, `standardView`
+- **`plan/locate.ts`** — `createLocator(config, plan?)`: template, type-dir, hooks and MCP paths, root-relative POSIX; works from facts, so it agrees with or without a plan
 - **`diagnostics.ts`** — every warning goes through `sink.report({ code, message, detail, … })`; never `consola.warn` in core or targets. Targets get `ctx.report` in transforms, renderers and frontmatter mappers
 - **`resolve-overrides.ts`** — detects per-target objects (all keys in `[claude, copilot, cursor, codex, default]`), resolves to the target's value or `default`, returns `undefined` if no match (field dropped)
 - **`writer.ts`** — writes `string | Uint8Array` content, applies `mode`, merges `mergeKey` into JSON/TOML files, skips identical files
-- **`clean/`** — removes what targets own (`ownedPaths`, hooks/MCP paths and merge keys), legacy outputs, and every AGENTS.md when an owner is cleaned
+- **`clean/`** — removes what targets own (`ownedPaths`, hooks/MCP paths and merge keys) where `ownedByUac`, legacy outputs, and every AGENTS.md when an owner is cleaned (`agentsMdOwners`, none while instructions are sourced)
 - **`exclude.ts`** / **`preserve-on-clean.ts`** — glob matchers on template inputs / output paths (per-target aware)
 - **`normalize-globs.ts`** — `normalizeGlobs()` splits comma-separated globs (commas inside `{…}` stay) into an array
 - **`resolve-json-variables.ts`** — `{{varName}}` placeholders in hooks/MCP JSON: exact match keeps the typed value, embedded match interpolates
@@ -94,6 +109,7 @@ Each target in `src/targets/` implements `TargetDefinition` (`src/targets/define
   outputDir: string;                    // e.g. ".claude"
   supportedTypes: TemplateType[];
   reads?: { [type]: ForeignRead[] };    // facts: other outputs the tool also loads
+  readsAgentSkills?: true;              // fact: loads .agents/skills on its own
   instructions?: TemplateTypeConfig | "agentsMd";  // "agentsMd": reads only AGENTS.md (Codex)
   skills?: TemplateTypeConfig;
   agents?: TemplateTypeConfig;
@@ -106,6 +122,7 @@ Each target in `src/targets/` implements `TargetDefinition` (`src/targets/define
 
 - **Paths** are root-relative POSIX and use `ctx.outputDir`; `ownedPaths` is what `uac clean` removes — there is no separate clean table.
 - **`reads`** are facts (`from`, `reconcile`: `loads-both` | `same-file` | `dedupes-identical` | `prefers-own`, `loses`); the policy lives only in `plan/build-plan.ts`.
+- **Standards facts** — whether a tool reads AGENTS.md (`reads.instructions` from `agentsMd`, or `instructions: "agentsMd"`) and `.agents/skills` (`readsAgentSkills`) decide standards mode: a reader gets nothing generated (`native`), the others get copies (`copy`).
 - **Frontmatter mapping** — a string renames; a function `(value, allFrontmatter, ctx) => Record<string, unknown>` can return several fields, `{}` to drop, and `ctx.report()` a diagnostic.
 
 **Adding a new target** requires:
@@ -117,7 +134,7 @@ Each target in `src/targets/` implements `TargetDefinition` (`src/targets/define
 ## Config System
 
 - **`config/loader.ts`** — uses c12 to load `universal-ai-config.config.ts` (base) and `universal-ai-config.overrides.ts` (local overrides, gitignored; `universal-ai-config.overrides.config.ts` is read when it is the only one), then validates the merged result. Every load reads the file as it is on disk now (`importFresh`), since setup writes the overrides file and generates in one process
-- **Merge strategy**: scalars replace, arrays replace entirely, objects deep-merge (`mcp` and `agentsMd` field by field)
+- **Merge strategy**: scalars replace, arrays replace entirely, objects deep-merge (`mcp` and `agentsMd` field by field). `standards` is a team setting: the overrides file can't set it (load error)
 - **`config/schema.ts`** — Zod v4 validation + `defineConfig()` identity helper
 - **`config/defaults.ts`** — default `templatesDir`, `targets`, `types`, `outputDirs`, `variables`, `agentsMd`
 - **`config/validate.ts`** — checks that need the merged config (e.g. `agentsMd.indexDir` placement)
@@ -131,7 +148,7 @@ All commands are in `src/commands/`. Changing a prompt or CLI output follows the
 - **`init`** (alias **`setup`**) — a wizard in a terminal: first-time setup (config, meta-instructions, gitignore block) or a menu for an existing project; asks this machine's coding agents and writes the overrides file. Flags instead of prompts otherwise
 - **`clean`** — removes generated output; `-t` names the set being cleaned
 - **`seed <type>`** — seeds pre-built template sets (`meta-instructions`, `examples`, `gitignore`)
-- **`skill add`** — copies skills from a GitHub repo or local path into the templates dir
+- **`skill add`** — copies skills from a GitHub repo or local path into the templates dir (`.agents/skills` while skills are sourced)
 
 ## Seed System
 
@@ -141,7 +158,16 @@ All commands are in `src/commands/`. Changing a prompt or CLI output follows the
 - **`examples`** — example templates for each type (seeded on `uac seed examples`)
 - **`shared.ts`** — common utilities: `renderTemplate()`, `getSeedTemplatesDir()`, `collectSkillTemplates()`, `collectDocTemplates()`
 
-Seed templates are EJS-rendered with `config.templatesDir` as a variable. Skills can be seeded as flat `.md` files (become `skills/{name}/SKILL.md`) or as directories with `SKILL.md` + extra supporting files. Files under `docs/` are copied to `<templatesDir>/docs/` — they are never generated, so the seed render is their only EJS pass (see [EJS escaping in seed templates](#ejs-escaping-in-seed-templates)).
+Seed templates are EJS-rendered with `templatesDir`, `standards` (`{ instructions, skills }`) and `guidePathHelper` as variables. `meta-instructions/placement.ts` decides where each file goes: the templates dir, or — for a type read from a standard — a marked block in an AGENTS.md (`uac-usage`, the template guide) or `.agents/skills/<name>/` with `metadata.managed-by` (management skills), rendered fully at seed time for `standardView`. Reseeding moves uac's own files when `standards` changed, either way. Skills can be seeded as flat `.md` files (become `skills/{name}/SKILL.md`) or as directories with `SKILL.md` + extra supporting files. Files under `docs/` are copied to `<templatesDir>/docs/` — they are never generated, so the seed render is their only EJS pass (see [EJS escaping in seed templates](#ejs-escaping-in-seed-templates)).
+
+## Two Modes
+
+Instructions and skills come from uac templates (**template mode**, the default and the recommended setup) or, with `standards`, from the project's own AGENTS.md files and `.agents/skills` (**standards mode**). Keep the split clean:
+
+- **One decision point.** `plan/standards.ts` holds the facts and `plan/build-plan.ts` the per-run decision (`outputFor`). Nothing else reads `config.standards`; modules ask the plan, the locator or the `plan/standards.ts` helpers.
+- **Decide both modes.** Any change to instructions, skills, the locator, clean, the `.gitignore` block, seeding or `skill add` decides — and tests — its behaviour in both modes.
+- **Never touch the standards.** No command writes or deletes AGENTS.md files, `.agents/skills`, or the folders of tools that read them, except the seed (its marked block and marked skills). The `standards-safety` tests sweep every command.
+- **Template mode stays byte-identical** unless a change means it to: `template-mode-regression` snapshots files, diagnostics, clean results, `.gitignore` blocks and seed output.
 
 ## Code Conventions
 
@@ -173,7 +199,7 @@ Exported from `src/index.ts`:
   - `agents-md-project` — every glob shape AGENTS.md routing handles
   - `pick-one-project` — which outputs overlapping targets generate
 - When adding features, prefer extending an existing fixture or creating a new one over modifying `basic-project`
-- When making any kind of change evaluate if tests need modifying/adding. Generally speaking we want full coverage for everything.
+- Cover every change with automated tests at each layer it touches: unit, fixture (integration) and CLI (`CliProject`, e2e), not unit tests alone. We rarely test manually, so the suite is what proves a change works.
 - Run **`pnpm check`** (lint + knip + test + tsc) before considering work complete
 
 ## Documentation
@@ -208,6 +234,7 @@ The seed templates in `src/seed-types/meta-instructions/templates/` are seeded i
 | Model IDs per target                              | `docs/uac/models.md`                                                                        |
 | EJS variable or path helper                       | the EJS Templating section of `uac-template-guide.md`                                       |
 | A new doc file                                    | link it with `docPath()` from `uac-usage.md` or the guide, and from any skill that needs it |
+| Standards-mode behaviour (`standards`)            | `docs/uac/standards.md` (+ a mode branch in the affected instruction or skill)              |
 
 All of these live under `src/seed-types/meta-instructions/templates/`. A seed test fails if any `docPath('…')` used in a seeded instruction or skill has no matching file in `docs/`.
 
@@ -222,6 +249,8 @@ Seed sources are rendered at **seed time** (only `templatesDir` is defined then)
 | Generate-time helper (`docPath`, `instructionPath`, `skillPath`, …) | `<%%%= docPath('uac/hooks') %>`          | not available — use a relative link like `[hooks](hooks.md)` |
 
 When moving text between a doc and an instruction or skill, re-escape it — don't copy it verbatim. Frontmatter is rendered only at seed time, which is why `globs` uses the single-escaped `<%%= templatesDir %>`.
+
+**Mode branches.** Where standards mode changes a location or wording, branch at seed time on lines of their own: `<%% if (standards.skills) { -%%>` … `<%% } else { -%%>` … `<%% } -%%>`. Keep the template-mode text byte-identical (the regression snapshot checks it), and prefer one branch around a whole section over many inline ones. Link the template guide from skills through `guidePathHelper` (a skill in `.agents/skills` links the guide's source, not one tool's copy). Standard-bound files get a second render at seed time, so no generate-time tag may survive in them; `tests/unit/seed-standards.test.ts` checks that. Prettier mangles these control lines, so `instructions/` and `skills/` seed sources are in `.prettierignore` — format them by hand.
 
 ### Never edit seeded outputs directly
 

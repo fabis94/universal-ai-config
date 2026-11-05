@@ -14,6 +14,7 @@ Everything the config file (`universal-ai-config.config.ts`) supports, plus how 
 - `preserveOnClean` — glob patterns matching **output** paths that `uac clean` must never delete (array or per-target object). See [Preserving files from clean](#preserving-files-from-clean).
 - `mcp` — server-name-level opt-in filtering for MCP (`mcp.forceOptIn` + `mcp.mcpServers`). See [mcp.md](mcp.md#server-name-opt-in-filtering).
 - `agentsMd` — AGENTS.md output: `enable`, `variation`, `indexDir` and `keepOverrideFiles`. See [AGENTS.md output](#agentsmd-output).
+- `standards` — `true`, `"instructions"` or `"skills"`: keep instructions in hand-written `AGENTS.md` files and/or skills in `.agents/skills/` instead of templates. uac then never generates, cleans or gitignores them, and copies skills only for tools that don't read that folder (Claude). A team setting: the overrides file can't set it. Template mode (the default) is recommended. See [standards.md](standards.md).
 
 Any option that takes a per-target object uses the shape `{ claude, copilot, cursor, codex, default }`; a target without its own key falls back to `default`.
 
@@ -54,7 +55,7 @@ Unmatched `{{placeholders}}` are left as-is. Use `universal-ai-config.overrides.
 
 ## AGENTS.md output
 
-Codex reads instructions only from `AGENTS.md` files, and Claude Code, Cursor and Copilot read them too. uac generates AGENTS.md files from your instruction templates:
+Codex reads instructions only from `AGENTS.md` files, and Claude Code, Cursor and Copilot read them too. Unless the project writes its own AGENTS.md files (`standards`, see [standards.md](standards.md)), uac generates AGENTS.md files from your instruction templates:
 
 - **always** when `codex` is a target in the run (Codex has no other instruction mechanism), and
 - when `agentsMd.enable: true`, even without codex.
@@ -103,7 +104,7 @@ The `index` variation writes scoped instructions to `<indexDir>/<name>.md` (defa
 
 uac 2.x wrote `<dir>/AGENTS.override.md` files for Codex. uac 3 writes `AGENTS.md` instead, and Codex reads an `AGENTS.override.md` in place of the `AGENTS.md` in the same folder, so a leftover one hides uac's instructions there. Whenever `generate` or `clean` covers instructions, uac lists every `AGENTS.override.md` in the project with an `agents-override-present` warning and, in a terminal, asks whether to delete them (see [cli.md](cli.md#leftover-agentsoverridemd-files)). It never deletes one without asking: the name is also Codex's own mechanism for hand-written overrides.
 
-Set `agentsMd.keepOverrideFiles: true` if yours are hand-written: uac then never warns about or deletes them. To keep only some, list them in `preserveOnClean`.
+Set `agentsMd.keepOverrideFiles: true` if yours are hand-written: uac then never warns about or deletes them. To keep only some, list them in `preserveOnClean`. While instructions come from AGENTS.md (`standards`), every `AGENTS.override.md` is hand-written too, so uac behaves as if `keepOverrideFiles` were set.
 
 ## Shared outputs and one target set per machine
 

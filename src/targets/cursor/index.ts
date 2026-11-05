@@ -96,6 +96,8 @@ export default defineTarget({
   label: "Cursor",
   outputDir: ".cursor",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
+  // Project skills in .agents/skills/ load next to .cursor/skills/ (the .cursor copy wins)
+  readsAgentSkills: true,
   reads: {
     instructions: [
       {

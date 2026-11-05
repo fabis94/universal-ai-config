@@ -84,7 +84,7 @@ describe("uac setup in an existing project", () => {
       ◇  Which coding agents do you use on this machine?
       │  Cursor
       ✔ Saved Cursor to universal-ai-config.overrides.ts
-      ✔ Seeded meta-instructions (uac <uac>): 20 unchanged
+      ✔ Seeded meta-instructions (uac <uac>): 21 unchanged
       ✔ Updated universal-ai-config patterns in .gitignore
       │
       ◇  Generate now?

@@ -168,7 +168,13 @@ function formatServedBy(served: ServedDiagnostic[], verbose: boolean): ReportLin
 
 /** Paths a warning is about, listed below it when there can be many. */
 function listedPaths(diagnostic: Diagnostic): string[] {
-  return diagnostic.code === "agents-override-present" ? diagnostic.detail.paths : [];
+  switch (diagnostic.code) {
+    case "agents-override-present":
+    case "standard-ignored":
+      return diagnostic.detail.paths;
+    default:
+      return [];
+  }
 }
 
 function printLines(lines: ReportLine[]): void {

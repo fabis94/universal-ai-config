@@ -14,7 +14,7 @@ function toPosix(p: string): string {
   return sep === "/" ? p : p.split(sep).join("/");
 }
 
-interface ExtraFile {
+export interface ExtraFile {
   /** Path relative to the skill directory, e.g. "references/example.md" */
   relativePath: string;
   /** Absolute path to the file on disk ("" for in-memory files) */
@@ -109,6 +109,38 @@ async function isDirectory(path: string): Promise<boolean> {
   return stats?.isDirectory() ?? false;
 }
 
+/** One skill folder: a `SKILL.md` plus any other files beside it. */
+export interface SkillFolder {
+  /** Folder name, which is the skill's name */
+  name: string;
+  /** Absolute path of the SKILL.md */
+  skillFile: string;
+  /** Every other file in the folder, recursively */
+  extraFiles: ExtraFile[];
+}
+
+/**
+ * Every skill folder directly under `dir`, sorted by name (readdir order is
+ * filesystem-dependent, and precedence must not change between machines).
+ * A folder without a SKILL.md isn't a skill, so it's skipped — and its name
+ * stays unclaimed for a lower-precedence source. Template discovery and the
+ * `.agents/skills` standard both go through this, so the rules can't drift.
+ */
+export async function scanSkillFolders(dir: string): Promise<SkillFolder[]> {
+  if (!(await isDirectory(dir))) return [];
+  const folders: SkillFolder[] = [];
+  for (const entry of (await readdir(dir)).sort()) {
+    const skillDir = join(dir, entry);
+    if (!(await isDirectory(skillDir))) continue;
+    const skillFile = join(skillDir, "SKILL.md");
+    const skillStats = await stat(skillFile).catch(() => undefined);
+    if (!skillStats?.isFile()) continue;
+    const extraFiles = (await collectFiles(skillDir)).filter((f) => f.relativePath !== "SKILL.md");
+    folders.push({ name: entry, skillFile, extraFiles });
+  }
+  return folders;
+}
+
 /**
  * Index the reference docs under each template source's `docs/` folder for
  * `docPath()`. Docs are never generated or loaded automatically — agents read
@@ -176,40 +208,28 @@ export async function discoverTemplates(
       const typeDir = join(source.dir, type);
       if (!(await isDirectory(typeDir))) continue;
 
-      // Sorted because readdir order is filesystem-dependent, and precedence
-      // must not change between machines.
-      const entries = (await readdir(typeDir)).sort();
-
       if (type === "skills") {
         // Skills are folders, each containing SKILL.md + optional extra files.
-        for (const entry of entries) {
-          const skillDir = join(typeDir, entry);
-          if (!(await isDirectory(skillDir))) continue;
-          const skillFile = join(skillDir, "SKILL.md");
-          const skillStats = await stat(skillFile).catch(() => undefined);
-          // No SKILL.md in this folder — the name stays unclaimed, so a
-          // lower-precedence dir with a real skill can still win it
-          if (!skillStats?.isFile()) continue;
-
-          const extraFiles = (await collectFiles(skillDir)).filter(
-            (f) => f.relativePath !== "SKILL.md",
-          );
-          const templateRelativePath = toPosix(relative(source.dir, skillFile));
-
-          addCandidate(type, entry, {
-            name: entry,
+        for (const folder of await scanSkillFolders(typeDir)) {
+          const templateRelativePath = toPosix(relative(source.dir, folder.skillFile));
+          addCandidate(type, folder.name, {
+            name: folder.name,
             type,
-            filePath: skillFile,
-            relativePath: relative(root, skillFile),
+            filePath: folder.skillFile,
+            relativePath: relative(root, folder.skillFile),
             templateRelativePath,
             excludePaths: excludePathsFor(source, root, templateRelativePath),
             displayPath: displayPathFor(source, templateRelativePath),
             sourceId: source.id,
-            extraFiles: extraFiles.length > 0 ? extraFiles : undefined,
+            extraFiles: folder.extraFiles.length > 0 ? folder.extraFiles : undefined,
           });
         }
         continue;
       }
+
+      // Sorted because readdir order is filesystem-dependent, and precedence
+      // must not change between machines.
+      const entries = (await readdir(typeDir)).sort();
 
       // Instructions and agents are flat .md files
       for (const entry of entries) {

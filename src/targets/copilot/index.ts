@@ -208,6 +208,8 @@ export default defineTarget({
   label: "GitHub Copilot",
   outputDir: ".github",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
+  // Project skills in .agents/skills/ load next to .github/skills/ (the .github copy wins)
+  readsAgentSkills: true,
   reads: {
     instructions: [
       {

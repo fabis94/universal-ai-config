@@ -1,7 +1,9 @@
 import { parse as parseYAML } from "yaml";
 import ejs from "ejs";
-import { extname, join, posix } from "node:path";
+import { posix } from "node:path";
+import { AGENTS_MD } from "./agents-md/index.js";
 import { createLocator, toPosixPath, type Locator } from "./plan/locate.js";
+import { AGENT_SKILLS_DIR } from "./plan/standards.js";
 import type { ResolvedConfig, Target, TemplateType, UniversalFrontmatter } from "../types.js";
 
 interface ParsedTemplate {
@@ -67,6 +69,9 @@ function buildPathHelpers(
   templatesIndex?: TemplatesIndex,
 ) {
   const { templatesDir } = config;
+  // POSIX joins: these paths end up in generated and committed files, which
+  // must read the same on every OS
+  const { join, extname } = posix;
   const instructionFrontmatter = (name: string): UniversalFrontmatter =>
     templatesIndex?.instructions.get(name) ?? ({} as UniversalFrontmatter);
   const noFrontmatter = {} as UniversalFrontmatter;
@@ -88,10 +93,21 @@ function buildPathHelpers(
       name
         ? locator.templatePath(target, "agents", name, noFrontmatter)
         : locator.typeDir(target, "agents"),
-    instructionTemplatePath: (name?: string) =>
-      name ? join(templatesDir, `instructions/${name}.md`) : join(templatesDir, "instructions"),
-    skillTemplatePath: (name?: string) =>
-      name ? join(templatesDir, `skills/${name}/SKILL.md`) : join(templatesDir, "skills"),
+    // A type read from a standard has its sources there, not in the templates dir
+    instructionTemplatePath: (name?: string) => {
+      if (locator.sourced.has("instructions")) {
+        return name
+          ? locator.templatePath(target, "instructions", name, instructionFrontmatter(name))
+          : AGENTS_MD;
+      }
+      return name
+        ? join(templatesDir, `instructions/${name}.md`)
+        : join(templatesDir, "instructions");
+    },
+    skillTemplatePath: (name?: string) => {
+      const dir = locator.sourced.has("skills") ? AGENT_SKILLS_DIR : join(templatesDir, "skills");
+      return name ? join(dir, name, "SKILL.md") : dir;
+    },
     agentTemplatePath: (name?: string) =>
       name ? join(templatesDir, `agents/${name}.md`) : join(templatesDir, "agents"),
     hookTemplatePath: (name?: string) =>

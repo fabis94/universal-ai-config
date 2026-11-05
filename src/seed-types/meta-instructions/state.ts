@@ -2,7 +2,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ResolvedConfig } from "../../types.js";
 import { UAC_VERSION } from "../../version.js";
-import { getTemplates } from "./index.js";
+import { currentContent, expectedContent, isPresent, mayWriteSkill } from "./destinations.js";
+import { planMetaInstructions } from "./placement.js";
 
 /** Records which uac version last seeded the meta-instructions. Committed with the templates. */
 const STAMP_FILE = ".uac-version";
@@ -26,27 +27,36 @@ export async function writeSeedStamp(root: string, templatesDir: string): Promis
 }
 
 export interface SeedDrift {
-  /** Seeded files that don't exist */
+  /** Seeded files (or AGENTS.md blocks) that don't exist */
   missing: number;
   /** Seeded files whose content differs from what this uac would seed (edited or outdated) */
   differ: number;
+  /**
+   * uac's files where the other setting of `standards` puts them — the
+   * setting changed since the last seed, so a reseed is due to move them
+   */
+  misplaced: number;
 }
 
-/** Compare the meta-instructions on disk with what this uac version would seed. */
+/**
+ * Compare the meta-instructions on disk with what this uac version would seed
+ * under this config. A same-named skill the project keeps in `.agents/skills`
+ * isn't uac's, so it never counts.
+ */
 export async function metaInstructionsDrift(
   root: string,
-  config: Pick<ResolvedConfig, "templatesDir" | "types">,
+  config: ResolvedConfig,
 ): Promise<SeedDrift> {
-  const drift: SeedDrift = { missing: 0, differ: 0 };
-  for (const template of getTemplates(config.templatesDir, config.types)) {
-    let current: string;
-    try {
-      current = await readFile(join(root, config.templatesDir, template.relativePath), "utf-8");
-    } catch {
-      drift.missing += 1;
-      continue;
-    }
-    if (current !== template.content) drift.differ += 1;
+  const drift: SeedDrift = { missing: 0, differ: 0, misplaced: 0 };
+  const plan = planMetaInstructions(config);
+  for (const entry of plan.entries) {
+    if (entry.skill && !(await mayWriteSkill(root, entry.skill))) continue;
+    const current = await currentContent(root, entry);
+    if (current === undefined) drift.missing += 1;
+    else if (current !== expectedContent(entry)) drift.differ += 1;
+  }
+  for (const item of plan.obsolete) {
+    if (await isPresent(root, item)) drift.misplaced += 1;
   }
   return drift;
 }

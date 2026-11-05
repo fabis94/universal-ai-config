@@ -34,6 +34,7 @@ It works from any subdirectory — uac searches upward for the project root. `--
 - `preserveOnClean` — output paths `uac clean` must never delete.
 - `mcp` — opt-in filtering of MCP servers by name.
 - `agentsMd` — AGENTS.md output (`enable`, `variation`, `indexDir`, `keepOverrideFiles`); always on with codex, and then Claude/Cursor/Copilot use it instead of their own instruction files.
+- `standards` — keep instructions (`AGENTS.md`) and/or skills (`.agents/skills`) as hand-written sources instead of templates; template mode is recommended: `<%= docPath('uac/standards') %>`
 
 `universal-ai-config.overrides.ts` (gitignored) is merged over the config for local settings. Arrays there replace the base value; use `mergeField` to concatenate.
 

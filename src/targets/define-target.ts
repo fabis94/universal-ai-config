@@ -193,6 +193,14 @@ export interface TargetDefinition {
   /** Other outputs this tool reads, per type (see `ForeignRead`) */
   reads?: Partial<Record<TemplateType, readonly ForeignRead[]>>;
   /**
+   * The tool loads project skills from `.agents/skills/` (the Agent Skills
+   * standard's folder) on its own. When a project keeps its skills there
+   * (`standards`), uac generates no skills for this target; targets without
+   * it get copies in their own skills folder. (Whether a tool reads AGENTS.md
+   * comes from `reads.instructions` and `instructions: "agentsMd"`.)
+   */
+  readsAgentSkills?: true;
+  /**
    * Instruction output. `"agentsMd"` means the tool reads only AGENTS.md, so
    * the shared AGENTS.md output is its instruction output (Codex).
    */

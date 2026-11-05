@@ -2,14 +2,20 @@ import { readFile, readdir, rm, rmdir, stat, writeFile } from "node:fs/promises"
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { targets } from "../../targets/index.js";
-import type { TargetDefinition } from "../../targets/define-target.js";
+import { agentsMdOwners } from "../plan/build-plan.js";
 import { createLocator, toPosixPath } from "../plan/locate.js";
+import {
+  isAgentSkillsPath,
+  ownedByUac,
+  resolvesIntoAgentSkills,
+  sourcedTypes,
+} from "../plan/standards.js";
 import { createPreserveMatcher } from "../preserve-on-clean.js";
 import { safePath } from "../safe-path.js";
 import { listFilesRecursive } from "../scan-files.js";
 import { parseToml, stringifyToml } from "../toml.js";
 import { AGENTS_MD } from "../agents-md/index.js";
-import type { PerTargetValue, Target, TemplateType } from "../../types.js";
+import type { PerTargetValue, StandardsSetting, Target, TemplateType } from "../../types.js";
 import { findFilesOutsideInputs, templateDirsWithin } from "./agents-files.js";
 import { ownedEntries, type CleanEntry } from "./entries.js";
 import { legacyEntries } from "./legacy.js";
@@ -30,6 +36,14 @@ export interface CleanOptions {
    * reads AGENTS.md owns those files too, so cleaning it removes them.
    */
   agentsMd?: { enable?: boolean; indexDir?: string };
+  /**
+   * The project's `standards` setting. Omitted means template mode, where
+   * uac owns every AGENTS.md (cleaning codex removes them) and codex owns
+   * `.agents/skills`. Pass it whenever the project sets it: with a standard
+   * as the source, its files and the folders of tools that read it are the
+   * project's own and are never removed.
+   */
+  standards?: StandardsSetting;
   /**
    * Called with each root-relative path that `preserveOnClean` kept. Only fires
    * for paths that actually exist — a pattern matching nothing is not reported,
@@ -150,21 +164,6 @@ async function removeKey(
   return [entry.path];
 }
 
-function readsAgentsMd(definition: TargetDefinition | undefined): boolean {
-  return (definition?.reads?.instructions ?? []).some((read) => read.from === "agentsMd");
-}
-
-/**
- * Whether cleaning `target` covers the AGENTS.md files: codex always (its
- * instructions are AGENTS.md), any other reader only when `agentsMd.enable`
- * made AGENTS.md its instruction output.
- */
-function ownsAgentsMd(target: Target, options?: CleanOptions): boolean {
-  const definition = targets[target];
-  if (definition?.instructions === "agentsMd") return true;
-  return options?.agentsMd?.enable === true && readsAgentsMd(definition);
-}
-
 /**
  * Remove generated artifacts for a set of targets.
  *
@@ -188,6 +187,16 @@ export async function cleanTargetFiles(
 ): Promise<string[]> {
   const targetList = targetNames ?? (Object.keys(targets) as Target[]);
   const includesType = (type: TemplateType): boolean => !types || types.includes(type);
+  const facts = {
+    agentsMd: { ...DEFAULT_CONFIG.agentsMd, ...options?.agentsMd },
+    standards: options?.standards ?? DEFAULT_CONFIG.standards,
+    types: types ?? DEFAULT_CONFIG.types,
+  };
+  const sourced = sourcedTypes(facts);
+  /** A path a standard keeps the project's own files in, even through a symlink. */
+  const isStandardSource = async (path: string): Promise<boolean> =>
+    sourced.has("skills") &&
+    (isAgentSkillsPath(path) || (await resolvesIntoAgentSkills(root, path)));
   const locator = createLocator({
     outputDirs: { ...DEFAULT_CONFIG.outputDirs, ...options?.outputDirs },
     agentsMd: {
@@ -208,6 +217,9 @@ export async function cleanTargetFiles(
     const ctx = contextFor([createPreserveMatcher(options?.preserveOnClean, target)]);
     for (const entry of [...ownedEntries(target, locator), ...legacyEntries(target)]) {
       if (!includesType(entry.type)) continue;
+      // A tool that loads the standard the type comes from: its folder isn't uac's
+      if (!ownedByUac(target, entry.type, facts)) continue;
+      if (await isStandardSource(entry.path)) continue;
       const paths =
         entry.kind === "key" ? await removeKey(entry, ctx) : await removePath(entry.path, ctx);
       for (const path of paths) removed.add(path);
@@ -218,7 +230,7 @@ export async function cleanTargetFiles(
   // instructions pointed, so a scan finds them (including ones a template
   // no longer derives). Legacy AGENTS.override.md files are not removed here:
   // see findAgentsOverrideFiles().
-  const owners = targetList.filter((target) => ownsAgentsMd(target, options));
+  const owners = agentsMdOwners(targetList, facts);
   if (owners.length > 0 && includesType("instructions")) {
     const ctx = contextFor(
       owners.map((target) => createPreserveMatcher(options?.preserveOnClean, target)),

@@ -367,6 +367,8 @@ export default defineTarget({
   label: "Codex",
   outputDir: ".codex",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
+  // .agents/skills/ is Codex's own skill folder
+  readsAgentSkills: true,
 
   // Codex reads only AGENTS.md: its instructions are the shared AGENTS.md output
   instructions: "agentsMd",

@@ -28,7 +28,7 @@ List files in `<%%= agentTemplatePath() %>/` to discover existing agent template
 
 ### Frontmatter Fields
 
-Key fields: `name`, `description`, `model`, `effort`, `tools`, `permissionMode`, `skills`, `hooks`, plus Cursor's `readonly`, Copilot's `modelPolicy`, and the Codex-only `codex` block. Every field with its per-target support: `<%%= docPath('uac/frontmatter') %>`. Per-target override syntax: `<%%= instructionPath('uac-template-guide') %>`.
+Key fields: `name`, `description`, `model`, `effort`, `tools`, `permissionMode`, `skills`, `hooks`, plus Cursor's `readonly`, Copilot's `modelPolicy`, and the Codex-only `codex` block. Every field with its per-target support: `<%%= docPath('uac/frontmatter') %>`. Per-target override syntax: `<%%= <%= guidePathHelper %>('uac-template-guide') %%>`.
 
 ### Cross-target gotchas for agents
 

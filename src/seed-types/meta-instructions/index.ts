@@ -12,12 +12,34 @@ import type { SeedTemplate } from "../shared.js";
 
 const TEMPLATES_DIR = getSeedTemplatesDir("meta-instructions");
 
-/** The meta-instruction templates, without those of types left out of `types`. */
+/** Which types the project keeps in an open standard, as the seed sources see it (EJS `standards`). */
+interface SeedStandards {
+  instructions: boolean;
+  skills: boolean;
+}
+
+const TEMPLATE_MODE: SeedStandards = { instructions: false, skills: false };
+
+/**
+ * The meta-instruction templates, without those of types left out of `types`,
+ * after the seed's EJS pass. Paths are relative to the templates dir; where a
+ * file finally goes is up to `planMetaInstructions`.
+ *
+ * @param standards the types read from a standard: the sources branch on it
+ *   (`<% if (standards.skills) { %>`) where locations or wording differ
+ */
 export function getTemplates(
   templatesDir: string,
   types: readonly TemplateType[] = DEFAULT_CONFIG.types,
+  standards: SeedStandards = TEMPLATE_MODE,
 ): SeedTemplate[] {
-  const vars = { templatesDir };
+  const vars = {
+    templatesDir,
+    standards,
+    // How skills link the template guide. A skill in .agents/skills is read by
+    // every tool, so it links the guide's source, not one tool's copy of it
+    guidePathHelper: standards.skills ? "instructionTemplatePath" : "instructionPath",
+  };
   const templates: SeedTemplate[] = [];
 
   // Instructions: flat .md files

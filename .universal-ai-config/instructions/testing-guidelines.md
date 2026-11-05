@@ -3,6 +3,24 @@ description: How to write and organize tests
 globs: ["tests/**/*.ts", "**/*.test.ts", "src/commands/**", "scripts/tui.ts"]
 ---
 
+## Coverage
+
+We do little manual testing, so the automated suite must prove every change works. Cover each change at every layer it touches, not with unit tests alone:
+
+- **Unit** — the logic and its edge cases
+- **Fixture** — the full pipeline on a fixture project, asserting generated files and diagnostics
+- **CLI** — the command run on a temp project (`CliProject`), plus e2e for anything rendered
+
+Write the tests that would fail if the change regressed. A change without that coverage is not done.
+
+## Both Modes
+
+Instructions and skills come from templates or, with `standards`, from the project's AGENTS.md files and `.agents/skills`. A change to instructions, skills, the planner, the locator, clean, the `.gitignore` block, seeding or `skill add` needs tests in both modes:
+
+- **Template-mode regression** — `tests/integration/template-mode-regression.test.ts` snapshots generated files, diagnostics, clean dry runs, `.gitignore` blocks and seed output over every fixture. Update it (`vitest -u`) only on purpose, after checking every changed line.
+- **Decision table** — `tests/unit/plan/output-mode.test.ts` asserts `outputFor` for every `standards` value; extend it for a new target or type.
+- **Standards mode** — the `standards-project` fixture (`standards.test.ts`, `standards-checks.test.ts`), seeded content per mode (`seed-standards.test.ts`, unit and CLI), and the safety sweep (`standards-safety.test.ts`): every command that writes or deletes runs against hand-written standard files that must come out unchanged. Add any new such command to the sweep.
+
 ## Test Organization
 
 - **Unit tests** (`tests/unit/`) — test pure functions in isolation: parser, config schema validation, resolve-overrides, target frontmatter mapping, the planner (`plan/`), AGENTS.md routing/layout (`agents-md/`), clean entries (`clean/`)
@@ -60,6 +78,7 @@ Each fixture is a minimal self-contained project under `tests/fixtures/`:
 - `binary-extra-files-project` — byte-exact and executable skill extra files
 - `hook-handler-types-project` — handler types per target
 - `fields-project` — every 3.0 skill, agent, hook and MCP field, asserted per target
+- `standards-project` — `standards: true` with hook, MCP, agent and ignored instruction/skill templates. The project's own files (root and nested AGENTS.md, an AGENTS.override.md, `.agents/skills` with binary and executable extras, `.cursor/rules`) are written into a temp copy by `createStandardsProject()` (`tests/integration/standards-project.ts`): committed under `tests/fixtures`, tools working on uac would load them and `uac clean` here would remove them
 
 When adding new features, prefer extending an existing fixture or creating a new one rather than modifying `basic-project`.
 
@@ -80,6 +99,7 @@ All UAC logic that is target-specific must be tested comprehensively per target.
 - **MCP transforms** — all supported fields, and that unsupported fields (e.g. envFile on Codex, sandboxEnabled on Claude) are absent from output
 - **Diagnostics** — every field a target drops or rewrites with a warning, asserted by `code` and `detail`
 - **Cross-target reads** — a target's `reads` declarations through the planner (`tests/unit/plan/`) and `pick-one-project`
+- **Standards facts** — whether the target reads AGENTS.md and `.agents/skills` (`readsAgentSkills`), through `tests/unit/plan/standards.test.ts` and the decision table
 - **Field stripping** — for every field that a target does not support, assert with `not.toContain()` that it does not appear in generated output
 
 Target-agnostic logic is exempt from per-target testing: parser, config schema, resolve-overrides, glob normalization, exclude matching, and variable resolution are covered by their own unit tests.

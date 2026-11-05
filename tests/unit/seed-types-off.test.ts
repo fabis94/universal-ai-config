@@ -117,15 +117,27 @@ describe("tmp project", () => {
 
     it("counts missing and differing seeded files", async () => {
       const total = metaTemplates(seedConfig.templatesDir).length;
-      expect(await metaInstructionsDrift(root, seedConfig)).toEqual({ missing: total, differ: 0 });
+      expect(await metaInstructionsDrift(root, seedConfig)).toEqual({
+        missing: total,
+        differ: 0,
+        misplaced: 0,
+      });
 
       await runSeed("meta-instructions", root, seedConfig, { quiet: true });
-      expect(await metaInstructionsDrift(root, seedConfig)).toEqual({ missing: 0, differ: 0 });
+      expect(await metaInstructionsDrift(root, seedConfig)).toEqual({
+        missing: 0,
+        differ: 0,
+        misplaced: 0,
+      });
 
       const guide = join(root, seedConfig.templatesDir, "instructions/uac-template-guide.md");
       await writeFile(guide, "edited\n");
       await rm(join(root, seedConfig.templatesDir, "docs/uac/hooks.md"));
-      expect(await metaInstructionsDrift(root, seedConfig)).toEqual({ missing: 1, differ: 1 });
+      expect(await metaInstructionsDrift(root, seedConfig)).toEqual({
+        missing: 1,
+        differ: 1,
+        misplaced: 0,
+      });
     });
   });
 });

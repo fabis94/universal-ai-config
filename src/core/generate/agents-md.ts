@@ -1,7 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import { buildAgentsMdFiles, checkCodexBudget, type AgentsMdEntry } from "../agents-md/index.js";
-import type { Reporter } from "../diagnostics.js";
+import { checkClaudeMd, checkCodexBudget } from "../agents-md/checks.js";
+import { buildAgentsMdFiles, type AgentsMdEntry } from "../agents-md/index.js";
 import { parseTemplate, type TemplatesIndex } from "../parser.js";
 import type { AgentsMdPlan, OutputPlan } from "../plan/build-plan.js";
 import { toPosixPath } from "../plan/locate.js";
@@ -11,9 +9,6 @@ import type { GenerateRun } from "./context.js";
 import type { DiscoveredTemplate, TemplateSlot } from "./discover.js";
 import type { FileReader } from "./read-cache.js";
 import { stableStringify } from "./stable-stringify.js";
-
-/** Files that make Claude ignore every AGENTS.md when non-empty. */
-const CLAUDE_MD_FILES = ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"];
 
 /** One instruction template rendered for one target. */
 async function renderEntry(
@@ -102,23 +97,6 @@ async function reportDivergence(
       }
     }
   }
-}
-
-/** Claude reads AGENTS.md only while none of its own memory files has content. */
-async function checkClaudeMd(root: string, report: Reporter): Promise<void> {
-  const present: string[] = [];
-  for (const file of CLAUDE_MD_FILES) {
-    const content = await readFile(join(root, file), "utf-8").catch(() => "");
-    if (content.trim() !== "") present.push(file);
-  }
-  if (present.length === 0) return;
-  report({
-    code: "claude-md-present",
-    message:
-      `Claude reads AGENTS.md only when no CLAUDE.md has content, but ${present.join(", ")} does — so Claude gets none of uac's instructions. ` +
-      `Add "@AGENTS.md" to ${present[0]} (that imports the root file only), or remove the file.`,
-    detail: { files: present },
-  });
 }
 
 /** Render the shared AGENTS.md files for every target that reads them. */

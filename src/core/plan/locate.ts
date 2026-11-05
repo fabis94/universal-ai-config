@@ -7,8 +7,10 @@ import type {
   TargetDefinition,
   TemplateTypeConfig,
 } from "../../targets/define-target.js";
+import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import type { ResolvedConfig, Target, UniversalFrontmatter } from "../../types.js";
 import type { OutputPlan } from "./build-plan.js";
+import { AGENT_SKILLS_DIR, readsStandard, sourcedTypes, type StandardType } from "./standards.js";
 
 /** Forward slashes, no `./` prefix, no trailing slash. */
 export function toPosixPath(p: string): string {
@@ -35,14 +37,20 @@ const FALLBACK_PATHS: Record<MarkdownTemplateType, (dir: string, name: string) =
  * and POSIX.
  */
 export interface Locator {
+  /** The types read from a standard instead of templates (`config.standards`) */
+  sourced: ReadonlySet<StandardType>;
   /** The target's output directory for this run */
   outputDir(target: Target): string;
   pathContext(target: Target): PathContext;
   /** The target's own config for a type; undefined when it has none (or uses AGENTS.md) */
   typeConfig(target: Target, type: MarkdownTemplateType): TemplateTypeConfig | undefined;
-  /** Whether the target's instructions are the AGENTS.md files in this run */
+  /** Whether the target's instructions are the AGENTS.md files (generated or the project's own) */
   usesAgentsMd(target: Target): boolean;
-  /** Main output file of a template — the AGENTS.md file it lands in, for targets that use AGENTS.md */
+  /**
+   * Main output file of a template — the AGENTS.md file it lands in, for
+   * targets that use AGENTS.md; the `.agents/skills` source of a skill, for
+   * targets that read skills from there
+   */
   templatePath(
     target: Target,
     type: MarkdownTemplateType,
@@ -57,15 +65,22 @@ export interface Locator {
   mcpPath(target: Target): string | undefined;
 }
 
+/** What paths depend on. `standards` and `types` default to template mode with every type. */
+type LocatorConfig = Pick<ResolvedConfig, "outputDirs" | "agentsMd"> &
+  Partial<Pick<ResolvedConfig, "standards" | "types">>;
+
 /**
- * @param plan when given, targets the plan switched to AGENTS.md route their
- *   instructions there too; without it only targets that read nothing but
- *   AGENTS.md (codex) do.
+ * Paths follow the target facts and the config, so a locator built without a
+ * plan (seed, clean, the default in `renderEjs`) agrees with one built for a
+ * run. A type read from a standard routes every target that reads the
+ * standard to it: AGENTS.md (in the `nested` layout) for instructions,
+ * `.agents/skills/` for skills.
+ *
+ * @param plan when given, targets the plan switched to generated AGENTS.md
+ *   route their instructions there too; without it only targets that read
+ *   nothing but AGENTS.md (codex) do.
  */
-export function createLocator(
-  config: Pick<ResolvedConfig, "outputDirs" | "agentsMd">,
-  plan?: OutputPlan,
-): Locator {
+export function createLocator(config: LocatorConfig, plan?: OutputPlan): Locator {
   const definition = (target: Target): TargetDefinition | undefined => targets[target];
 
   const outputDir = (target: Target): string =>
@@ -75,17 +90,33 @@ export function createLocator(
     const tc = definition(target)?.[type];
     return typeof tc === "object" ? tc : undefined;
   };
+  const sourced = sourcedTypes({
+    standards: config.standards ?? DEFAULT_CONFIG.standards,
+    types: config.types ?? DEFAULT_CONFIG.types,
+  });
+  /** The target reads the standard `type` comes from, so its paths point there. */
+  const readsSource = (target: Target, type: StandardType): boolean =>
+    sourced.has(type) && readsStandard(definition(target), type);
+
   const usesAgentsMd = (target: Target): boolean =>
     definition(target)?.instructions === "agentsMd" ||
-    (plan?.readsAgentsMdInstructions(target) ?? false);
-  const layout = {
-    variation: plan?.agentsMd?.variation ?? config.agentsMd.variation,
-    indexDir: toPosixPath(plan?.agentsMd?.indexDir ?? config.agentsMd.indexDir),
-  };
+    plan?.outputFor(target, "instructions").kind === "agentsMd" ||
+    readsSource(target, "instructions");
+  // The project's own AGENTS.md files are laid out by folder; the agentsMd
+  // options only shape generated ones
+  const layout = sourced.has("instructions")
+    ? { variation: "nested" as const, indexDir: toPosixPath(DEFAULT_CONFIG.agentsMd.indexDir) }
+    : {
+        variation: plan?.agentsMd?.variation ?? config.agentsMd.variation,
+        indexDir: toPosixPath(plan?.agentsMd?.indexDir ?? config.agentsMd.indexDir),
+      };
 
   const templatePath: Locator["templatePath"] = (target, type, name, frontmatter) => {
     if (type === "instructions" && usesAgentsMd(target)) {
       return primaryFile({ name, frontmatter, sourcePath: "", body: "" }, layout);
+    }
+    if (type === "skills" && readsSource(target, "skills")) {
+      return `${AGENT_SKILLS_DIR}/${name}/SKILL.md`;
     }
     const tc = typeConfig(target, type);
     if (!tc) return FALLBACK_PATHS[type](outputDir(target), name);
@@ -93,6 +124,7 @@ export function createLocator(
   };
 
   return {
+    sourced,
     outputDir,
     pathContext,
     typeConfig,
@@ -100,6 +132,7 @@ export function createLocator(
     templatePath,
     typeDir: (target, type) => {
       if (type === "instructions" && usesAgentsMd(target)) return AGENTS_MD;
+      if (type === "skills" && readsSource(target, "skills")) return AGENT_SKILLS_DIR;
       const tc = typeConfig(target, type);
       if (!tc) return `${outputDir(target)}/${type}`;
       return toPosixPath(tc.typeDir(pathContext(target)));

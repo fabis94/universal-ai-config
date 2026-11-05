@@ -60,6 +60,7 @@ function mergeConfigs(base: ResolvedConfig, override: UserConfig): ResolvedConfi
     mcp: { ...base.mcp, ...override.mcp },
     // AGENTS.md config: shallow-merge fields, like mcp
     agentsMd: { ...base.agentsMd, ...override.agentsMd },
+    standards: override.standards ?? base.standards,
   };
 }
 
@@ -113,6 +114,13 @@ export async function loadProjectConfig(options: LoadConfigOptions = {}): Promis
 
   if (overridesRaw && Object.keys(overridesRaw).length > 0) {
     const overridesParsed = userConfigSchema.parse(overridesRaw);
+    // Per machine, it would make one developer's generate overwrite (and clean
+    // delete) the AGENTS.md and .agents/skills files the team commits
+    if (overridesParsed.standards !== undefined) {
+      throw new Error(
+        "`standards` is a team setting: set it in universal-ai-config.config.ts, not in the per-machine overrides file",
+      );
+    }
     resolved = mergeConfigs(resolved, overridesParsed);
   }
 

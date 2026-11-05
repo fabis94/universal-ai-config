@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildAgentsMdFiles,
-  checkCodexBudget,
-  type AgentsMdEntry,
-} from "../../../src/core/agents-md/index.js";
+import { checkCodexBudget } from "../../../src/core/agents-md/checks.js";
+import { buildAgentsMdFiles, type AgentsMdEntry } from "../../../src/core/agents-md/index.js";
 import { INDEX_PREAMBLE } from "../../../src/core/agents-md/render.js";
 import type { DiagnosticInput } from "../../../src/core/diagnostics.js";
 import type { UniversalFrontmatter } from "../../../src/types.js";

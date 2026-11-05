@@ -15,7 +15,7 @@ Create a new target implementation for universal-ai-config. A target maps univer
    - Hook configuration format (JSON structure, event names)
    - **MCP tool reference syntax** — how the target references MCP tools in hook matchers, agent `tools:` frontmatter, and any allow/deny lists. Find the exact string format (e.g. `mcp__server__tool`, `server/tool`, `MCP:tool`) and the wildcard convention for "all tools on a server"
 
-   - **What it reads from other tools** — whether it also loads `AGENTS.md` (root, nested, when), other tools' folders (`.claude/skills`, `.claude/agents`, `.claude/settings.json` hooks, root `.mcp.json`), and what it does when it finds its own copy too: loads both, dedupes identical entries, or prefers its own. Docs are often vague here — follow Part 6 of the [upstream validation reference](../report-feature-changes/upstream-validation-reference.md) to check by running the tool.
+   - **What it reads from other tools** — whether it also loads `AGENTS.md` (root, nested, when) and project skills from `.agents/skills/` (the Agent Skills standard's folder), other tools' folders (`.claude/skills`, `.claude/agents`, `.claude/settings.json` hooks, root `.mcp.json`), and what it does when it finds its own copy too: loads both, dedupes identical entries, or prefers its own. Docs are often vague here — follow Part 6 of the [upstream validation reference](../report-feature-changes/upstream-validation-reference.md) to check by running the tool.
 
    Look through docs for all supported configuration types:
    - Instructions/rules/"system prompt"
@@ -46,6 +46,7 @@ After the user approves the research findings, **enter plan mode** to design the
      - `outputPath` / `typeDir` / `ownedPaths` — the exact root-relative paths, including how `alwaysApply` or other flags affect routing
      - `render` / `combine` / `frontmatterStyle` if the defaults don't fit (see below)
    - **`reads`**: one `ForeignRead` per type the tool also reads from another target or AGENTS.md, with the reconcile mode and a `loses` sentence
+   - **`readsAgentSkills`**: `true` when the tool loads `.agents/skills` on its own. With the AGENTS.md read, it decides standards mode (`standards` config): a tool that reads a standard gets nothing generated for that type, the others get copies
    - **Hooks** (if supported): the `events` map (universal → target names), `handlerTypes`, the `transform`, `outputPath(ctx)`, and `mergeKey` if the hook config nests inside a larger file
    - **MCP** (if supported): `transform`, `outputPath(ctx)`, `mergeKey`/`format` for shared files
    - **Registration**: `src/targets/index.ts`, the `Target` union in `src/types.ts`, and every per-target key list (see step 8)
@@ -131,6 +132,7 @@ Once the plan is approved, execute it:
     - `tests/unit/targets/<name>.test.ts` — every frontmatter mapping, every output path, the hooks event map and handler output, MCP fields (use `collectingContext()` from `tests/test-helpers.ts` to assert diagnostics)
     - `tests/unit/clean/entries.test.ts` — the clean entries derived from the new definition
     - `tests/unit/plan/build-plan.test.ts` and `tests/integration/pick-one.test.ts` — if the target declares `reads`, the yield / duplicate-run cases
+    - `tests/unit/plan/output-mode.test.ts` and `tests/unit/plan/standards.test.ts` — the target's row in the decision table and its standards facts; `tests/integration/standards.test.ts` — what it gets from the `standards-project` fixture
     - integration tests with existing fixtures (`complete-project`, `exhaustive-project`) verifying generated paths and content
 
 12. **Update the upstream validation reference** — copy the draft section from the approved plan into [.universal-ai-config/skills/report-feature-changes/upstream-validation-reference.md](../report-feature-changes/upstream-validation-reference.md), applying any corrections the user made during plan review. After inserting, skim Part 1 of that file and confirm every feature category your target supports has a corresponding row in the per-feature index.

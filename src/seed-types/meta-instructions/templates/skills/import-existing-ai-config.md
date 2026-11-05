@@ -132,12 +132,31 @@ For each converted file:
 
 **File placement:**
 
+<% if (standards.instructions) { -%>
+- Instructions → the project's `AGENTS.md` files (see below)
+<% } else { -%>
 - Instructions → `<%%= instructionTemplatePath('{name}') %>`
+<% } -%>
+<% if (standards.skills) { -%>
+- Skills → `.agents/skills/{name}/` (see below)
+<% } else { -%>
 - Skills → `<%%= skillTemplatePath('{name}') %>`
+<% } -%>
 - Agents → `<%%= agentTemplatePath('{name}') %>`
 - Hooks → `<%%= hookTemplatePath('{source-name}') %>`
 - MCP → `<%%= mcpTemplatePath('{source-name}') %>`
-- Commands → `<%%= skillTemplatePath('{name}') %>` (commands convert to skills)
+- Commands → <% if (standards.skills) { %>`.agents/skills/{name}/`<% } else { %>`<%%= skillTemplatePath('{name}') %>`<% } %> (commands convert to skills)
+<% if (standards.instructions || standards.skills) { -%>
+
+**Open standards (`standards` in the config).** This project keeps <% if (standards.instructions && standards.skills) { %>instructions and skills<% } else if (standards.instructions) { %>instructions<% } else { %>skills<% } %> in the formats every tool reads, not as templates:
+
+<% if (standards.instructions) { -%>
+- **Instructions** → plain markdown in `AGENTS.md`, no frontmatter. Always-on content goes in the root `AGENTS.md`; content scoped to one folder (`paths`, `globs`, `applyTo`) goes in `<folder>/AGENTS.md`. A rule for a file pattern goes in the folder holding those files, or in the root file with a sentence naming them. Add sections; never edit inside the `<!-- >>> universal-ai-config >>> -->` block. Codex's AGENTS.md files already are the source: nothing to import.
+<% } -%>
+<% if (standards.skills) { -%>
+- **Skills and commands** → `.agents/skills/{name}/` in the Agent Skills format the tools read: native field names (`user-invocable`, `disable-model-invocation`, `allowed-tools`, `argument-hint`), no EJS or per-target overrides, every extra file copied as is. `.agents/skills` already is Codex's source: nothing to import.
+<% } -%>
+<% } -%>
 
 ### 4. Handle Special Cases
 

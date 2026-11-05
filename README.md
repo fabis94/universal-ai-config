@@ -5,6 +5,9 @@ Generate tool-specific AI config files from shared templates. Write your AI inst
 ## Table of Contents
 
 - [Why](#why)
+- [Ways to Use uac](#ways-to-use-uac)
+  - [Template mode (default, recommended)](#template-mode-default-recommended)
+  - [Standards mode](#standards-mode)
 - [Install](#install)
 - [Quick Start](#quick-start)
 - [Shared Outputs: One Target Set per Machine](#shared-outputs-one-target-set-per-machine)
@@ -35,6 +38,53 @@ Generate tool-specific AI config files from shared templates. Write your AI inst
 ## Why
 
 AI coding tools each have their own config formats stored in `.claude/`, `.github/`, `.cursor/`, `.codex/` (plus `AGENTS.md` files and `.agents/skills/`). Teams want shared AI config but each developer may use a different tool. This CLI generates target-specific config files from shared templates in `.universal-ai-config/`, so the tool-specific folders can be gitignored and each dev generates only what they need.
+
+## Ways to Use uac
+
+uac can manage your instructions and skills in one of two ways. Hooks, MCP servers and agents are uac templates either way.
+
+### Template mode (default, recommended)
+
+Everything is a template in `.universal-ai-config/`: instructions in `instructions/`, skills in `skills/`. `uac generate` renders them into each tool's own format, so every tool gets its best native mechanism.
+
+**Pros**
+
+- Glob-scoped rules, Copilot `applyTo` and `excludeAgent`, Cursor's agent-decided rules
+- Per-target frontmatter and overrides, EJS and path helpers, per-target `exclude`
+- AGENTS.md only where it's needed (Codex, or opt-in), in the layout you pick
+- One source for every type
+
+**Cons**
+
+- Instructions and skills are uac-specific templates
+- The outputs need a `uac generate` after cloning
+
+Nothing to configure: this is what you get by default.
+
+### Standards mode
+
+Your instructions are your own `AGENTS.md` files (root and nested), and your skills are your own `.agents/skills/<name>/` folders, both committed. uac never generates, cleans or gitignores them. It copies skills for Claude, which doesn't read `.agents/skills`, and keeps managing hooks, MCP servers and agents from templates.
+
+**Pros**
+
+- Open-standard files that any tool, teammate or cloud agent reads without uac
+- Easy to adopt for a team already on AGENTS.md and Agent Skills; uac adds only what's missing
+
+**Cons**
+
+- Every tool depends on AGENTS.md, and each supports it differently: Claude loads none while a `CLAUDE.md` has content, and nested files only when it reads a file there; Codex loads nested files only on its launch path; Copilot on `view`
+- No glob-scoped or agent-decided instructions
+- No EJS or per-target fields in skills, and `exclude` only affects Claude's copies
+
+Use it when your team already keeps its instructions and skills in the open standards:
+
+```typescript
+export default defineConfig({
+  standards: true, // or "instructions" / "skills" for just one of them
+});
+```
+
+What each tool gets, what you give up and how to switch: [`docs/uac/standards.md`](src/seed-types/meta-instructions/templates/docs/uac/standards.md).
 
 ## Install & Run
 
@@ -110,6 +160,8 @@ Each tool's own instruction mechanism is the default. `AGENTS.md` files are gene
 - **Opt-in** with `agentsMd.enable: true`, e.g. a Claude-only project that wants `AGENTS.md`.
 
 While they're generated, every target that reads `AGENTS.md` (claude, cursor, copilot) skips **all** of its own instruction output, so nothing loads twice. uac never writes `CLAUDE.md`.
+
+> Writing your `AGENTS.md` files by hand instead? See [Ways to Use uac](#ways-to-use-uac): with `standards`, uac generates no AGENTS.md and none of this applies.
 
 ```typescript
 export default defineConfig({
@@ -616,6 +668,11 @@ export default defineConfig({
 
   // AGENTS.md output (forced when codex is a target) — see "AGENTS.md" above
   agentsMd: { variation: "nested" },
+
+  // Keep instructions in your own AGENTS.md files and/or skills in .agents/skills
+  // instead of templates (default: false) — see "Ways to Use uac" above.
+  // A team setting: the overrides file can't set it
+  // standards: true,
 });
 ```
 
@@ -862,7 +919,7 @@ Without a terminal (CI, scripts, coding agents), or with any of the flags below,
 
 ### `uac clean`
 
-Remove what uac generated: the paths and keys it owns, for every target and the enabled types.
+Remove what uac generated: the paths and keys it owns, for every target and the enabled types. With `standards`, clean never touches the AGENTS.md files, `.agents/skills` or the folders of tools that read them.
 
 | Flag        | Short | Description                      | Default        |
 | ----------- | ----- | -------------------------------- | -------------- |
@@ -921,7 +978,7 @@ Existing files are overwritten to ensure templates stay up to date.
 
 ### `uac skill add`
 
-Download skill(s) from a GitHub repo (or a local path) into `.universal-ai-config/skills/<name>/` as new skill templates, then run `uac generate` to produce the per-target outputs. Skills are always **copied** into the current project — no global installs or symlinks. Re-adding an existing skill **overrides** it (stale files are removed).
+Download skill(s) from a GitHub repo (or a local path) into `.universal-ai-config/skills/<name>/` as new skill templates (into `.agents/skills/<name>/` while skills come from there, see [Ways to Use uac](#ways-to-use-uac)), then run `uac generate` to produce the per-target outputs. Skills are always **copied** into the current project — no global installs or symlinks. Re-adding an existing skill **overrides** it (stale files are removed).
 
 The positional `source` accepts GitHub shorthand (`owner/repo`, `owner/repo/subpath`, `owner/repo@skill`), a `github:` prefix, github.com URLs (including `/tree/<ref>/<subpath>`), a `#ref` / `#ref@skill` fragment, or a local filesystem path. With no skill selection flag and multiple skills found, an interactive wizard lets you pick which to install.
 
