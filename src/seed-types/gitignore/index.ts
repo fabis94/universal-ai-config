@@ -1,12 +1,15 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { consola } from "consola";
+import { DEFAULT_CONFIG } from "../../config/defaults.js";
+import { toPosixPath } from "../../core/plan/locate.js";
+import type { ResolvedConfig } from "../../types.js";
 
 const BLOCK_START = "# >>> universal-ai-config >>>";
 const BLOCK_END = "# <<< universal-ai-config <<<";
 
 // Specific output subdirs/files per target — not entire dirs like .github/
-// which contain non-AI content (workflows, issue templates, etc.)
+// which contain non-AI content (workflows, issue templates, hook scripts, etc.)
 const PATTERNS = [
   "/universal-ai-config.overrides.*",
   // Claude
@@ -20,29 +23,43 @@ const PATTERNS = [
   ".github/instructions/",
   ".github/skills/",
   ".github/agents/",
-  ".github/hooks/",
+  // Only uac's own file: .github/hooks also holds hook scripts that must be committed
+  ".github/hooks/hooks.json",
   // Cursor
   ".cursor/rules/",
   ".cursor/skills/",
+  ".cursor/agents/",
   ".cursor/hooks.json",
   // Codex (mix of root-relative + .codex/ + .agents/ outputs)
   ".codex/",
   ".agents/skills/",
+  // Every AGENTS.md, root and nested: uac generates them all (AGENTS.md output)
   "AGENTS.md",
-  "**/AGENTS.override.md",
   // MCP (root-relative output paths)
   ".mcp.json",
-  ".vscode/mcp.json",
   ".cursor/mcp.json",
 ];
 
-function buildBlock(): string {
-  return [BLOCK_START, ...PATTERNS, BLOCK_END].join("\n");
+function buildBlock(indexDir: string): string {
+  const scoped = [
+    "# Scoped instructions of the AGENTS.md `index` variation",
+    `/${toPosixPath(indexDir)}/`,
+  ];
+  return [BLOCK_START, ...PATTERNS, ...scoped, BLOCK_END].join("\n");
 }
 
-export async function run(root: string): Promise<void> {
+/**
+ * Write the uac block into `.gitignore`, replacing an existing block.
+ *
+ * @param config the project's resolved config: the block includes its
+ *   `agentsMd.indexDir`, which can be anywhere in the project
+ */
+export async function run(
+  root: string,
+  config: Pick<ResolvedConfig, "agentsMd"> = DEFAULT_CONFIG,
+): Promise<void> {
   const gitignorePath = join(root, ".gitignore");
-  const block = buildBlock();
+  const block = buildBlock(config.agentsMd.indexDir);
 
   let existing = "";
   try {

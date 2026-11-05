@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { userConfigSchema, defineConfig } from "../../src/config/schema.js";
 import { loadProjectConfig } from "../../src/config/loader.js";
@@ -249,5 +251,126 @@ describe("loadProjectConfig with inline overrides", () => {
       root: BASIC_FIXTURES_DIR,
     });
     expect(withEmpty).toEqual(without);
+  });
+});
+
+describe("agentsMd config", () => {
+  it("defaults to the nested variation and .agents/uac-instructions, with enable unset", async () => {
+    const config = await loadProjectConfig({ root: BASIC_FIXTURES_DIR });
+    expect(config.agentsMd).toEqual({ variation: "nested", indexDir: ".agents/uac-instructions" });
+  });
+
+  it("merges field by field, like mcp", async () => {
+    const config = await loadProjectConfig({
+      root: BASIC_FIXTURES_DIR,
+      inlineOverrides: { agentsMd: { variation: "index" } },
+    });
+    expect(config.agentsMd).toEqual({ variation: "index", indexDir: ".agents/uac-instructions" });
+
+    const enabled = await loadProjectConfig({
+      root: BASIC_FIXTURES_DIR,
+      inlineOverrides: { agentsMd: { enable: false, indexDir: "docs/agents" } },
+    });
+    expect(enabled.agentsMd).toEqual({
+      enable: false,
+      variation: "nested",
+      indexDir: "docs/agents",
+    });
+  });
+
+  it("validates variation and keepOverrideFiles", () => {
+    expect(() => userConfigSchema.parse({ agentsMd: { variation: "flat" } })).toThrow();
+    expect(() => userConfigSchema.parse({ agentsMd: { keepOverrideFiles: "yes" } })).toThrow();
+    expect(userConfigSchema.parse({ agentsMd: { keepOverrideFiles: true } }).agentsMd).toEqual({
+      keepOverrideFiles: true,
+    });
+  });
+
+  const invalid: Array<[string, string]> = [
+    ["", "empty"],
+    ["   ", "empty"],
+    ["/abs/dir", "relative"],
+    [".", "project root"],
+    ["./", "project root"],
+    ["docs/../..", '".."'],
+    [".universal-ai-config/notes", "templates dir"],
+    [".universal-ai-config/instructions/scoped", "templates dir"],
+    [".claude/rules/scoped", ".claude/rules"],
+    [".cursor/rules", ".cursor/rules"],
+    [".github/instructions/x", ".github/instructions"],
+    [".github/skills/x", ".github/skills"],
+    [".agents/skills/x", ".agents/skills"],
+    [".claude/agents", ".claude/agents"],
+  ];
+  for (const [indexDir, reason] of invalid) {
+    it(`rejects indexDir ${JSON.stringify(indexDir)} (${reason})`, async () => {
+      await expect(
+        loadProjectConfig({
+          root: BASIC_FIXTURES_DIR,
+          inlineOverrides: { agentsMd: { indexDir } },
+        }),
+      ).rejects.toThrow(/Invalid agentsMd\.indexDir/);
+    });
+  }
+
+  it("rejects an indexDir that contains the templates dir (clean would delete it)", async () => {
+    await expect(
+      loadProjectConfig({
+        root: BASIC_FIXTURES_DIR,
+        inlineOverrides: { templatesDir: ".agents/templates", agentsMd: { indexDir: ".agents" } },
+      }),
+    ).rejects.toThrow(/templates dir/);
+  });
+
+  it("rejects an indexDir inside a configured output dir's instruction folder", async () => {
+    await expect(
+      loadProjectConfig({
+        root: BASIC_FIXTURES_DIR,
+        inlineOverrides: {
+          outputDirs: { claude: ".ai/claude" },
+          agentsMd: { indexDir: ".ai/claude/rules/scoped" },
+        },
+      }),
+    ).rejects.toThrow(/\.ai\/claude\/rules/);
+  });
+
+  it("accepts safe index dirs, including next to a root-level templates dir", async () => {
+    for (const indexDir of [".agents/uac-instructions", "docs/ai/scoped", ".claude/scoped"]) {
+      await expect(
+        loadProjectConfig({
+          root: BASIC_FIXTURES_DIR,
+          inlineOverrides: { agentsMd: { indexDir } },
+        }),
+      ).resolves.toBeDefined();
+    }
+    await expect(
+      loadProjectConfig({
+        root: BASIC_FIXTURES_DIR,
+        inlineOverrides: { templatesDir: ".", agentsMd: { indexDir: "scoped-instructions" } },
+      }),
+    ).resolves.toBeDefined();
+  });
+});
+
+describe("overrides file name", () => {
+  const dirs: string[] = [];
+  afterEach(async () => {
+    for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
+  });
+  async function projectWith(file: string): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "uac-overrides-"));
+    dirs.push(dir);
+    await writeFile(join(dir, file), 'export default { targets: ["codex"] };\n', "utf-8");
+    return dir;
+  }
+
+  it("loads the documented universal-ai-config.overrides.ts", async () => {
+    const root = await projectWith("universal-ai-config.overrides.ts");
+    expect((await loadProjectConfig({ root })).targets).toEqual(["codex"]);
+  });
+
+  it("still loads universal-ai-config.overrides.config.ts", async () => {
+    const root = await projectWith("universal-ai-config.overrides.config.ts");
+    expect((await loadProjectConfig({ root })).targets).toEqual(["codex"]);
   });
 });

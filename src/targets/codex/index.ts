@@ -1,245 +1,55 @@
-import { consola } from "consola";
+import { posix } from "node:path";
 import { stringify as stringifyYAML } from "yaml";
-import { defineTarget, type ConsolidateInput } from "../define-target.js";
+import {
+  defineTarget,
+  type RenderedFile,
+  type RenderInput,
+  type TargetContext,
+} from "../define-target.js";
+import { renderMarkdown } from "../../core/generate/frontmatter.js";
+import { flattenCommand } from "../../core/shell.js";
 import { stringifyToml } from "../../core/toml.js";
-import type { GeneratedFile, UniversalHookHandler, UniversalMCPServer } from "../../types.js";
-import { getCodexInstructionEmissionPaths } from "./instruction-routing.js";
+import type { UniversalHookHandler, UniversalMCPServer } from "../../types.js";
 
-export { globRootDir } from "./instruction-routing.js";
-
-/** Codex supports a strict subset of Claude's PascalCase hook events. */
+/** Codex uses Claude-style PascalCase event names; the last three are Codex-only. */
 const EVENT_NAME_MAP: Record<string, string> = {
   sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
   userPromptSubmit: "UserPromptSubmit",
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
   permissionRequest: "PermissionRequest",
   stop: "Stop",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
+  postCompact: "PostCompact",
+  preModelRequest: "PreModelRequest",
+  postModelRequest: "PostModelRequest",
+  interrupt: "Interrupt",
 };
 
-/** Codex `model_reasoning_effort` accepts these values. Claude `effort` overlaps for low/medium/high/xhigh. */
-const CODEX_REASONING_EFFORT = new Set(["minimal", "low", "medium", "high", "xhigh"]);
+/** Values Codex accepts for `model_reasoning_effort` (every Claude `effort` value is one). */
+const CODEX_REASONING_EFFORT = new Set([
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultra",
+]);
 
-/**
- * POSIX shell-quote a single argument. Wraps in single quotes (preserves
- * everything literally) and escapes embedded single quotes via `'\''`.
- * No quoting applied to bare-word args that contain only safe characters.
- */
-function shellQuote(s: string): string {
-  if (/^[A-Za-z0-9_/@:%.,+=-]+$/.test(s)) return s;
-  return `'${s.replace(/'/g, "'\\''")}'`;
-}
+/** OAuth keys Codex has a `[mcp_servers.<id>.oauth]` field for. */
+const CODEX_OAUTH_KEYS: Record<string, string> = {
+  clientId: "client_id",
+  clientSecret: "client_secret",
+  callbackUrl: "callback_url",
+  callbackPort: "callback_port",
+};
 
-/**
- * Codex hooks accept a single `command` shell string — not `command` + `args`
- * array. Flatten universal `command + args` into one shell-escaped string.
- */
-function flattenCommand(command: string, args?: string[]): string {
-  if (!args || args.length === 0) return command;
-  return [command, ...args.map(shellQuote)].join(" ");
-}
-
-function transformCodexHooks(
-  hooks: Record<string, UniversalHookHandler[]>,
-): Record<string, unknown> {
-  const result: Record<string, unknown[]> = {};
-
-  for (const [event, handlers] of Object.entries(hooks)) {
-    const codexEvent = EVENT_NAME_MAP[event];
-    if (!codexEvent) continue;
-
-    // Group handlers by matcher (mirrors Claude's transform shape — Codex
-    // accepts the same nested `{ matcher?, hooks: [...] }` structure).
-    const groups = new Map<string, UniversalHookHandler[]>();
-    for (const handler of handlers) {
-      // Codex only reliably runs `type: "command"` handlers. Drop anything
-      // else with a warning so users know their handler isn't being emitted.
-      const handlerType = handler.type ?? "command";
-      if (handlerType !== "command") {
-        consola.warn(
-          `[codex] hook handler type "${handlerType}" not supported (only "command"); dropping`,
-        );
-        continue;
-      }
-      if (!handler.command) {
-        consola.warn(`[codex] hook handler missing command; dropping`);
-        continue;
-      }
-      const key = handler.matcher ?? "";
-      const existing = groups.get(key);
-      if (existing) {
-        existing.push(handler);
-      } else {
-        groups.set(key, [handler]);
-      }
-    }
-
-    const matcherGroups: Array<Record<string, unknown>> = [];
-    for (const [matcher, groupHandlers] of groups) {
-      const hookEntries = groupHandlers.map((h) => {
-        // h.command is non-undefined here — the filter above drops handlers
-        // with missing command before they reach the grouping step.
-        const cmd = h.command ?? "";
-        const entry: Record<string, unknown> = {
-          type: "command",
-          command: flattenCommand(cmd, h.args),
-        };
-        if (h.timeout !== undefined) entry.timeout = h.timeout;
-        if (h.statusMessage !== undefined) entry.statusMessage = h.statusMessage;
-        return entry;
-      });
-
-      const group: Record<string, unknown> = { hooks: hookEntries };
-      if (matcher) group.matcher = matcher;
-      matcherGroups.push(group);
-    }
-
-    if (matcherGroups.length > 0) {
-      result[codexEvent] = matcherGroups;
-    }
-  }
-
-  return { hooks: result };
-}
-
-function transformCodexMCP(servers: Record<string, UniversalMCPServer>): Record<string, unknown> {
-  const mcp_servers: Record<string, unknown> = {};
-  for (const [name, server] of Object.entries(servers)) {
-    const entry: Record<string, unknown> = {};
-    // Direct passthrough
-    if (server.command !== undefined) entry.command = server.command;
-    if (server.args !== undefined) entry.args = server.args;
-    if (server.env !== undefined) entry.env = server.env;
-    if (server.url !== undefined) entry.url = server.url;
-    if (server.cwd !== undefined) entry.cwd = server.cwd;
-    if (server.envVars !== undefined) entry.env_vars = server.envVars;
-    if (server.enabled !== undefined) entry.enabled = server.enabled;
-    if (server.required !== undefined) entry.required = server.required;
-    if (server.enabledTools !== undefined) entry.enabled_tools = server.enabledTools;
-    if (server.disabledTools !== undefined) entry.disabled_tools = server.disabledTools;
-    if (server.bearerTokenEnvVar !== undefined)
-      entry.bearer_token_env_var = server.bearerTokenEnvVar;
-    if (server.envHttpHeaders !== undefined) entry.env_http_headers = server.envHttpHeaders;
-    if (server.startupTimeoutSec !== undefined)
-      entry.startup_timeout_sec = server.startupTimeoutSec;
-    if (server.startupTimeoutMs !== undefined) entry.startup_timeout_ms = server.startupTimeoutMs;
-    if (server.toolTimeoutSec !== undefined) entry.tool_timeout_sec = server.toolTimeoutSec;
-    if (server.oauthResource !== undefined) entry.oauth_resource = server.oauthResource;
-    if (server.scopes !== undefined) entry.scopes = server.scopes;
-    if (server.experimentalEnvironment !== undefined)
-      entry.experimental_environment = server.experimentalEnvironment;
-
-    // Rename: universal `headers` → Codex `http_headers`
-    if (server.headers !== undefined) entry.http_headers = server.headers;
-
-    // Drop-with-warning: Codex auth model differs from Claude/Cursor OAuth
-    if (server.oauth !== undefined) {
-      consola.warn(
-        `[codex] mcp.${name}: oauth dropped (use bearerTokenEnvVar + oauthResource + scopes)`,
-      );
-    }
-    if (server.auth !== undefined) {
-      consola.warn(`[codex] mcp.${name}: auth dropped (use bearerTokenEnvVar for Codex)`);
-    }
-    if (server.envFile !== undefined) {
-      consola.warn(`[codex] mcp.${name}: envFile dropped (use envVars or env for Codex)`);
-    }
-    // `type` is dropped silently — Codex infers transport from command vs url
-
-    mcp_servers[name] = entry;
-  }
-  return { mcp_servers };
-}
-
-/** Render an instruction body with a `## description` H2 header. */
-function renderInstructionSection(
-  name: string,
-  description: string | undefined,
-  body: string,
-): string {
-  const heading = description?.trim() ?? name;
-  return `## ${heading}\n\n${body.trim()}\n`;
-}
-
-/** Concatenate a bucket of instruction entries alpha-sorted into a single AGENTS.md/.override body. */
-function renderBucket(entries: InstructionEntry[]): string {
-  const sorted = [...entries].sort((a, b) => a.name.localeCompare(b.name));
-  return sorted
-    .map((e) => renderInstructionSection(e.name, e.description, e.body))
-    .join("\n---\n\n");
-}
-
-interface InstructionEntry {
-  name: string;
-  description?: string | undefined;
-  body: string;
-  sourcePath: string;
-}
-
-function consolidateCodexInstructions({ templates }: ConsolidateInput): GeneratedFile[] {
-  const files: GeneratedFile[] = [];
-  const rootBucket: InstructionEntry[] = [];
-  const overrideBuckets = new Map<string, InstructionEntry[]>();
-
-  for (const t of templates) {
-    const entry: InstructionEntry = {
-      name: t.name,
-      description: t.frontmatter.description,
-      body: t.body,
-      sourcePath: t.sourcePath,
-    };
-
-    const paths = getCodexInstructionEmissionPaths(t.frontmatter);
-    for (const p of paths) {
-      if (p === "AGENTS.md") {
-        rootBucket.push(entry);
-      } else {
-        const dir = p.replace(/\/AGENTS\.override\.md$/, "");
-        const bucket = overrideBuckets.get(dir) ?? [];
-        bucket.push(entry);
-        overrideBuckets.set(dir, bucket);
-      }
-    }
-  }
-
-  if (rootBucket.length > 0) {
-    files.push({
-      path: "AGENTS.md",
-      content: renderBucket(rootBucket),
-      target: "codex",
-      type: "instructions",
-      sourcePath: rootBucket.map((e) => e.sourcePath).join(","),
-    });
-  }
-
-  for (const [dir, bucket] of overrideBuckets) {
-    files.push({
-      path: `${dir}/AGENTS.override.md`,
-      content: renderBucket(bucket),
-      target: "codex",
-      type: "instructions",
-      sourcePath: bucket.map((e) => e.sourcePath).join(","),
-    });
-  }
-
-  return files;
-}
-
-/** Serialize an object as YAML frontmatter + body. Uses the same shape generate.ts uses. */
-function serializeWithFrontmatter(frontmatter: Record<string, unknown>, body: string): string {
-  const filtered = Object.fromEntries(
-    Object.entries(frontmatter).filter(([, v]) => v !== undefined && v !== null),
-  );
-  if (Object.keys(filtered).length === 0) return body;
-  const fmStr = stringifyYAML(filtered, {
-    defaultStringType: "QUOTE_DOUBLE",
-    defaultKeyType: "PLAIN",
-    indent: 2,
-  }).trim();
-  return `---\n${fmStr}\n---\n${body}`;
-}
-
-/** Convert a camelCase object's keys to snake_case (one level deep + nested objects). */
+/** Convert a camelCase object's keys to snake_case (nested objects and arrays included). */
 function camelToSnakeKeys(input: unknown): unknown {
   if (Array.isArray(input)) return input.map(camelToSnakeKeys);
   if (input === null || typeof input !== "object") return input;
@@ -251,134 +61,305 @@ function camelToSnakeKeys(input: unknown): unknown {
   return result;
 }
 
-function consolidateCodexSkills({ templates }: ConsolidateInput): GeneratedFile[] {
-  const files: GeneratedFile[] = [];
-  for (const t of templates) {
-    const skillDir = `.agents/skills/${t.name}`;
-    const fm = t.frontmatter;
+function transformCodexHandler(h: UniversalHookHandler): Record<string, unknown> {
+  if (h.type === "mcp_tool") {
+    const entry: Record<string, unknown> = { type: "mcp_tool", server: h.server, tool: h.tool };
+    if (h.input !== undefined) entry.input = h.input;
+    if (h.timeout !== undefined) entry.timeout = h.timeout;
+    if (h.statusMessage !== undefined) entry.statusMessage = h.statusMessage;
+    return entry;
+  }
+  // Codex hooks take one `command` shell string, not `command` + `args`
+  const entry: Record<string, unknown> = {
+    type: "command",
+    command: flattenCommand(h.command ?? "", h.args),
+  };
+  if (h.commandWindows !== undefined) entry.commandWindows = h.commandWindows;
+  if (h.timeout !== undefined) entry.timeout = h.timeout;
+  if (h.async !== undefined) entry.async = h.async;
+  if (h.statusMessage !== undefined) entry.statusMessage = h.statusMessage;
+  if (h.additionalContextLimit !== undefined) {
+    entry.additionalContextLimit = h.additionalContextLimit;
+  }
+  return entry;
+}
 
-    // SKILL.md frontmatter: minimal Codex/Agent-Skills-spec fields only.
-    const skillFm: Record<string, unknown> = {};
-    if (fm.name !== undefined || t.name) skillFm.name = fm.name ?? t.name;
-    if (fm.description !== undefined) skillFm.description = fm.description;
-    if (fm.version !== undefined) skillFm.version = fm.version;
-    if (fm.author !== undefined) skillFm.author = fm.author;
-    if (fm.license !== undefined) skillFm.license = fm.license;
-    if (fm.compatibility !== undefined) skillFm.compatibility = fm.compatibility;
-    if (fm.metadata !== undefined) skillFm.metadata = fm.metadata;
+/**
+ * `.codex/hooks.json`. Handlers keep their template order: Codex trusts each
+ * hook by a hash tied to its position, so a reordering would make Codex ask
+ * the user to re-trust every hook.
+ */
+function transformCodexHooks(
+  hooks: Record<string, UniversalHookHandler[]>,
+): Record<string, unknown> {
+  const result: Record<string, unknown[]> = {};
 
-    files.push({
-      path: `${skillDir}/SKILL.md`,
-      content: serializeWithFrontmatter(skillFm, t.body),
-      target: "codex",
-      type: "skills",
-      sourcePath: t.sourcePath,
+  for (const [event, handlers] of Object.entries(hooks)) {
+    const codexEvent = EVENT_NAME_MAP[event];
+    if (!codexEvent) continue;
+
+    // Group handlers by matcher (Codex accepts Claude's nested
+    // `{ matcher?, hooks: [...] }` structure), keeping first-seen order.
+    const groups = new Map<string, UniversalHookHandler[]>();
+    for (const handler of handlers) {
+      const key = handler.matcher ?? "";
+      const existing = groups.get(key);
+      if (existing) existing.push(handler);
+      else groups.set(key, [handler]);
+    }
+
+    result[codexEvent] = [...groups].map(([matcher, groupHandlers]) => {
+      const group: Record<string, unknown> = { hooks: groupHandlers.map(transformCodexHandler) };
+      if (matcher) group.matcher = matcher;
+      return group;
     });
+  }
 
-    // agents/openai.yaml sidecar — emit when any codex.* field OR
-    // disableAutoInvocation is set.
-    const yamlObj: Record<string, unknown> = {};
-    if (fm.codex?.interface) {
-      yamlObj.interface = camelToSnakeKeys(fm.codex.interface);
+  return { hooks: result };
+}
+
+/** Universal OAuth → Codex's `oauth` table; keys Codex lacks are reported. */
+function codexOAuth(
+  name: string,
+  oauth: Record<string, unknown>,
+  report: TargetContext["report"],
+): Record<string, unknown> {
+  const table: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(oauth)) {
+    const codexKey = CODEX_OAUTH_KEYS[key];
+    if (codexKey) {
+      table[codexKey] = value;
+      continue;
     }
-    if (fm.codex?.dependencies) {
-      yamlObj.dependencies = camelToSnakeKeys(fm.codex.dependencies);
+    report({
+      code: "unsupported",
+      message: `mcp.${name}: oauth.${key} has no Codex equivalent; dropped`,
+      detail: { kind: "field", name: `oauth.${key}` },
+    });
+  }
+  return table;
+}
+
+function transformCodexMCP(
+  servers: Record<string, UniversalMCPServer>,
+  _inputs: unknown,
+  { report }: TargetContext,
+): Record<string, unknown> {
+  const mcp_servers: Record<string, unknown> = {};
+  for (const [name, server] of Object.entries(servers)) {
+    const entry: Record<string, unknown> = {};
+    // Direct passthrough (`type` is dropped: Codex infers it from command/url)
+    if (server.command !== undefined) entry.command = server.command;
+    if (server.args !== undefined) entry.args = server.args;
+    if (server.env !== undefined) entry.env = server.env;
+    if (server.url !== undefined) entry.url = server.url;
+    if (server.cwd !== undefined) entry.cwd = server.cwd;
+    // Names, or `{ name, source }` objects
+    if (server.envVars !== undefined) entry.env_vars = server.envVars;
+    if (server.enabled !== undefined) entry.enabled = server.enabled;
+    if (server.required !== undefined) entry.required = server.required;
+    if (server.enabledTools !== undefined) entry.enabled_tools = server.enabledTools;
+    if (server.disabledTools !== undefined) entry.disabled_tools = server.disabledTools;
+    if (server.bearerTokenEnvVar !== undefined) {
+      entry.bearer_token_env_var = server.bearerTokenEnvVar;
     }
-    // Auto-map disableAutoInvocation (inverted) → policy.allow_implicit_invocation
-    if (fm.disableAutoInvocation !== undefined) {
-      yamlObj.policy = { allow_implicit_invocation: !fm.disableAutoInvocation };
+    if (server.envHttpHeaders !== undefined) entry.env_http_headers = server.envHttpHeaders;
+    if (server.headers !== undefined) entry.http_headers = server.headers;
+    if (server.headersHelper !== undefined) entry.http_headers_helper = server.headersHelper;
+    if (server.startupTimeoutSec !== undefined) {
+      entry.startup_timeout_sec = server.startupTimeoutSec;
     }
-    if (Object.keys(yamlObj).length > 0) {
-      files.push({
-        path: `${skillDir}/agents/openai.yaml`,
-        content: stringifyYAML(yamlObj, {
-          defaultStringType: "QUOTE_DOUBLE",
-          defaultKeyType: "PLAIN",
-          indent: 2,
-        }),
-        target: "codex",
-        type: "skills",
-        sourcePath: t.sourcePath,
+    if (server.startupTimeoutMs !== undefined) entry.startup_timeout_ms = server.startupTimeoutMs;
+    if (server.toolTimeoutSec !== undefined) entry.tool_timeout_sec = server.toolTimeoutSec;
+    if (server.oauthResource !== undefined) entry.oauth_resource = server.oauthResource;
+    if (server.scopes !== undefined) entry.scopes = server.scopes;
+    if (server.startupReadiness !== undefined) entry.startup_readiness = server.startupReadiness;
+    if (server.supportsParallelToolCalls !== undefined) {
+      entry.supports_parallel_tool_calls = server.supportsParallelToolCalls;
+    }
+    if (server.toolInputSchemaMaxBytes !== undefined) {
+      entry.tool_input_schema_max_bytes = server.toolInputSchemaMaxBytes;
+    }
+    if (server.omitToolsFrom !== undefined) entry.omit_tools_from = server.omitToolsFrom;
+    if (server.defaultToolsApprovalMode !== undefined) {
+      entry.default_tools_approval_mode = server.defaultToolsApprovalMode;
+    }
+    if (server.toolSettings !== undefined) entry.tools = camelToSnakeKeys(server.toolSettings);
+    if (server.identity !== undefined) entry.identity = camelToSnakeKeys(server.identity);
+
+    if (server.environmentId !== undefined) {
+      entry.environment_id = server.environmentId;
+    } else if (server.experimentalEnvironment !== undefined) {
+      entry.environment_id = server.experimentalEnvironment;
+      report({
+        code: "legacy-field",
+        message: `mcp.${name}: experimentalEnvironment was renamed; use environmentId (written as environment_id)`,
+        detail: { field: "experimentalEnvironment" },
       });
     }
 
-    // Extra files (references, scripts, etc.) — already EJS-rendered by the
-    // generate loop before being handed to consolidate.
-    for (const extra of t.extraFiles ?? []) {
-      files.push({
-        path: `${skillDir}/${extra.relativePath}`,
-        content: extra.content,
-        target: "codex",
-        type: "skills",
-        sourcePath: t.sourcePath,
+    if (server.oauth !== undefined) {
+      const oauth = codexOAuth(name, server.oauth, report);
+      if (Object.keys(oauth).length > 0) entry.oauth = oauth;
+    }
+
+    // Codex's auth is a mode string ("oauth" or "chatgpt"); Cursor's is an object
+    if (typeof server.auth === "string") {
+      entry.auth = server.auth;
+    } else if (server.auth !== undefined) {
+      report({
+        code: "unsupported",
+        message: `mcp.${name}: auth dropped — Codex takes a mode string ("oauth" or "chatgpt"), not Cursor's object (use a per-target override)`,
+        detail: { kind: "field", name: "auth" },
       });
     }
+    if (server.envFile !== undefined) {
+      report({
+        code: "unsupported",
+        message: `mcp.${name}: envFile dropped (use envVars or env for Codex)`,
+        detail: { kind: "field", name: "envFile" },
+      });
+    }
+
+    mcp_servers[name] = entry;
+  }
+  return { mcp_servers };
+}
+
+/**
+ * SKILL.md with the Agent Skills spec fields, plus an `agents/openai.yaml`
+ * sidecar for Codex-only settings. `version` and `author` aren't spec
+ * fields, so they go under `metadata`.
+ */
+function renderCodexSkill({
+  name,
+  frontmatter: fm,
+  body,
+  outputPath,
+}: RenderInput): RenderedFile[] {
+  const metadata: Record<string, unknown> = { ...fm.metadata };
+  if (fm.version !== undefined) metadata.version = fm.version;
+  if (fm.author !== undefined) metadata.author = fm.author;
+  const skillFm: Record<string, unknown> = {
+    name: fm.name ?? name,
+    description: fm.description,
+    license: fm.license,
+    compatibility: fm.compatibility,
+    metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+  };
+  const files: RenderedFile[] = [{ path: outputPath, content: renderMarkdown(skillFm, body) }];
+
+  // agents/openai.yaml sidecar — emitted when any codex.* skill field or
+  // disableAutoInvocation is set.
+  const yamlObj: Record<string, unknown> = {};
+  if (fm.codex?.interface) yamlObj.interface = camelToSnakeKeys(fm.codex.interface);
+  if (fm.codex?.dependencies) yamlObj.dependencies = camelToSnakeKeys(fm.codex.dependencies);
+  // disableAutoInvocation (inverted) → policy.allow_implicit_invocation
+  if (fm.disableAutoInvocation !== undefined) {
+    yamlObj.policy = { allow_implicit_invocation: !fm.disableAutoInvocation };
+  }
+  if (Object.keys(yamlObj).length > 0) {
+    files.push({
+      path: `${posix.dirname(outputPath)}/agents/openai.yaml`,
+      content: stringifyYAML(yamlObj, {
+        defaultStringType: "QUOTE_DOUBLE",
+        defaultKeyType: "PLAIN",
+        indent: 2,
+      }),
+    });
   }
   return files;
 }
 
-function consolidateCodexAgents({ templates, outputDir }: ConsolidateInput): GeneratedFile[] {
-  const files: GeneratedFile[] = [];
-  for (const t of templates) {
-    const fm = t.frontmatter;
-    const tomlObj: Record<string, unknown> = {
-      name: t.name,
-      description: fm.description ?? "",
-      developer_instructions: t.body.trim(),
-    };
+/** Agent fields Codex can't take in a role file, and why. */
+const DROPPED_AGENT_FIELDS = {
+  tools: "Codex has no agent-level tool list (use per-MCP-server enabled_tools)",
+  disallowedTools: "Codex has no agent-level denylist",
+  permissionMode:
+    "Codex agents inherit the parent session's sandbox and approvals; set sandbox_mode or default_permissions in .codex/config.toml",
+  sandboxMode:
+    "Codex ignores sandbox_mode in agent files (since 0.149) — agents inherit the parent session's sandbox; set it in .codex/config.toml",
+  mcpServers:
+    "Codex agents inherit the parent session's MCP servers; an agent file can't change them",
+  skills: "Codex can't preload skills for an agent (agent files can only disable skills)",
+} as const;
 
-    if (fm.model !== undefined) {
-      tomlObj.model = fm.model;
-      if (typeof fm.model === "string" && fm.model.startsWith("claude-")) {
-        consola.warn(
-          `[codex] agent "${t.name}": model "${fm.model}" looks Claude-shaped; use a per-target override for Codex (e.g. model: { codex: "gpt-5.4", default: "..." })`,
-        );
-      }
+/**
+ * A standalone `.codex/agents/<name>.toml` role file. Codex drops a role
+ * that has an unknown key or a blank description or body, so those fields
+ * are left out with a warning and an empty agent isn't written at all.
+ */
+function renderCodexAgent(
+  { name, frontmatter: fm, body, sourcePath, outputPath }: RenderInput,
+  { report }: TargetContext,
+): RenderedFile[] {
+  const description = fm.description?.trim() ?? "";
+  const instructions = body.trim();
+  if (description === "" || instructions === "") {
+    const missing = description === "" ? "description" : "body";
+    report({
+      code: "unsupported",
+      message: `agent "${name}": Codex rejects agents with ${missing === "description" ? "no description" : "an empty body"}; not generated`,
+      source: sourcePath,
+      detail: { kind: "field", name: missing },
+    });
+    return [];
+  }
+
+  const tomlObj: Record<string, unknown> = {
+    name,
+    description,
+    developer_instructions: instructions,
+  };
+
+  if (fm.model !== undefined) {
+    tomlObj.model = fm.model;
+    if (typeof fm.model === "string" && fm.model.startsWith("claude-")) {
+      report({
+        code: "suspicious-value",
+        message: `agent "${name}": model "${fm.model}" looks Claude-shaped; use a per-target override for Codex (e.g. model: { codex: "gpt-6.1-sol", default: "..." })`,
+        source: sourcePath,
+        detail: { field: "model", value: fm.model },
+      });
     }
+  }
 
-    if (fm.sandboxMode !== undefined) tomlObj.sandbox_mode = fm.sandboxMode;
-
-    // Auto-map effort → model_reasoning_effort when value is in the overlap set.
-    if (fm.effort !== undefined) {
-      if (CODEX_REASONING_EFFORT.has(fm.effort)) {
-        tomlObj.model_reasoning_effort = fm.effort;
-      } else {
-        consola.warn(
-          `[codex] agent "${t.name}": effort "${fm.effort}" has no Codex equivalent; dropped (use a per-target override for Codex)`,
-        );
-      }
+  if (fm.effort !== undefined) {
+    if (CODEX_REASONING_EFFORT.has(fm.effort)) {
+      tomlObj.model_reasoning_effort = fm.effort;
+    } else {
+      report({
+        code: "unsupported",
+        message: `agent "${name}": effort "${fm.effort}" isn't a Codex reasoning effort; dropped`,
+        source: sourcePath,
+        detail: { kind: "field", name: "effort" },
+      });
     }
+  }
 
-    if (fm.nicknameCandidates !== undefined) tomlObj.nickname_candidates = fm.nicknameCandidates;
-    if (fm.mcpServers !== undefined) tomlObj.mcp_servers = fm.mcpServers;
-    if (fm.skills !== undefined) tomlObj["skills.config"] = fm.skills;
+  if (fm.nicknameCandidates !== undefined) tomlObj.nickname_candidates = fm.nicknameCandidates;
 
-    // Drop-with-warning: fields with no clean Codex translation.
-    if (fm.tools !== undefined) {
-      consola.warn(
-        `[codex] agent "${t.name}": "tools" dropped (Codex uses per-MCP-server enabled_tools, not agent-level)`,
-      );
-    }
-    if (fm.disallowedTools !== undefined) {
-      consola.warn(
-        `[codex] agent "${t.name}": disallowedTools dropped (Codex has no agent-level denylist)`,
-      );
-    }
-    if (fm.permissionMode !== undefined) {
-      consola.warn(
-        `[codex] agent "${t.name}": permissionMode dropped (use sandboxMode for Codex via per-target override)`,
-      );
-    }
+  // Codex-only agent keys
+  const codex = fm.codex ?? {};
+  if (codex.modelReasoningSummary !== undefined) {
+    tomlObj.model_reasoning_summary = codex.modelReasoningSummary;
+  }
+  if (codex.modelVerbosity !== undefined) tomlObj.model_verbosity = codex.modelVerbosity;
+  if (codex.personality !== undefined) tomlObj.personality = codex.personality;
+  if (codex.serviceTier !== undefined) tomlObj.service_tier = codex.serviceTier;
+  if (codex.skills !== undefined) tomlObj.skills = camelToSnakeKeys(codex.skills);
 
-    files.push({
-      path: `${outputDir}/agents/${t.name}.toml`,
-      content: stringifyToml(tomlObj),
-      target: "codex",
-      type: "agents",
-      sourcePath: t.sourcePath,
+  for (const [field, why] of Object.entries(DROPPED_AGENT_FIELDS)) {
+    if ((fm as Record<string, unknown>)[field] === undefined) continue;
+    report({
+      code: "unsupported",
+      message: `agent "${name}": ${field} dropped — ${why}`,
+      source: sourcePath,
+      detail: { kind: "field", name: field },
     });
   }
-  return files;
+
+  return [{ path: outputPath, content: stringifyToml(tomlObj) }];
 }
 
 export default defineTarget({
@@ -386,32 +367,36 @@ export default defineTarget({
   outputDir: ".codex",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
 
-  instructions: {
-    frontmatterMap: {},
-    getOutputPath: (name) => name,
-    consolidate: consolidateCodexInstructions,
-  },
+  // Codex reads only AGENTS.md: its instructions are the shared AGENTS.md output
+  instructions: "agentsMd",
 
   skills: {
     frontmatterMap: {},
-    getOutputPath: (name) => name,
-    consolidate: consolidateCodexSkills,
+    // The open Agent Skills location, outside the Codex output dir
+    outputPath: (name) => `.agents/skills/${name}/SKILL.md`,
+    typeDir: () => ".agents/skills",
+    ownedPaths: () => [".agents/skills"],
+    render: renderCodexSkill,
   },
 
   agents: {
     frontmatterMap: {},
-    getOutputPath: (name) => name,
-    consolidate: consolidateCodexAgents,
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/agents/${name}.toml`,
+    typeDir: ({ outputDir }) => `${outputDir}/agents`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/agents`],
+    render: renderCodexAgent,
   },
 
   hooks: {
+    events: EVENT_NAME_MAP,
+    handlerTypes: ["command", "mcp_tool"],
     transform: transformCodexHooks,
-    outputPath: "hooks.json",
+    outputPath: ({ outputDir }) => `${outputDir}/hooks.json`,
   },
 
   mcp: {
     transform: transformCodexMCP,
-    outputPath: ".codex/config.toml",
+    outputPath: () => ".codex/config.toml",
     mergeKey: "mcp_servers",
     format: "toml",
   },

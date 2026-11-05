@@ -1,20 +1,26 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import type { DiagnosticInput } from "../../../src/core/diagnostics.js";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYAML } from "yaml";
-import codex, { globRootDir } from "../../../src/targets/codex/index.js";
-import type { ConsolidateInput, TemplateTypeConfig } from "../../../src/targets/define-target.js";
+import codex from "../../../src/targets/codex/index.js";
+import { posix } from "node:path";
+import type { RenderedFile, TemplateTypeConfig } from "../../../src/targets/define-target.js";
 import type {
   UniversalFrontmatter,
   UniversalHookHandler,
   UniversalMCPServer,
 } from "../../../src/types.js";
 
-/** Build a ConsolidateInput template entry. Test helper. */
-function makeTemplate(
-  name: string,
-  frontmatter: UniversalFrontmatter,
-  body: string,
-): ConsolidateInput["templates"][number] {
+interface TestTemplate {
+  name: string;
+  sourcePath: string;
+  frontmatter: UniversalFrontmatter;
+  body: string;
+  extraFiles?: Array<{ relativePath: string; content: string }>;
+}
+
+/** Build a template entry. Test helper. */
+function makeTemplate(name: string, frontmatter: UniversalFrontmatter, body: string): TestTemplate {
   return {
     name,
     sourcePath: `.universal-ai-config/instructions/${name}.md`,
@@ -23,12 +29,47 @@ function makeTemplate(
   };
 }
 
-function makeInput(
-  templates: ConsolidateInput["templates"],
-  outputDir = ".codex",
-): ConsolidateInput {
-  return { templates, outputDir, root: "/tmp/fixture" };
+function makeInput(templates: TestTemplate[], outputDir = ".codex") {
+  return { templates, outputDir };
 }
+
+/**
+ * Drive a type config the way the generate pipeline does: render each
+ * template at its outputPath, place skill extra files next to it, and join
+ * same-path renders with `combine`.
+ */
+function renderAll(typeConfig: TemplateTypeConfig) {
+  return ({ templates, outputDir }: { templates: TestTemplate[]; outputDir: string }) => {
+    const groups = new Map<string, Array<RenderedFile & { entry?: TestTemplate }>>();
+    const add = (file: RenderedFile & { entry?: TestTemplate }) => {
+      const group = groups.get(file.path) ?? [];
+      group.push(file);
+      groups.set(file.path, group);
+    };
+    for (const t of templates) {
+      const outputPath = typeConfig.outputPath(t.name, t.frontmatter, { outputDir });
+      for (const file of typeConfig.render!({ ...t, outputPath }, ctx)) add({ ...file, entry: t });
+      for (const extra of t.extraFiles ?? []) {
+        add({
+          path: posix.join(posix.dirname(outputPath), extra.relativePath),
+          content: extra.content,
+        });
+      }
+    }
+    return [...groups.entries()].map(([path, group]) => {
+      if (group.length === 1) return { path, content: group[0]!.content as string };
+      const entries = group.map((f) => ({ ...f.entry!, content: f.content as string }));
+      return { path, content: typeConfig.combine!(entries, ctx) };
+    });
+  };
+}
+
+/** Diagnostics reported by the last target call — reset before each test. */
+let diagnostics: DiagnosticInput[] = [];
+const ctx = { report: (d: DiagnosticInput) => diagnostics.push(d) };
+beforeEach(() => {
+  diagnostics = [];
+});
 
 describe("codex target", () => {
   it("has correct name, outputDir, and supportedTypes", () => {
@@ -37,185 +78,25 @@ describe("codex target", () => {
     expect(codex.supportedTypes).toEqual(["instructions", "skills", "agents", "hooks", "mcp"]);
   });
 
-  it("registers consolidate functions for instructions, skills, and agents", () => {
-    expect(codex.instructions?.consolidate).toBeTypeOf("function");
-    expect(codex.skills?.consolidate).toBeTypeOf("function");
-    expect(codex.agents?.consolidate).toBeTypeOf("function");
+  it("reads only AGENTS.md for instructions, and renders skills and agents itself", () => {
+    expect(codex.instructions).toBe("agentsMd");
+    expect(codex.skills?.render).toBeTypeOf("function");
+    expect(codex.agents?.render).toBeTypeOf("function");
   });
 
   it("hooks output to .codex/hooks.json with no mergeKey (whole-file uac-managed)", () => {
-    expect(codex.hooks?.outputPath).toBe("hooks.json");
+    expect(codex.hooks?.outputPath({ outputDir: ".codex" })).toBe(".codex/hooks.json");
     expect(codex.hooks?.mergeKey).toBeUndefined();
   });
 
   it("mcp output to .codex/config.toml with mergeKey: mcp_servers and toml format", () => {
-    expect(codex.mcp?.outputPath).toBe(".codex/config.toml");
+    expect(codex.mcp?.outputPath({ outputDir: ".codex" })).toBe(".codex/config.toml");
     expect(codex.mcp?.mergeKey).toBe("mcp_servers");
     expect(codex.mcp?.format).toBe("toml");
   });
 
-  describe("globRootDir helper", () => {
-    it("returns first segments before the wildcard", () => {
-      expect(globRootDir("packages/frontend/**/*.ts")).toBe("packages/frontend");
-      expect(globRootDir("src/**")).toBe("src");
-      expect(globRootDir("src/api/**/*.ts")).toBe("src/api");
-    });
-
-    it("returns null for leading-wildcard globs", () => {
-      expect(globRootDir("**/*.ts")).toBeNull();
-      expect(globRootDir("*.md")).toBeNull();
-      expect(globRootDir("**/AGENTS.md")).toBeNull();
-    });
-
-    it("returns null for globs with no wildcard at all", () => {
-      expect(globRootDir("plain-file.ts")).toBeNull();
-      expect(globRootDir("src/foo")).toBeNull();
-    });
-  });
-
-  describe("instructions consolidate", () => {
-    const consolidate = codex.instructions!.consolidate as NonNullable<
-      TemplateTypeConfig["consolidate"]
-    >;
-
-    it("single alwaysApply: true → root AGENTS.md", async () => {
-      const files = await consolidate(
-        makeInput([makeTemplate("rule-a", { alwaysApply: true, description: "Rule A" }, "Body A")]),
-      );
-      expect(files).toHaveLength(1);
-      expect(files[0]!.path).toBe("AGENTS.md");
-      expect(files[0]!.content).toContain("## Rule A");
-      expect(files[0]!.content).toContain("Body A");
-    });
-
-    it("multiple alwaysApply templates → alpha-sorted, separated by ---", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate("zeta", { alwaysApply: true, description: "Zeta rule" }, "Zeta body"),
-          makeTemplate("alpha", { alwaysApply: true, description: "Alpha rule" }, "Alpha body"),
-        ]),
-      );
-      expect(files).toHaveLength(1);
-      const content = files[0]!.content;
-      // alpha comes before zeta
-      const alphaIdx = content.indexOf("Alpha body");
-      const zetaIdx = content.indexOf("Zeta body");
-      expect(alphaIdx).toBeGreaterThan(-1);
-      expect(zetaIdx).toBeGreaterThan(-1);
-      expect(alphaIdx).toBeLessThan(zetaIdx);
-      expect(content).toContain("\n---\n");
-    });
-
-    it("resolvable-dir glob → <dir>/AGENTS.override.md", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate(
-            "frontend",
-            { globs: ["packages/frontend/**/*.ts"], description: "Frontend" },
-            "Frontend body",
-          ),
-        ]),
-      );
-      expect(files).toHaveLength(1);
-      expect(files[0]!.path).toBe("packages/frontend/AGENTS.override.md");
-      expect(files[0]!.content).toContain("Frontend body");
-    });
-
-    it("multi-segment dir prefix preserved", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate("api", { globs: ["src/api/**/*.ts"], description: "API" }, "API body"),
-        ]),
-      );
-      expect(files[0]!.path).toBe("src/api/AGENTS.override.md");
-    });
-
-    it("multiple distinct-dir globs in one template → multiple override files (same body)", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate(
-            "shared",
-            { globs: ["src/foo/**", "src/bar/**"], description: "Shared" },
-            "Shared body",
-          ),
-        ]),
-      );
-      expect(files).toHaveLength(2);
-      const paths = files.map((f) => f.path).sort();
-      expect(paths).toEqual(["src/bar/AGENTS.override.md", "src/foo/AGENTS.override.md"]);
-      for (const file of files) {
-        expect(file.content).toContain("Shared body");
-      }
-    });
-
-    it("multiple templates targeting the same dir → one file, alpha-sorted", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate("zebra", { globs: ["src/**"], description: "Zebra" }, "Zebra body"),
-          makeTemplate("apple", { globs: ["src/**"], description: "Apple" }, "Apple body"),
-        ]),
-      );
-      expect(files).toHaveLength(1);
-      expect(files[0]!.path).toBe("src/AGENTS.override.md");
-      const content = files[0]!.content;
-      expect(content.indexOf("Apple body")).toBeLessThan(content.indexOf("Zebra body"));
-    });
-
-    it("leading-wildcard globs route to root AGENTS.md", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate("tests", { globs: ["**/*.test.ts"], description: "Tests" }, "Tests body"),
-        ]),
-      );
-      expect(files).toHaveLength(1);
-      expect(files[0]!.path).toBe("AGENTS.md");
-      expect(files[0]!.content).toContain("Tests body");
-    });
-
-    it("template with neither alwaysApply nor globs → root AGENTS.md", async () => {
-      const files = await consolidate(
-        makeInput([makeTemplate("loose", { description: "Loose" }, "Loose body")]),
-      );
-      expect(files).toHaveLength(1);
-      expect(files[0]!.path).toBe("AGENTS.md");
-    });
-
-    it("alwaysApply: true + globs set → alwaysApply wins (root)", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate(
-            "both",
-            { alwaysApply: true, globs: ["src/**"], description: "Both" },
-            "Both body",
-          ),
-        ]),
-      );
-      expect(files).toHaveLength(1);
-      expect(files[0]!.path).toBe("AGENTS.md");
-    });
-
-    it("mixed alwaysApply + glob templates → root AGENTS.md + per-dir AGENTS.override.md", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate("global", { alwaysApply: true, description: "Global" }, "Global body"),
-          makeTemplate("scoped", { globs: ["src/**"], description: "Scoped" }, "Scoped body"),
-        ]),
-      );
-      expect(files).toHaveLength(2);
-      const paths = files.map((f) => f.path).sort();
-      expect(paths).toEqual(["AGENTS.md", "src/AGENTS.override.md"]);
-    });
-
-    it("description falls back to template name when missing", async () => {
-      const files = await consolidate(
-        makeInput([makeTemplate("nameless", { alwaysApply: true }, "Body")]),
-      );
-      expect(files[0]!.content).toContain("## nameless");
-    });
-  });
-
-  describe("skills consolidate", () => {
-    const consolidate = codex.skills!.consolidate as NonNullable<TemplateTypeConfig["consolidate"]>;
+  describe("skills render", () => {
+    const consolidate = renderAll(codex.skills!);
 
     it("SKILL.md emitted at root-relative .agents/skills/<name>/SKILL.md", async () => {
       const files = await consolidate(
@@ -235,7 +116,7 @@ describe("codex target", () => {
       expect(skillFile!.content).toContain('description: "Generate tests"');
     });
 
-    it("frontmatter contains version, author, license when set", async () => {
+    it("moves version and author under metadata (they aren't Agent Skills spec fields)", async () => {
       const files = await consolidate(
         makeInput([
           makeTemplate(
@@ -246,15 +127,20 @@ describe("codex target", () => {
               version: "1.0.0",
               author: "alice",
               license: "MIT",
+              metadata: { team: "ops" },
             },
             "Body",
           ),
         ]),
       );
       const skill = files.find((f) => f.path.endsWith("SKILL.md"))!;
-      expect(skill.content).toContain('version: "1.0.0"');
-      expect(skill.content).toContain('author: "alice"');
-      expect(skill.content).toContain('license: "MIT"');
+      const fm = parseYAML(skill.content.split("---\n")[1]!) as Record<string, unknown>;
+      expect(fm).toEqual({
+        name: "deploy",
+        description: "Deploy",
+        license: "MIT",
+        metadata: { team: "ops", version: "1.0.0", author: "alice" },
+      });
     });
 
     it("Claude-only skill fields are stripped from SKILL.md frontmatter", async () => {
@@ -439,7 +325,7 @@ describe("codex target", () => {
     });
 
     it("extra files copied preserving path structure", async () => {
-      const template: ConsolidateInput["templates"][number] = {
+      const template: TestTemplate = {
         name: "with-refs",
         sourcePath: ".universal-ai-config/skills/with-refs/SKILL.md",
         frontmatter: { name: "with-refs", description: "Has refs" },
@@ -460,8 +346,8 @@ describe("codex target", () => {
     });
   });
 
-  describe("agents consolidate", () => {
-    const consolidate = codex.agents!.consolidate as NonNullable<TemplateTypeConfig["consolidate"]>;
+  describe("agents render", () => {
+    const consolidate = renderAll(codex.agents!);
 
     it("standalone .codex/agents/<name>.toml emitted, valid TOML", async () => {
       const files = await consolidate(
@@ -487,19 +373,19 @@ describe("codex target", () => {
 
     it("model passes through", async () => {
       const files = await consolidate(
-        makeInput([makeTemplate("a", { description: "A", model: "gpt-5.4" }, "Body")]),
+        makeInput([makeTemplate("a", { description: "A", model: "gpt-6.1-sol" }, "Body")]),
       );
       const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
-      expect(parsed.model).toBe("gpt-5.4");
+      expect(parsed.model).toBe("gpt-6.1-sol");
     });
 
     it("Claude-shaped model emits warning but value still passes through", async () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
       const files = await consolidate(
-        makeInput([makeTemplate("a", { description: "A", model: "claude-sonnet-4-6" }, "Body")]),
+        makeInput([makeTemplate("a", { description: "A", model: "claude-sonnet-5-5" }, "Body")]),
       );
       const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
-      expect(parsed.model).toBe("claude-sonnet-4-6");
+      expect(parsed.model).toBe("claude-sonnet-5-5");
       warnSpy.mockRestore();
     });
 
@@ -513,14 +399,71 @@ describe("codex target", () => {
       expect(parsed.nickname_candidates).toEqual(["Alice", "Bob"]);
     });
 
-    it("sandboxMode → sandbox_mode", async () => {
+    it("drops sandboxMode, mcpServers and skills, which Codex rejects or ignores in agent files", async () => {
       const files = await consolidate(
         makeInput([
-          makeTemplate("a", { description: "A", sandboxMode: "workspace-write" }, "Body"),
+          makeTemplate(
+            "a",
+            {
+              description: "A",
+              sandboxMode: "workspace-write",
+              mcpServers: { github: { url: "https://x" } },
+              skills: ["deploy"],
+            },
+            "Body",
+          ),
         ]),
       );
       const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
-      expect(parsed.sandbox_mode).toBe("workspace-write");
+      expect(Object.keys(parsed).sort()).toEqual(["description", "developer_instructions", "name"]);
+      expect(diagnostics.map((d) => (d.detail as { name: string }).name)).toEqual([
+        "sandboxMode",
+        "mcpServers",
+        "skills",
+      ]);
+    });
+
+    it("skips an agent with no description or an empty body", async () => {
+      const files = await consolidate(
+        makeInput([
+          makeTemplate("no-desc", {}, "Body"),
+          makeTemplate("no-body", { description: "D" }, "  \n"),
+        ]),
+      );
+      expect(files).toEqual([]);
+      expect(diagnostics.map((d) => (d.detail as { name: string }).name)).toEqual([
+        "description",
+        "body",
+      ]);
+    });
+
+    it("writes the codex agent block snake_cased", async () => {
+      const files = await consolidate(
+        makeInput([
+          makeTemplate(
+            "a",
+            {
+              description: "A",
+              codex: {
+                modelReasoningSummary: "concise",
+                modelVerbosity: "low",
+                personality: "pragmatic",
+                serviceTier: "flex",
+                skills: { bundled: { enabled: false }, includeInstructions: false },
+              },
+            },
+            "Body",
+          ),
+        ]),
+      );
+      const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
+      expect(parsed).toMatchObject({
+        model_reasoning_summary: "concise",
+        model_verbosity: "low",
+        personality: "pragmatic",
+        service_tier: "flex",
+        skills: { bundled: { enabled: false }, include_instructions: false },
+      });
     });
 
     it("effort: 'medium' auto-maps to model_reasoning_effort", async () => {
@@ -531,14 +474,23 @@ describe("codex target", () => {
       expect(parsed.model_reasoning_effort).toBe("medium");
     });
 
-    it("effort: 'max' (Claude-only) dropped with warning, no model_reasoning_effort emitted", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    it("maps every Claude effort value, max included, and ultra", async () => {
+      for (const effort of ["low", "medium", "high", "xhigh", "max", "ultra"]) {
+        const files = await consolidate(
+          makeInput([makeTemplate("a", { description: "A", effort }, "Body")]),
+        );
+        const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
+        expect(parsed.model_reasoning_effort).toBe(effort);
+      }
+    });
+
+    it("drops an effort Codex doesn't know, with a warning", async () => {
       const files = await consolidate(
-        makeInput([makeTemplate("a", { description: "A", effort: "max" }, "Body")]),
+        makeInput([makeTemplate("a", { description: "A", effort: "extreme" }, "Body")]),
       );
       const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
       expect(parsed.model_reasoning_effort).toBeUndefined();
-      warnSpy.mockRestore();
+      expect(diagnostics.map((d) => d.code)).toEqual(["unsupported"]);
     });
 
     it("tools field dropped with warning", async () => {
@@ -570,20 +522,6 @@ describe("codex target", () => {
       warnSpy.mockRestore();
     });
 
-    it("mcpServers → mcp_servers", async () => {
-      const files = await consolidate(
-        makeInput([
-          makeTemplate(
-            "a",
-            { description: "A", mcpServers: { github: { url: "https://x" } } },
-            "Body",
-          ),
-        ]),
-      );
-      const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
-      expect(parsed.mcp_servers).toEqual({ github: { url: "https://x" } });
-    });
-
     it("Claude-only agent fields dropped silently", async () => {
       const files = await consolidate(
         makeInput([
@@ -613,7 +551,7 @@ describe("codex target", () => {
       expect(parsed.hooks).toBeUndefined();
     });
 
-    it("uses outputDir from ConsolidateInput when overriding default", async () => {
+    it("honours a custom outputDir", async () => {
       const files = await consolidate(
         makeInput([makeTemplate("a", { description: "A" }, "Body")], ".custom-codex"),
       );
@@ -633,7 +571,7 @@ describe("codex target", () => {
         permissionRequest: [{ command: "e.sh" }],
         stop: [{ command: "f.sh" }],
       };
-      const result = transform(hooks) as { hooks: Record<string, unknown> };
+      const result = transform(hooks, ctx) as { hooks: Record<string, unknown> };
       expect(result.hooks).toHaveProperty("SessionStart");
       expect(result.hooks).toHaveProperty("UserPromptSubmit");
       expect(result.hooks).toHaveProperty("PreToolUse");
@@ -642,25 +580,45 @@ describe("codex target", () => {
       expect(result.hooks).toHaveProperty("Stop");
     });
 
-    it("drops unsupported events silently", () => {
-      const hooks: Record<string, UniversalHookHandler[]> = {
-        sessionEnd: [{ command: "a.sh" }],
-        subagentStart: [{ command: "b.sh" }],
-        preCompact: [{ command: "c.sh" }],
-        preToolUse: [{ command: "d.sh" }],
+    it("maps the newer events, including the Codex-only ones", () => {
+      const events = [
+        "sessionEnd",
+        "subagentStart",
+        "subagentStop",
+        "preCompact",
+        "postCompact",
+        "preModelRequest",
+        "postModelRequest",
+        "interrupt",
+      ];
+      const result = transform(
+        Object.fromEntries(events.map((e) => [e, [{ command: "x" }]])),
+        ctx,
+      ) as { hooks: Record<string, unknown> };
+      expect(Object.keys(result.hooks)).toEqual([
+        "SessionEnd",
+        "SubagentStart",
+        "SubagentStop",
+        "PreCompact",
+        "PostCompact",
+        "PreModelRequest",
+        "PostModelRequest",
+        "Interrupt",
+      ]);
+    });
+
+    it("drops events Codex doesn't have", () => {
+      const result = transform({ notification: [{ command: "x" }] }, ctx) as {
+        hooks: Record<string, unknown>;
       };
-      const result = transform(hooks) as { hooks: Record<string, unknown> };
-      expect(result.hooks).toHaveProperty("PreToolUse");
-      expect(result.hooks).not.toHaveProperty("SessionEnd");
-      expect(result.hooks).not.toHaveProperty("SubagentStart");
-      expect(result.hooks).not.toHaveProperty("PreCompact");
+      expect(result.hooks).toEqual({});
     });
 
     it("type: 'command' handlers pass through", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ type: "command", command: "x.sh", timeout: 30 }],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
       };
       const entry = result.hooks.PreToolUse[0]!.hooks[0]!;
@@ -673,36 +631,45 @@ describe("codex target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ command: "x.sh" }],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
       };
       expect(result.hooks.PreToolUse[0]!.hooks[0]!.type).toBe("command");
     });
 
-    it("non-command handler types dropped with warning", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    it("mcp_tool handlers emit server, tool, input, timeout and statusMessage", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [
-          { type: "http", url: "https://x", command: "n/a" },
-          { type: "mcp_tool", server: "s", tool: "t", command: "n/a" },
-          { type: "prompt", prompt: "go", command: "n/a" },
-          { type: "command", command: "kept.sh" },
+          {
+            type: "mcp_tool",
+            server: "audit",
+            tool: "log",
+            input: { path: "${tool_input.file_path}" },
+            timeout: 5,
+            statusMessage: "Auditing",
+            matcher: "Bash",
+          },
         ],
       };
-      const result = transform(hooks) as {
-        hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
+      const result = transform(hooks, ctx) as {
+        hooks: { PreToolUse: Array<{ matcher?: string; hooks: Array<Record<string, unknown>> }> };
       };
-      // Only one handler should survive (the type: "command" one)
-      expect(result.hooks.PreToolUse[0]!.hooks).toHaveLength(1);
-      expect(result.hooks.PreToolUse[0]!.hooks[0]!.command).toBe("kept.sh");
-      warnSpy.mockRestore();
+      expect(result.hooks.PreToolUse[0]!.matcher).toBe("Bash");
+      expect(result.hooks.PreToolUse[0]!.hooks[0]).toEqual({
+        type: "mcp_tool",
+        server: "audit",
+        tool: "log",
+        input: { path: "${tool_input.file_path}" },
+        timeout: 5,
+        statusMessage: "Auditing",
+      });
     });
 
     it("command + args flattened into single shell-escaped string", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ command: "echo", args: ["hello world", "it's me"] }],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<{ command: string }> }> };
       };
       const cmd = result.hooks.PreToolUse[0]!.hooks[0]!.command;
@@ -713,7 +680,7 @@ describe("codex target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ command: "lint", args: ["--fix", "src/main.ts"] }],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<{ command: string }> }> };
       };
       expect(result.hooks.PreToolUse[0]!.hooks[0]!.command).toBe("lint --fix src/main.ts");
@@ -723,7 +690,7 @@ describe("codex target", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [{ command: "x.sh", statusMessage: "checking…" }],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
       };
       expect(result.hooks.PreToolUse[0]!.hooks[0]!.statusMessage).toBe("checking…");
@@ -737,7 +704,7 @@ describe("codex target", () => {
           { command: "global.sh" },
         ],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ matcher?: string; hooks: unknown[] }> };
       };
       const groups = result.hooks.PreToolUse;
@@ -748,12 +715,52 @@ describe("codex target", () => {
       expect(globalGroup?.hooks).toHaveLength(1);
     });
 
+    it("emits async, commandWindows and additionalContextLimit", () => {
+      const result = transform(
+        {
+          preToolUse: [
+            { command: "x.sh", async: true, commandWindows: "x.ps1", additionalContextLimit: 4000 },
+          ],
+        },
+        ctx,
+      ) as { hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> } };
+      expect(result.hooks.PreToolUse[0]!.hooks[0]).toEqual({
+        type: "command",
+        command: "x.sh",
+        commandWindows: "x.ps1",
+        async: true,
+        additionalContextLimit: 4000,
+      });
+    });
+
+    it("keeps handler order exactly as templated (Codex trust hashes are positional)", () => {
+      const hooks: Record<string, UniversalHookHandler[]> = {
+        preToolUse: [
+          { command: "c", matcher: "Bash" },
+          { command: "a" },
+          { command: "b", matcher: "Bash" },
+          { command: "d", matcher: "Edit" },
+        ],
+      };
+      const first = JSON.stringify(transform(hooks, ctx));
+      expect(JSON.stringify(transform(structuredClone(hooks), ctx))).toBe(first);
+      const groups = (
+        transform(hooks, ctx) as {
+          hooks: { PreToolUse: Array<{ matcher?: string; hooks: Array<{ command: string }> }> };
+        }
+      ).hooks.PreToolUse;
+      expect(groups.map((g) => [g.matcher ?? "", g.hooks.map((h) => h.command)])).toEqual([
+        ["Bash", ["c", "b"]],
+        ["", ["a"]],
+        ["Edit", ["d"]],
+      ]);
+    });
+
     it("Claude-specific handler fields dropped silently", () => {
       const hooks: Record<string, UniversalHookHandler[]> = {
         preToolUse: [
           {
             command: "x.sh",
-            async: true,
             asyncRewake: true,
             shell: "bash",
             if: "Bash(*)",
@@ -761,11 +768,10 @@ describe("codex target", () => {
           },
         ],
       };
-      const result = transform(hooks) as {
+      const result = transform(hooks, ctx) as {
         hooks: { PreToolUse: Array<{ hooks: Array<Record<string, unknown>> }> };
       };
       const entry = result.hooks.PreToolUse[0]!.hooks[0]!;
-      expect(entry.async).toBeUndefined();
       expect(entry.asyncRewake).toBeUndefined();
       expect(entry.shell).toBeUndefined();
       expect(entry.if).toBeUndefined();
@@ -777,7 +783,7 @@ describe("codex target", () => {
     const transform = codex.mcp!.transform;
 
     it("wraps output in mcp_servers key (TOML-shaped)", () => {
-      const result = transform({}) as Record<string, unknown>;
+      const result = transform({}, undefined, ctx) as Record<string, unknown>;
       expect(result).toHaveProperty("mcp_servers");
     });
 
@@ -790,7 +796,7 @@ describe("codex target", () => {
           url: "https://x",
         },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcp_servers.s!;
@@ -804,7 +810,7 @@ describe("codex target", () => {
       const servers: Record<string, UniversalMCPServer> = {
         s: { url: "https://x", headers: { Authorization: "Bearer x" } },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       expect(result.mcp_servers.s!.http_headers).toEqual({ Authorization: "Bearer x" });
@@ -815,13 +821,13 @@ describe("codex target", () => {
       const servers: Record<string, UniversalMCPServer> = {
         s: { type: "stdio", command: "node" },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       expect(result.mcp_servers.s!.type).toBeUndefined();
     });
 
-    it("maps all 13 new Codex MCP fields with snake_case keys", () => {
+    it("maps every Codex MCP field to its snake_case key", () => {
       const servers: Record<string, UniversalMCPServer> = {
         s: {
           command: "node",
@@ -838,10 +844,19 @@ describe("codex target", () => {
           toolTimeoutSec: 30,
           oauthResource: "https://x",
           scopes: ["read"],
-          experimentalEnvironment: "remote",
+          environmentId: "remote",
+          headersHelper: "./headers.sh",
+          startupReadiness: "catalog",
+          supportsParallelToolCalls: true,
+          toolInputSchemaMaxBytes: 2048,
+          omitToolsFrom: "deferred",
+          defaultToolsApprovalMode: "prompt",
+          toolSettings: { search: { approvalMode: "auto", outputTokenLimit: 500 } },
+          identity: { url: { match: "prefix", value: "https://x" } },
+          auth: "chatgpt",
         },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcp_servers.s!;
@@ -858,19 +873,64 @@ describe("codex target", () => {
       expect(s.tool_timeout_sec).toBe(30);
       expect(s.oauth_resource).toBe("https://x");
       expect(s.scopes).toEqual(["read"]);
-      expect(s.experimental_environment).toBe("remote");
+      expect(s.environment_id).toBe("remote");
+      expect(s.http_headers_helper).toBe("./headers.sh");
+      expect(s.startup_readiness).toBe("catalog");
+      expect(s.supports_parallel_tool_calls).toBe(true);
+      expect(s.tool_input_schema_max_bytes).toBe(2048);
+      expect(s.omit_tools_from).toBe("deferred");
+      expect(s.default_tools_approval_mode).toBe("prompt");
+      expect(s.tools).toEqual({ search: { approval_mode: "auto", output_token_limit: 500 } });
+      expect(s.identity).toEqual({ url: { match: "prefix", value: "https://x" } });
+      expect(s.auth).toBe("chatgpt");
+      expect(diagnostics).toEqual([]);
     });
 
-    it("oauth field dropped with warning", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    it("accepts { name, source } env_vars entries", () => {
+      const result = transform(
+        { s: { command: "x", envVars: ["A", { name: "B", source: "remote" }] } },
+        undefined,
+        ctx,
+      ) as { mcp_servers: Record<string, Record<string, unknown>> };
+      expect(result.mcp_servers.s!.env_vars).toEqual(["A", { name: "B", source: "remote" }]);
+    });
+
+    it("writes the deprecated experimentalEnvironment as environment_id, with a warning", () => {
+      const result = transform(
+        { s: { command: "x", experimentalEnvironment: "remote" } },
+        undefined,
+        ctx,
+      ) as { mcp_servers: Record<string, Record<string, unknown>> };
+      expect(result.mcp_servers.s!.environment_id).toBe("remote");
+      expect(result.mcp_servers.s).not.toHaveProperty("experimental_environment");
+      expect(diagnostics.map((d) => d.code)).toEqual(["legacy-field"]);
+    });
+
+    it("maps oauth to Codex's oauth table, reporting keys Codex lacks", () => {
       const servers: Record<string, UniversalMCPServer> = {
-        s: { url: "https://x", oauth: { clientId: "id" } },
+        s: {
+          url: "https://x",
+          oauth: {
+            clientId: "id",
+            clientSecret: "secret",
+            callbackUrl: "http://127.0.0.1/cb",
+            callbackPort: 7777,
+            authServerMetadataUrl: "https://meta",
+          },
+        },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
-      expect(result.mcp_servers.s!.oauth).toBeUndefined();
-      warnSpy.mockRestore();
+      expect(result.mcp_servers.s!.oauth).toEqual({
+        client_id: "id",
+        client_secret: "secret",
+        callback_url: "http://127.0.0.1/cb",
+        callback_port: 7777,
+      });
+      expect(diagnostics.map((d) => (d.detail as { name: string }).name)).toEqual([
+        "oauth.authServerMetadataUrl",
+      ]);
     });
 
     it("auth field dropped with warning", () => {
@@ -878,7 +938,7 @@ describe("codex target", () => {
       const servers: Record<string, UniversalMCPServer> = {
         s: { url: "https://x", auth: { CLIENT_ID: "id" } },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       expect(result.mcp_servers.s!.auth).toBeUndefined();
@@ -890,7 +950,7 @@ describe("codex target", () => {
       const servers: Record<string, UniversalMCPServer> = {
         s: { command: "x", envFile: ".env" },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       expect(result.mcp_servers.s!.envFile).toBeUndefined();
@@ -908,7 +968,7 @@ describe("codex target", () => {
           dev: { debug: true },
         },
       };
-      const result = transform(servers) as {
+      const result = transform(servers, undefined, ctx) as {
         mcp_servers: Record<string, Record<string, unknown>>;
       };
       const s = result.mcp_servers.s!;

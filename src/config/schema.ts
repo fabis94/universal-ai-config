@@ -23,6 +23,13 @@ const mcpConfigSchema = z.object({
   mcpServers: perTargetSchema(z.array(z.string())).optional(),
 });
 
+const agentsMdConfigSchema = z.object({
+  enable: z.boolean().optional(),
+  variation: z.enum(["nested", "concatenate", "index"]).optional(),
+  indexDir: z.string().optional(),
+  keepOverrideFiles: z.boolean().optional(),
+});
+
 export const userConfigSchema = z.object({
   templatesDir: z.string().optional(),
   additionalTemplateDirs: z.array(z.string()).optional(),
@@ -40,6 +47,7 @@ export const userConfigSchema = z.object({
   exclude: stringArrayPerTarget.optional(),
   preserveOnClean: stringArrayPerTarget.optional(),
   mcp: mcpConfigSchema.optional(),
+  agentsMd: agentsMdConfigSchema.optional(),
 });
 
 export function defineConfig(config: UserConfig): UserConfig {

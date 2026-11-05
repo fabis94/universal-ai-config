@@ -26,7 +26,7 @@ List directories in `<%%= skillTemplatePath() %>/` to discover existing skills. 
 
 ### Frontmatter Fields
 
-Key fields: `name`, `description`, `disableAutoInvocation`, `userInvocable`, `allowedTools`, `model`, `hooks`, `version`, `author`, `codex`. Every field with its per-target support: `<%%= docPath('uac/frontmatter') %>`. Per-target override syntax: `<%%= instructionPath('uac-template-guide') %>`.
+Key fields: `name` (must match the folder name: lowercase letters, digits and hyphens, at most 64 characters), `description` (required), `disableAutoInvocation`, `userInvocable`, `allowedTools`, `skillPaths`, `model`, `hooks`, `metadata` (string values only), `codex`. uac warns when a skill breaks these Agent Skills spec rules. Every field with its per-target support: `<%%= docPath('uac/frontmatter') %>`. Per-target override syntax: `<%%= instructionPath('uac-template-guide') %>`.
 
 ### Codex-specific UI metadata
 
@@ -34,7 +34,7 @@ For Codex-only UI metadata (display name, icons, brand color, invocation policy,
 
 ### Supporting Files
 
-Skills can include additional files in their directory. These are automatically copied to generated output during `uac generate`. `.md` extra files are rendered through EJS (with access to `target`, `config`, path helpers), while non-`.md` files are copied as-is.
+Skills can include additional files in their directory. These are automatically copied to generated output during `uac generate`. `.md` extra files are rendered through EJS (with access to `target`, `config`, path helpers), while non-`.md` files are copied byte for byte, executable bit included.
 
 ```
 my-skill/

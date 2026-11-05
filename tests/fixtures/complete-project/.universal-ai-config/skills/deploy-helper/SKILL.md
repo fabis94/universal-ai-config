@@ -2,7 +2,7 @@
 name: deploy-helper
 description: Assists with deployment tasks
 disableAutoInvocation: true
-userInvocable: /deploy
+userInvocable: true
 allowedTools: ["bash", "read", "write"]
 model: sonnet
 subagentType: task

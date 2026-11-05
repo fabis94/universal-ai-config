@@ -45,9 +45,13 @@ List files in `<%= hookTemplatePath() %>/` to discover existing hook templates (
 
 ### Events, Handler Fields, and Per-Target Overrides
 
-Use camelCase event names (e.g. `sessionStart`, `preToolUse`, `postToolUse`). The CLI maps them to each target's format and silently drops events a target doesn't support. Handler fields (`command`, `matcher`, `timeout`, `description`) accept per-target values.
+Use camelCase event names (e.g. `sessionStart`, `preToolUse`, `postToolUse`). The CLI maps them to each target's format and silently drops events a target doesn't support. Handler fields (`command`, `matcher`, `timeout`) accept per-target values.
 
-Before using an event or handler field, check `<%= docPath('uac/hooks') %>`. It has the per-target event mapping table (which targets support each event — Codex supports only a small subset), every handler field with the targets that use it, and matcher patterns. Codex supports only `type: "command"` handlers.
+Before using an event, handler type or field, check `<%= docPath('uac/hooks') %>`. It has the per-target event table, which handler types each target runs (non-`command` types are dropped where unsupported), every handler field with its targets, matcher syntax per target (Cursor calls the shell tool `Shell`), and per-target caveats (Codex trust, Cursor and Copilot also running Claude's hooks).
+
+### Script paths
+
+Hooks run from the session's working folder, which may be a subfolder. Make commands independent of it: `"$CLAUDE_PROJECT_DIR/scripts/x.sh"` (Claude and Cursor) or `"$(git rev-parse --show-toplevel)/scripts/x.sh"` (every target).
 
 ### Example
 
@@ -57,7 +61,7 @@ Before using an event or handler field, check `<%= docPath('uac/hooks') %>`. It 
     "postToolUse": [
       {
         "matcher": "Write|Edit",
-        "command": "./scripts/format-file.sh",
+        "command": "\"$(git rev-parse --show-toplevel)/scripts/format-file.sh\"",
         "timeout": 60,
         "description": "Auto-format files after edits"
       }

@@ -1,4 +1,5 @@
-import { defineTarget } from "../define-target.js";
+import { booleanField } from "../mappers.js";
+import { defineTarget, type TargetContext } from "../define-target.js";
 import type { UniversalHookHandler, UniversalMCPServer } from "../../types.js";
 import { normalizeGlobs } from "../../core/normalize-globs.js";
 
@@ -33,7 +34,17 @@ const EVENT_NAME_MAP: Record<string, string> = {
   elicitationResult: "ElicitationResult",
   taskCreated: "TaskCreated",
   taskCompleted: "TaskCompleted",
+  messageDisplay: "MessageDisplay",
+  directoryAdded: "DirectoryAdded",
+  preModelSwitch: "PreModelSwitch",
+  postModelSwitch: "PostModelSwitch",
 };
+
+/** Handler types whose failure can block the action (`onFailure`). */
+const ON_FAILURE_TYPES = new Set(["command", "http"]);
+
+/** Transport types Claude Code accepts in `.mcp.json`. */
+const CLAUDE_MCP_TYPES = new Set(["stdio", "http", "sse", "ws"]);
 
 function transformClaudeHooks(
   hooks: Record<string, UniversalHookHandler[]>,
@@ -78,6 +89,10 @@ function transformClaudeHooks(
         if (h.statusMessage !== undefined) entry.statusMessage = h.statusMessage;
         if (h.once !== undefined) entry.once = h.once;
         if (h.timeout !== undefined) entry.timeout = h.timeout;
+        // Universal failClosed means the same as Claude's onFailure
+        if (h.failClosed !== undefined && ON_FAILURE_TYPES.has(handlerType)) {
+          entry.onFailure = h.failClosed ? "block" : "continue";
+        }
         if (h.description !== undefined) entry.description = h.description;
         return entry;
       });
@@ -93,11 +108,37 @@ function transformClaudeHooks(
   return { hooks: result };
 }
 
-function transformClaudeMCP(servers: Record<string, UniversalMCPServer>): Record<string, unknown> {
+/**
+ * Claude's `.mcp.json`. Copilot reads this same file when both targets are
+ * generated, so it must stay valid for both: `type` only from Claude's set,
+ * `timeout` as integer milliseconds.
+ */
+function transformClaudeMCP(
+  servers: Record<string, UniversalMCPServer>,
+  _inputs: unknown,
+  { report }: TargetContext,
+): Record<string, unknown> {
   const mcpServers: Record<string, unknown> = {};
   for (const [name, server] of Object.entries(servers)) {
     const entry: Record<string, unknown> = {};
-    if (server.type !== undefined) entry.type = server.type;
+    if (server.type !== undefined) {
+      if (!CLAUDE_MCP_TYPES.has(server.type)) {
+        report({
+          code: "unsupported",
+          message: `mcp.${name}: type "${server.type}" isn't a Claude Code transport (stdio, http, ws); dropped, so Claude infers it from command/url`,
+          detail: { kind: "field", name: "type" },
+        });
+      } else {
+        entry.type = server.type;
+        if (server.type === "sse") {
+          report({
+            code: "legacy-field",
+            message: `mcp.${name}: the SSE transport is deprecated (MCP spec 2026-07-28); use "http"`,
+            detail: { field: "type" },
+          });
+        }
+      }
+    }
     if (server.command !== undefined) entry.command = server.command;
     if (server.args !== undefined) entry.args = server.args;
     if (server.env !== undefined) entry.env = server.env;
@@ -106,6 +147,24 @@ function transformClaudeMCP(servers: Record<string, UniversalMCPServer>): Record
     if (server.alwaysLoad !== undefined) entry.alwaysLoad = server.alwaysLoad;
     if (server.headersHelper !== undefined) entry.headersHelper = server.headersHelper;
     if (server.oauth !== undefined) entry.oauth = server.oauth;
+    if (server.timeout !== undefined) {
+      if (Number.isInteger(server.timeout) && server.timeout > 0) {
+        entry.timeout = server.timeout;
+        if (server.timeout < 1000) {
+          report({
+            code: "suspicious-value",
+            message: `mcp.${name}: timeout ${server.timeout} is in milliseconds, and Claude ignores values below 1000 — did you mean seconds?`,
+            detail: { field: "timeout", value: server.timeout },
+          });
+        }
+      } else {
+        report({
+          code: "suspicious-value",
+          message: `mcp.${name}: timeout must be a whole number of milliseconds; dropped`,
+          detail: { field: "timeout", value: server.timeout },
+        });
+      }
+    }
     mcpServers[name] = entry;
   }
   return { mcpServers };
@@ -115,6 +174,16 @@ export default defineTarget({
   name: "claude",
   outputDir: ".claude",
   supportedTypes: ["instructions", "skills", "agents", "hooks", "mcp"],
+  reads: {
+    instructions: [
+      {
+        from: "agentsMd",
+        reconcile: "loads-both",
+        loses:
+          "file-pattern scoping (`paths` globs); nested AGENTS.md files load only when Claude reads a file in that folder, and none load while a non-empty CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md exists",
+      },
+    ],
+  },
 
   instructions: {
     frontmatterMap: {
@@ -132,7 +201,9 @@ export default defineTarget({
         return {};
       },
     },
-    getOutputPath: (name) => `rules/${name}.md`,
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/rules/${name}.md`,
+    typeDir: ({ outputDir }) => `${outputDir}/rules`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/rules`],
   },
 
   skills: {
@@ -140,7 +211,7 @@ export default defineTarget({
       name: "name",
       description: "description",
       disableAutoInvocation: "disable-model-invocation",
-      userInvocable: "user-invocable",
+      userInvocable: booleanField("user-invocable"),
       allowedTools: "allowed-tools",
       model: "model",
       subagentType: "agent",
@@ -152,8 +223,15 @@ export default defineTarget({
       effort: "effort",
       skillPaths: "paths",
       skillShell: "shell",
+      disallowedTools: "disallowed-tools",
+      background: "background",
+      license: "license",
+      compatibility: "compatibility",
+      metadata: "metadata",
     },
-    getOutputPath: (name) => `skills/${name}/SKILL.md`,
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/skills/${name}/SKILL.md`,
+    typeDir: ({ outputDir }) => `${outputDir}/skills`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/skills`],
   },
 
   agents: {
@@ -174,18 +252,27 @@ export default defineTarget({
       isolation: "isolation",
       color: "color",
       initialPrompt: "initialPrompt",
+      autoCompactWindow: "autoCompactWindow",
+      omitClaudeMd: "omitClaudeMd",
+      experimental: "experimental",
     },
-    getOutputPath: (name) => `agents/${name}.md`,
+    // Cursor also reads `.claude/agents/` with a line-based parser
+    frontmatterStyle: "line-safe",
+    outputPath: (name, _fm, { outputDir }) => `${outputDir}/agents/${name}.md`,
+    typeDir: ({ outputDir }) => `${outputDir}/agents`,
+    ownedPaths: ({ outputDir }) => [`${outputDir}/agents`],
   },
 
   hooks: {
+    events: EVENT_NAME_MAP,
+    handlerTypes: ["command", "http", "mcp_tool", "prompt", "agent"],
     transform: transformClaudeHooks,
-    outputPath: "settings.json",
+    outputPath: ({ outputDir }) => `${outputDir}/settings.json`,
     mergeKey: "hooks",
   },
 
   mcp: {
     transform: transformClaudeMCP,
-    outputPath: ".mcp.json",
+    outputPath: () => ".mcp.json",
   },
 });

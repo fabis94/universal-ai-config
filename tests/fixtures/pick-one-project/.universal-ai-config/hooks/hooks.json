@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "preToolUse": [{ "command": "./scripts/guard.sh", "matcher": "Bash" }],
+    "stop": [{ "command": { "claude": "./scripts/claude-stop.sh", "default": "./scripts/stop.sh" } }],
+    "sessionStart": [{ "command": "./scripts/start.sh" }]
+  }
+}

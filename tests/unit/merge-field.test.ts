@@ -93,3 +93,16 @@ describe("mergeField", () => {
     });
   });
 });
+
+describe("mergeField with the codex key", () => {
+  it("treats a codex-keyed object as per-target, not as a plain value", () => {
+    expect(mergeField({ codex: ["a"] }, { codex: ["b"] })).toEqual({ codex: ["a", "b"] });
+  });
+
+  it("falls back to default for codex like any other target", () => {
+    expect(mergeField({ default: ["x"] }, { codex: ["b"] })).toEqual({
+      default: ["x"],
+      codex: ["x", "b"],
+    });
+  });
+});

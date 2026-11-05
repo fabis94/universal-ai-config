@@ -1,8 +1,7 @@
 import { parse as parseYAML } from "yaml";
 import ejs from "ejs";
-import { extname, join } from "node:path";
-import { targets } from "../targets/index.js";
-import { getCodexInstructionEmissionPaths } from "../targets/codex/instruction-routing.js";
+import { extname, join, posix } from "node:path";
+import { createLocator, toPosixPath, type Locator } from "./plan/locate.js";
 import type { ResolvedConfig, Target, TemplateType, UniversalFrontmatter } from "../types.js";
 
 interface ParsedTemplate {
@@ -28,6 +27,10 @@ interface RenderContext {
   type: TemplateType;
   config: ResolvedConfig;
   templatesIndex?: TemplatesIndex;
+  /** Output path computation; built from `config` when omitted */
+  locator?: Locator;
+  /** Targets that will read the output (exposed to EJS as `consumers`); defaults to `[target]` */
+  consumers?: Target[];
 }
 
 export function parseFrontmatter(content: string): ParsedTemplate {
@@ -57,71 +60,34 @@ export function normalizeDocName(name: string): string {
   return key.replace(/\.md$/, "");
 }
 
-function buildPathHelpers(target: Target, templatesDir: string, templatesIndex?: TemplatesIndex) {
-  const targetDef = targets[target];
-  const outputDir = targetDef?.outputDir ?? "";
-
-  function outputTypeDir(
-    tc: { getOutputPath: (name: string, fm: UniversalFrontmatter) => string } | undefined,
-    fallback: string,
-  ): string {
-    if (!tc) return join(outputDir, fallback);
-    const firstSegment = tc.getOutputPath("_", {} as UniversalFrontmatter).split("/")[0] ?? "";
-    return join(outputDir, firstSegment);
-  }
+function buildPathHelpers(
+  target: Target,
+  config: ResolvedConfig,
+  locator: Locator,
+  templatesIndex?: TemplatesIndex,
+) {
+  const { templatesDir } = config;
+  const instructionFrontmatter = (name: string): UniversalFrontmatter =>
+    templatesIndex?.instructions.get(name) ?? ({} as UniversalFrontmatter);
+  const noFrontmatter = {} as UniversalFrontmatter;
 
   return {
-    instructionPath: (name?: string) => {
-      // Codex consolidates instructions into AGENTS.md or <dir>/AGENTS.override.md
-      // outside outputDir; the per-name routing depends on the template's frontmatter.
-      if (target === "codex") {
-        if (!name) return ".";
-        const fm = templatesIndex?.instructions.get(name);
-        if (!fm) return "AGENTS.md";
-        const paths = getCodexInstructionEmissionPaths(fm);
-        return paths[0] ?? "AGENTS.md";
-      }
-      const tc = targetDef?.instructions;
-      if (!name) return outputTypeDir(tc, "instructions");
-      if (!tc) return join(outputDir, `instructions/${name}.md`);
-      return join(outputDir, tc.getOutputPath(name, {} as UniversalFrontmatter));
-    },
-    skillPath: (name?: string) => {
-      // Codex emits skills at root-relative .agents/skills/<name>/SKILL.md
-      // (outside outputDir, per the open Agent Skills standard).
-      if (target === "codex") {
-        return name ? `.agents/skills/${name}/SKILL.md` : ".agents/skills";
-      }
-      const tc = targetDef?.skills;
-      if (!name) return outputTypeDir(tc, "skills");
-      if (!tc) return join(outputDir, `skills/${name}/SKILL.md`);
-      return join(outputDir, tc.getOutputPath(name, {} as UniversalFrontmatter));
-    },
+    instructionPath: (name?: string) =>
+      name
+        ? locator.templatePath(target, "instructions", name, instructionFrontmatter(name))
+        : locator.typeDir(target, "instructions"),
+    skillPath: (name?: string) =>
+      name
+        ? locator.templatePath(target, "skills", name, noFrontmatter)
+        : locator.typeDir(target, "skills"),
     skillDirPath: (name: string, relativePath?: string) => {
-      let dir: string;
-      if (target === "codex") {
-        dir = `.agents/skills/${name}`;
-      } else {
-        const tc = targetDef?.skills;
-        const skillFile = !tc
-          ? join(outputDir, `skills/${name}/SKILL.md`)
-          : join(outputDir, tc.getOutputPath(name, {} as UniversalFrontmatter));
-        // invariant: every non-codex skills.getOutputPath ends in /SKILL.md
-        dir = skillFile.replace(/\/SKILL\.md$/, "");
-      }
-      return relativePath ? join(dir, relativePath) : dir;
+      const dir = locator.skillDir(target, name);
+      return relativePath ? posix.join(dir, toPosixPath(relativePath)) : dir;
     },
-    agentPath: (name?: string) => {
-      // Codex emits each agent as .codex/agents/<name>.toml (the codex
-      // getOutputPath returns only the bare name as a consolidate sentinel).
-      if (target === "codex") {
-        return name ? `.codex/agents/${name}.toml` : ".codex/agents";
-      }
-      const tc = targetDef?.agents;
-      if (!name) return outputTypeDir(tc, "agents");
-      if (!tc) return join(outputDir, `agents/${name}.md`);
-      return join(outputDir, tc.getOutputPath(name, {} as UniversalFrontmatter));
-    },
+    agentPath: (name?: string) =>
+      name
+        ? locator.templatePath(target, "agents", name, noFrontmatter)
+        : locator.typeDir(target, "agents"),
     instructionTemplatePath: (name?: string) =>
       name ? join(templatesDir, `instructions/${name}.md`) : join(templatesDir, "instructions"),
     skillTemplatePath: (name?: string) =>
@@ -158,7 +124,8 @@ function buildPathHelpers(target: Target, templatesDir: string, templatesIndex?:
 export function renderEjs(template: string, context: RenderContext): string {
   const pathHelpers = buildPathHelpers(
     context.target,
-    context.config.templatesDir,
+    context.config,
+    context.locator ?? createLocator(context.config),
     context.templatesIndex,
   );
   return ejs.render(
@@ -167,6 +134,7 @@ export function renderEjs(template: string, context: RenderContext): string {
       target: context.target,
       type: context.type,
       config: context.config,
+      consumers: context.consumers ?? [context.target],
       ...pathHelpers,
       ...context.config.variables,
     },

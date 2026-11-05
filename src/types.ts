@@ -1,3 +1,5 @@
+import type { Diagnostic } from "./core/diagnostics.js";
+
 export type Target = "claude" | "copilot" | "cursor" | "codex";
 export type TemplateType = "instructions" | "skills" | "agents" | "hooks" | "mcp";
 
@@ -12,7 +14,7 @@ export interface UserConfig {
    * Supports absolute paths, relative paths, and `~`. Main `templatesDir` wins on name conflicts.
    */
   additionalTemplateDirs?: string[];
-  /** Which targets to generate config for. Default: all (`["claude", "copilot", "cursor"]`). */
+  /** Which targets to generate config for. Default: all (`["claude", "copilot", "cursor", "codex"]`). */
   targets?: Target[];
   /** Which template types to generate. Default: all (`["instructions", "skills", "agents", "hooks", "mcp"]`). */
   types?: TemplateType[];
@@ -52,6 +54,40 @@ export interface UserConfig {
    * declared them.
    */
   mcp?: MCPConfig;
+  /**
+   * AGENTS.md output. Generated whenever `codex` is a target (forced), or when
+   * `enable` is true. While it is generated, every target that reads AGENTS.md
+   * (claude, cursor, copilot) skips its own instruction output.
+   */
+  agentsMd?: AgentsMdConfig;
+}
+
+/** How instruction templates are laid out across AGENTS.md files. */
+export type AgentsMdVariation = "nested" | "concatenate" | "index";
+
+export interface AgentsMdConfig {
+  /**
+   * Generate AGENTS.md even without the codex target. Ignored (with a warning)
+   * when false while codex is a target, since Codex reads nothing else.
+   */
+  enable?: boolean;
+  /**
+   * - `nested` (default): folder-scoped instructions go to `<dir>/AGENTS.md`,
+   *   everything else to the root `AGENTS.md`.
+   * - `concatenate`: everything goes to the root `AGENTS.md`, with a scope
+   *   note on each scoped section.
+   * - `index`: the root `AGENTS.md` lists folder-scoped instructions, which are
+   *   written to `<indexDir>/<name>.md` for the agent to read on demand.
+   */
+  variation?: AgentsMdVariation;
+  /** Where the `index` variation writes scoped instructions. Default: `.agents/uac-instructions`. */
+  indexDir?: string;
+  /**
+   * The project's `AGENTS.override.md` files are yours. uac 2.x generated them
+   * for Codex; by default generate and clean warn about any they find and
+   * offer to delete them. With `true` uac never warns about or deletes them.
+   */
+  keepOverrideFiles?: boolean;
 }
 
 export interface MCPConfig {
@@ -71,11 +107,33 @@ export interface ResolvedConfig {
   exclude: PerTargetValue<string[]>;
   preserveOnClean: PerTargetValue<string[]>;
   mcp: MCPConfig;
+  agentsMd: ResolvedAgentsMdConfig;
+}
+
+/** `agentsMd` with defaults applied. `enable` stays undefined unless set, so an explicit `false` can be told apart. */
+export interface ResolvedAgentsMdConfig {
+  enable?: boolean;
+  variation: AgentsMdVariation;
+  indexDir: string;
+  keepOverrideFiles?: boolean;
 }
 
 export interface GeneratedFile {
+  /** Root-relative output path */
   path: string;
-  content: string;
+  /**
+   * File content. Text outputs are strings; a skill's non-markdown extra files
+   * are copied byte for byte as a `Uint8Array`, so binary assets stay intact.
+   */
+  content: string | Uint8Array;
+  /** Permission bits to apply after writing (set when the source file was executable). */
+  mode?: number;
+  /**
+   * Every target that reads this file. Usually just `target`; a shared output
+   * (AGENTS.md, Claude's `.mcp.json` when copilot is a target too) lists every
+   * reader, with `target` being the one it was rendered for.
+   */
+  consumers?: Target[];
   target: Target;
   type: TemplateType;
   sourcePath: string;
@@ -93,9 +151,12 @@ export interface GeneratedFile {
   inputCount?: number;
 }
 
+/** Kinds of hook handler. Each target declares which it can run (`HooksTypeConfig.handlerTypes`). */
+export type HookHandlerType = "command" | "http" | "mcp_tool" | "prompt" | "agent";
+
 export interface UniversalHookHandler {
-  // Handler type: "command" (default), "http", "mcp_tool", "prompt", "agent"
-  type?: string;
+  /** Handler type; defaults to `"command"` */
+  type?: HookHandlerType;
   // command handler
   command?: string;
   args?: string[];
@@ -116,12 +177,21 @@ export interface UniversalHookHandler {
   // prompt / agent handler
   prompt?: string;
   model?: string;
+  /** Copilot: working directory for the command */
+  cwd?: string;
+  /** Copilot: environment variables for the command */
+  env?: Record<string, string>;
+  /** Codex: Windows-only command override */
+  commandWindows?: string;
+  /** Codex: how much `additionalContext` the hook may send before Codex saves it to disk */
+  additionalContextLimit?: number;
   // common fields
   matcher?: string;
   timeout?: number;
   description?: string;
   // Cursor-specific
   loopLimit?: number | null;
+  /** Block the action when the hook fails (Cursor `failClosed`, Claude `onFailure: "block"`) */
   failClosed?: boolean;
 }
 
@@ -132,6 +202,10 @@ export interface UniversalMCPServer {
   env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
+  /** Claude/Copilot: per-tool-call timeout in milliseconds */
+  timeout?: number;
+  /** Copilot: load the server's tools only on demand */
+  deferTools?: boolean;
   // Claude-specific
   alwaysLoad?: boolean;
   headersHelper?: string;
@@ -142,12 +216,13 @@ export interface UniversalMCPServer {
   dev?: { watch?: string; debug?: boolean };
   // Cursor-specific
   envFile?: string;
-  auth?: Record<string, unknown>;
+  /** Cursor: OAuth object; Codex: `"oauth"` or `"chatgpt"` (use per-target overrides) */
+  auth?: Record<string, unknown> | string;
   // Codex-specific (snake_case TOML keys → camelCase universal)
   /** Codex: working directory for stdio child process */
   cwd?: string;
-  /** Codex: env-var-name allowlist for forwarding (distinct from `env` value-setter) */
-  envVars?: string[];
+  /** Codex: env vars to forward — a name, or `{ name, source }` (source `local` or `remote`) */
+  envVars?: Array<string | { name: string; source?: string }>;
   /** Codex: per-server tool allowlist (canonical Codex name) */
   enabledTools?: string[];
   /** Codex: per-server tool denylist (Codex-only) */
@@ -170,11 +245,32 @@ export interface UniversalMCPServer {
   oauthResource?: string;
   /** Codex: OAuth scopes to request */
   scopes?: string[];
-  /** Codex (experimental): `"local"` or `"remote"` — remote-executor flag */
+  /** @deprecated Codex renamed it; use `environmentId`. */
   experimentalEnvironment?: string;
+  /** Codex: the executor environment that runs the server */
+  environmentId?: string;
+  /** Codex: `"connection"` or `"catalog"` — what startup waits for */
+  startupReadiness?: string;
+  /** Codex: every tool on this server is safe to run in parallel */
+  supportsParallelToolCalls?: boolean;
+  /** Codex: cap on a tool's input schema size */
+  toolInputSchemaMaxBytes?: number;
+  /** Codex: where tool definitions are left out (`direct`, `deferred` or `code_mode`) */
+  omitToolsFrom?: string;
+  /** Codex: approval mode for every tool (`auto`, `prompt`, `writes` or `approve`) */
+  defaultToolsApprovalMode?: string;
+  /** Codex: per-tool settings, keyed by tool name */
+  toolSettings?: Record<string, { approvalMode?: string; outputTokenLimit?: number }>;
+  /** Codex: how the server proves its identity (`command` or `url` matcher) */
+  identity?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
+/**
+ * @deprecated VS Code's legacy `.vscode/mcp.json` inputs. uac no longer writes
+ * that file, so inputs are dropped with a warning; use `${NAME}` environment
+ * variables instead.
+ */
 export interface UniversalMCPInput {
   type: string;
   id: string;
@@ -186,8 +282,10 @@ export interface UniversalMCPInput {
 export interface InMemoryExtraFile {
   /** Path relative to the skill directory, e.g. "references/example.md" */
   relativePath: string;
-  /** File content */
-  content: string;
+  /** File content: `.md` files are EJS-rendered, everything else is copied as-is */
+  content: string | Uint8Array;
+  /** Permission bits for the written file, e.g. `0o755` for a script */
+  mode?: number;
 }
 
 export interface InMemoryTemplate {
@@ -214,8 +312,16 @@ export interface GenerateOptions {
    * Called once per shadowed candidate, per target. A candidate is shadowed when
    * a higher-precedence source declared the same identity — see `ShadowEvent`.
    * Candidates dropped by `exclude` are not reported: that was asked for.
+   *
+   * @deprecated Use `onDiagnostic` and read diagnostics with `code: "shadowed"`.
    */
   onShadowed?: (event: ShadowEvent) => void;
+  /**
+   * Called with every diagnostic the run produces: warnings (unsupported fields,
+   * outputs another target serves, …) and info (shadowed templates). When
+   * omitted, warnings are printed to the console.
+   */
+  onDiagnostic?: (diagnostic: Diagnostic) => void;
 }
 
 /**
@@ -244,6 +350,20 @@ export interface ShadowEvent {
   losingSource: string;
   /** Template directory the winner came from, as written in config ("" for in-memory) */
   winningSource: string;
+}
+
+/** Codex-only agent settings, emitted snake_cased into the agent's TOML file. */
+export interface UniversalAgentCodexFields {
+  modelReasoningSummary?: string;
+  modelVerbosity?: string;
+  personality?: string;
+  serviceTier?: string;
+  skills?: {
+    /** `{ enabled: false }` turns off Codex's bundled skills for this agent */
+    bundled?: { enabled?: boolean };
+    /** `false` omits the automatic skills instructions block */
+    includeInstructions?: boolean;
+  };
 }
 
 /**
@@ -283,7 +403,8 @@ export interface UniversalFrontmatter {
   // Skills
   name?: string;
   disableAutoInvocation?: boolean;
-  userInvocable?: boolean | string;
+  /** Show the skill (or agent) in the `/` menu; boolean only */
+  userInvocable?: boolean;
   allowedTools?: string[];
   model?: string | string[];
   subagentType?: string;
@@ -298,8 +419,13 @@ export interface UniversalFrontmatter {
   version?: string;
   /** Skill author attribution (Codex SKILL.md spec) */
   author?: string;
-  /** Codex-only nested skill metadata — drives `agents/openai.yaml` sidecar emission */
-  codex?: UniversalSkillCodexFields;
+  /**
+   * Codex-only settings: for skills, the `agents/openai.yaml` sidecar
+   * (`interface`, `dependencies`); for agents, extra agent-file keys.
+   */
+  codex?: UniversalSkillCodexFields & UniversalAgentCodexFields;
+  /** Cursor: icon on the skill's Custom Mode badge */
+  icon?: string;
   // Claude-only skill fields
   whenToUse?: string;
   arguments?: string | string[];
@@ -313,19 +439,41 @@ export interface UniversalFrontmatter {
   permissionMode?: string;
   skills?: string[];
   memory?: string;
-  target?: string;
+  /** Copilot agent: the editor schema the file targets */
+  target?: "vscode" | "github-copilot";
   mcpServers?: Record<string, unknown>;
-  handoffs?: string[];
+  /** @deprecated VS Code Local-harness only; dropped for Copilot with a warning. */
+  handoffs?: unknown[];
+  /** @deprecated VS Code Local-harness only (`agents`); dropped for Copilot with a warning. */
   subAgents?: string[];
+  /** Cursor agent: restricted write permissions */
+  readonly?: boolean;
+  // Copilot-only agent fields
+  /** Copilot agent: whether `model` is a preference or a requirement */
+  modelPolicy?: "preferred" | "required";
+  /** Copilot agent: also load the repository's custom instructions */
+  includeCustomInstructions?: boolean;
+  /** Copilot agent: load tools on demand */
+  deferredToolLoading?: boolean;
+  /** Copilot agent: offer only the listed tools */
+  strictToolsList?: boolean;
+  /** Copilot agent: GitHub settings block */
+  github?: Record<string, unknown>;
   // Claude-only agent fields
   maxTurns?: number;
   background?: boolean;
   isolation?: string;
   color?: string;
   initialPrompt?: string;
+  /** Claude agent: lower auto-compact window, in tokens */
+  autoCompactWindow?: number;
+  /** Claude agent: start without CLAUDE.md files */
+  omitClaudeMd?: boolean;
+  /** Claude agent: experimental options (e.g. `cacheTtl`) */
+  experimental?: Record<string, unknown>;
   // Codex-only agent fields
   /** Codex agent: display nickname pool for spawned worker copies */
   nicknameCandidates?: string[];
-  /** Codex agent: sandbox mode (`read-only` / `workspace-write` / `danger-full-access`) */
+  /** @deprecated Codex ignores it in agent files since 0.149; dropped with a warning. */
   sandboxMode?: string;
 }

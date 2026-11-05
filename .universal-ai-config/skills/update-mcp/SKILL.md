@@ -47,12 +47,12 @@ List files in `<%= mcpTemplatePath() %>/` to discover existing MCP templates (`.
 
 Core fields: `command` + `args` (stdio) or `url` + `headers` (HTTP), plus `type` and `env`. A server must have `command` or `url`. If neither is left after per-target override resolution, the server is dropped for that target, which is how you define target-exclusive servers.
 
-Before using any other field, check `<%= docPath('uac/mcp') %>`. It lists every server field with the targets that use it (including Codex's auth fields and `enabledTools`/`disabledTools`), per-target override examples, Copilot `inputs` prompts, the output path for each target, and server-name opt-in filtering.
+Before using any other field, check `<%= docPath('uac/mcp') %>`. It lists every server field with the targets that use it (including Codex's auth fields and `enabledTools`/`disabledTools`), per-target override examples, the output path for each target (Claude and Copilot share the root `.mcp.json`), and server-name opt-in filtering. VS Code's `inputs` prompts and `${input:…}` aren't supported.
 
 ### Variables and Secrets
 
 - `{{variableName}}` pulls a value from `variables` in the config. `"{{var}}"` as the whole value keeps its type, e.g. an `args` array. Worked example: `<%= docPath('uac/config') %>`.
-- `${ENV_VAR}` passes through unchanged — use it for secrets resolved at runtime.
+- `${ENV_VAR}` passes through unchanged — use it for secrets resolved at runtime. Cursor documents `${env:ENV_VAR}`; the MCP doc shows a per-target value for that.
 - Put machine-specific variable values in `universal-ai-config.overrides.ts` (gitignored).
 
 ### Example
@@ -61,17 +61,21 @@ Before using any other field, check `<%= docPath('uac/mcp') %>`. It lists every 
 {
   "mcpServers": {
     "github": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
       }
     },
-    "postgres": {
+    "playwright": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-postgres", "{{dbConnectionString}}"]
+      "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "internal-db": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["./tools/db-mcp.js", "{{dbConnectionString}}"]
     }
   }
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
-import { generate } from "../../src/core/generate.js";
+import { generate } from "../../src/core/generate/index.js";
 import { expectYamlField } from "../test-helpers.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/complete-complex-project");
@@ -144,16 +144,16 @@ describe("per-target overrides", () => {
       const c = agent!.content;
 
       expectYamlField(c, "description", "Copilot code reviewer");
-      expectYamlField(c, "model", "gpt-4o");
+      expectYamlField(c, "model", "gpt-6.1-sol");
       // tools falls back to default for copilot
       expect(c).toContain("tools:");
       expect(c).toContain("  - ");
-      expectYamlField(c, "target", "Review code for quality");
+      expectYamlField(c, "target", "github-copilot");
       expect(c).toContain("mcp-servers:");
-      expect(c).toContain("handoffs:");
+      // Local-harness only: dropped for the default Copilot harness
+      expect(c).not.toContain("handoffs:");
       // Copilot shouldn't have claude fields
       expect(c).not.toContain("permissionMode:");
-      expect(c).not.toContain("skills:");
       expect(c).not.toContain("memory:");
     });
   });
@@ -191,10 +191,10 @@ describe("per-target overrides", () => {
       expect(mcp).toBeDefined();
       const parsed = JSON.parse(mcp!.content);
 
-      expect(parsed.servers["my-api"].command).toBe("npx");
-      expect(parsed.servers["my-api"].type).toBe("stdio");
+      expect(parsed.mcpServers["my-api"].command).toBe("npx");
+      expect(parsed.mcpServers["my-api"].type).toBe("stdio");
       // claude-only has no command for copilot -> dropped
-      expect(parsed.servers).not.toHaveProperty("claude-only");
+      expect(parsed.mcpServers).not.toHaveProperty("claude-only");
     });
 
     it("cursor: resolves cursor-specific command and args, drops claude-only", async () => {
@@ -260,18 +260,18 @@ describe("per-target overrides", () => {
 
       // preToolUse: copilot has command
       expect(h).toHaveProperty("preToolUse");
-      expect(h.preToolUse[0].bash).toBe(".hooks/copilot-check.sh");
+      expect(h.preToolUse[0].command).toBe(".hooks/copilot-check.sh");
       // matcher was { claude, cursor } — copilot gets no matcher (dropped)
       expect(h.preToolUse[0]).not.toHaveProperty("matcher");
 
       // postToolUse: copilot falls back to default command
       expect(h).toHaveProperty("postToolUse");
-      expect(h.postToolUse[0].bash).toBe(".hooks/lint.sh");
+      expect(h.postToolUse[0].command).toBe(".hooks/lint.sh");
       expect(h.postToolUse[0].timeoutSec).toBe(45);
 
       // sessionStart: global command works for all
       expect(h).toHaveProperty("sessionStart");
-      expect(h.sessionStart[0].bash).toBe(".hooks/init.sh");
+      expect(h.sessionStart[0].command).toBe(".hooks/init.sh");
     });
 
     it("cursor: resolves per-target command and timeout", async () => {

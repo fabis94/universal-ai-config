@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "docs": { "command": "npx", "args": ["-y", "docs-mcp"], "env": { "TOKEN": "${DOCS_TOKEN}" } },
+    "remote": { "type": "http", "url": "https://mcp.example.com/mcp" }
+  }
+}

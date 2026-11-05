@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
-import { generate } from "../../src/core/generate.js";
+import { parse as parseToml } from "smol-toml";
+import { generate } from "../../src/core/generate/index.js";
 import { expectYamlField } from "../test-helpers.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "../fixtures/exhaustive-project");
@@ -64,7 +65,7 @@ describe("exhaustive per-target field coverage", () => {
       expectYamlField(c, "shell", "bash");
     });
 
-    it("copilot: does not emit claude-only skill fields", async () => {
+    it("copilot: emits allowed-tools, not the claude-only skill fields", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
@@ -74,9 +75,9 @@ describe("exhaustive per-target field coverage", () => {
       const skill = files.find((f) => f.type === "skills" && f.target === "copilot");
       expect(skill).toBeDefined();
       const c = skill!.content;
+      expect(c).toContain("allowed-tools:");
       expect(c).not.toContain("when_to_use:");
       expect(c).not.toContain("arguments:");
-      expect(c).not.toContain("allowed-tools:");
       expect(c).not.toContain("agent:");
     });
 
@@ -93,8 +94,9 @@ describe("exhaustive per-target field coverage", () => {
       expect(c).not.toContain("when_to_use:");
       expect(c).not.toContain("arguments:");
       expect(c).not.toContain("allowed-tools:");
-      expect(c).not.toContain("user-invocable:");
       expect(c).not.toContain("argument-hint:");
+      // skillPaths maps to Cursor's paths
+      expect(c).toContain("paths:");
     });
   });
 
@@ -118,7 +120,7 @@ describe("exhaustive per-target field coverage", () => {
       expect(c).toContain("Start with a status report");
     });
 
-    it("copilot: does not emit claude-only agent fields", async () => {
+    it("copilot: maps effort to reasoning-effort, and emits no claude-only agent fields", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
@@ -128,15 +130,15 @@ describe("exhaustive per-target field coverage", () => {
       const agent = files.find((f) => f.type === "agents" && f.target === "copilot");
       expect(agent).toBeDefined();
       const c = agent!.content;
+      expectYamlField(c, "reasoning-effort", "high");
+      expect(c).not.toMatch(/^effort:/m);
       expect(c).not.toContain("maxTurns:");
       expect(c).not.toContain("background:");
-      expect(c).not.toContain("effort:");
       expect(c).not.toContain("isolation:");
       expect(c).not.toContain("color:");
       expect(c).not.toContain("initialPrompt:");
       expect(c).not.toContain("disallowedTools:");
       expect(c).not.toContain("permissionMode:");
-      expect(c).not.toContain("skills:");
       expect(c).not.toContain("memory:");
     });
   });
@@ -166,24 +168,26 @@ describe("exhaustive per-target field coverage", () => {
       expect(s).not.toHaveProperty("auth");
     });
 
-    it("copilot: emits sandboxEnabled, sandbox, dev, envFile; strips alwaysLoad, headersHelper, oauth, auth", async () => {
+    it("copilot: drops the VS Code-only sandboxEnabled, sandbox, dev, envFile; strips alwaysLoad, headersHelper, oauth, auth", async () => {
       const files = await generate({
         root: FIXTURES_DIR,
         targets: ["copilot"],
         types: ["mcp"],
+        onDiagnostic: () => {},
       });
 
       const mcp = files.find((f) => f.type === "mcp" && f.target === "copilot");
       expect(mcp).toBeDefined();
+      expect(mcp!.path).toBe(".mcp.json");
       const parsed = JSON.parse(mcp!.content) as {
-        servers: Record<string, Record<string, unknown>>;
+        mcpServers: Record<string, Record<string, unknown>>;
       };
-      const s = parsed.servers["shared-server"]!;
+      const s = parsed.mcpServers["shared-server"]!;
 
-      expect(s).toHaveProperty("sandboxEnabled", true);
-      expect(s).toHaveProperty("sandbox");
-      expect(s).toHaveProperty("dev");
-      expect(s).toHaveProperty("envFile", ".env.local");
+      expect(s).not.toHaveProperty("sandboxEnabled");
+      expect(s).not.toHaveProperty("sandbox");
+      expect(s).not.toHaveProperty("dev");
+      expect(s).not.toHaveProperty("envFile");
       expect(s).not.toHaveProperty("alwaysLoad");
       expect(s).not.toHaveProperty("headersHelper");
       expect(s).not.toHaveProperty("oauth");
@@ -214,4 +218,45 @@ describe("exhaustive per-target field coverage", () => {
       expect(s).not.toHaveProperty("dev");
     });
   });
+});
+
+describe("codex agent files are valid role files", () => {
+  // AgentRoleOverrides in codex-rs core/src/agent/role.rs, plus the role's identity keys.
+  // Codex drops a role file with any other key.
+  const ALLOWED = new Set([
+    "name",
+    "description",
+    "developer_instructions",
+    "model",
+    "model_reasoning_effort",
+    "model_reasoning_summary",
+    "model_verbosity",
+    "personality",
+    "service_tier",
+    "nickname_candidates",
+    "features",
+    "skills",
+  ]);
+
+  for (const fixture of ["exhaustive-project", "complete-project", "complete-complex-project"]) {
+    it(`${fixture}: every .codex/agents/*.toml parses and uses only known keys`, async () => {
+      const files = await generate({
+        root: join(import.meta.dirname, `../fixtures/${fixture}`),
+        targets: ["codex"],
+        types: ["agents"],
+        onDiagnostic: () => {},
+      });
+      const agents = files.filter((f) => f.path.startsWith(".codex/agents/"));
+      expect(agents.length).toBeGreaterThan(0);
+      for (const agent of agents) {
+        const parsed = parseToml(agent.content as string) as Record<string, unknown>;
+        expect(
+          Object.keys(parsed).filter((key) => !ALLOWED.has(key)),
+          agent.path,
+        ).toEqual([]);
+        expect(String(parsed.description).trim(), agent.path).not.toBe("");
+        expect(String(parsed.developer_instructions).trim(), agent.path).not.toBe("");
+      }
+    });
+  }
 });

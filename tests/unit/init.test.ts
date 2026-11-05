@@ -38,7 +38,9 @@ describe("init command", () => {
     expect(gitignore).toContain(".github/copilot-instructions.md");
     expect(gitignore).toContain(".github/skills/");
     expect(gitignore).toContain(".github/agents/");
-    expect(gitignore).toContain(".github/hooks/");
+    // Only uac's hooks file — hook scripts in .github/hooks must stay committable
+    expect(gitignore).toContain(".github/hooks/hooks.json");
+    expect(gitignore).not.toContain(".github/hooks/\n");
     // Cursor output dirs
     expect(gitignore).toContain(".cursor/rules/");
     expect(gitignore).toContain(".cursor/skills/");
@@ -47,8 +49,11 @@ describe("init command", () => {
     expect(gitignore).toContain(".claude/settings.json");
     // MCP output files (root-relative)
     expect(gitignore).toContain(".mcp.json");
-    expect(gitignore).toContain(".vscode/mcp.json");
+    expect(gitignore).not.toContain(".vscode/mcp.json");
     expect(gitignore).toContain(".cursor/mcp.json");
+    // AGENTS.md (every one) and the index variation's folder
+    expect(gitignore).toContain("\nAGENTS.md\n");
+    expect(gitignore).toContain("/.agents/uac-instructions/");
     // Should NOT gitignore entire dirs
     expect(gitignore).not.toContain(".github\n");
 
