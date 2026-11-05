@@ -131,26 +131,49 @@ Pick `concatenate` when your scoped instructions are short and you want the same
 
 ## ⚙️ Configuration
 
-Two files at the project root:
+uac reads two files at the project root, both written by `uac setup`: `universal-ai-config.config.ts`, committed and shared by the team, and `universal-ai-config.overrides.ts`, gitignored, for each developer's own settings.
 
 ```ts
-// universal-ai-config.config.ts: committed, shared by the team
-import { defineConfig } from "universal-ai-config";
+// universal-ai-config.config.ts
+import type { UserConfig } from "universal-ai-config";
 
-export default defineConfig({
-  additionalTemplateDirs: ["~/.universal-ai-config"], // templates shared across projects
-  variables: { projectName: "my-app" }, // available in every template
-});
+export default {
+  additionalTemplateDirs: ["~/.universal-ai-config"],
+  variables: { projectName: "my-app" },
+  exclude: ["agents/internal-only.md"],
+} satisfies UserConfig;
 ```
+
+| Option                   | What it does                                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `templatesDir`           | Where templates live (default `.universal-ai-config`)                                                          |
+| `additionalTemplateDirs` | More template folders, e.g. one in your home folder shared across projects; on a name clash the first one wins |
+| `targets`                | Tools to generate. Set it per developer in the overrides file                                                  |
+| `types`                  | Template types uac handles at all; a type left out is never generated, cleaned or gitignored                   |
+| `variables`              | Values for EJS in templates and `{{name}}` placeholders in hooks and MCP JSON                                  |
+| `outputDirs`             | Each tool's output folder                                                                                      |
+| `exclude`                | Templates to skip, by path                                                                                     |
+| `preserveOnClean`        | Output paths `uac clean` never deletes                                                                         |
+| `mcp`                    | Which MCP servers each tool gets, by name                                                                      |
+| `agentsMd`               | AGENTS.md output: `enable`, `variation`, `indexDir`, `keepOverrideFiles`                                       |
+| `standards`              | Standards mode: `true`, `"instructions"` or `"skills"`. Base config only                                       |
+
+**Excluding templates.** `exclude` takes paths inside the templates folder. For different exclusions per tool, give an object: `exclude: { cursor: ["hooks/**"], default: [] }`. Every per-tool setting takes that shape (`claude`, `copilot`, `cursor`, `codex`, and `default` for the rest).
+
+**Overrides.** The overrides file is merged over the base config: objects merge key by key, but arrays such as `targets` and `exclude` replace the base value. That gets in the way when you want to add to a team list. Say the team config excludes some templates and you want to skip one more on your machine: `exclude: ["skills/experimental/**"]` in your overrides would drop every team exclusion, and copying the team's entries into your file goes stale when they change. `mergeField` adds your entries to the base value instead, and merges the per-tool form tool by tool:
 
 ```ts
-// universal-ai-config.overrides.ts: gitignored, one per developer
-import { defineConfig } from "universal-ai-config";
+// universal-ai-config.overrides.ts
+import { mergeField, type UserConfig } from "universal-ai-config";
+import base from "./universal-ai-config.config";
 
-export default defineConfig({ targets: ["claude"] });
+export default {
+  targets: ["claude"],
+  exclude: mergeField(base.exclude, ["skills/experimental/**"]),
+} satisfies UserConfig;
 ```
 
-Every option, how the two files merge, and which template wins when several directories have the same name: [configuration](.universal-ai-config/docs/uac/config.md).
+Every option in detail, the merge rules, and which template wins when several folders have the same name: [configuration](.universal-ai-config/docs/uac/config.md).
 
 ## 🛠️ Commands
 

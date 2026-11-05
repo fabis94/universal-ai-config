@@ -69,4 +69,4 @@ Every token in a template costs model attention — ~60% of instruction tokens a
 
 ## After Changes
 
-Run `uac generate` to regenerate target-specific config files and verify the output.
+Run `uac generate` to regenerate target-specific config files and verify the output. After renaming or deleting a template, or changing an instruction's `globs`, run `uac generate --clean` instead, so stale outputs are removed.

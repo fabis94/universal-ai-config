@@ -363,6 +363,15 @@ describe("codex target", () => {
       expect(parsed.developer_instructions).toBe("Review carefully.");
     });
 
+    it("frontmatter name is the role name; the file keeps the template's name", async () => {
+      const files = await consolidate(
+        makeInput([makeTemplate("renamed", { name: "other-name", description: "A" }, "Body")]),
+      );
+      expect(files[0]!.path).toBe(".codex/agents/renamed.toml");
+      const parsed = parseToml(files[0]!.content) as Record<string, unknown>;
+      expect(parsed.name).toBe("other-name");
+    });
+
     it("body content becomes developer_instructions (trimmed)", async () => {
       const files = await consolidate(
         makeInput([makeTemplate("a", { description: "A" }, "\n\nLine 1\nLine 2\n\n")]),

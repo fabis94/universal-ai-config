@@ -85,6 +85,30 @@ export interface DiagnosticDetails {
 
 export type DiagnosticCode = keyof DiagnosticDetails;
 
+/** Every code at runtime; the type keeps it complete. The docs coverage test checks each is documented. */
+const CODES: Record<DiagnosticCode, true> = {
+  shadowed: true,
+  "served-by": true,
+  "shared-divergence": true,
+  "duplicate-hook-run": true,
+  "agents-md-forced": true,
+  "claude-md-present": true,
+  "agents-md-size": true,
+  "agents-override-present": true,
+  "standard-ignored": true,
+  "standard-shadowed": true,
+  "standard-linked": true,
+  "agents-md-missing": true,
+  "agents-md-glob": true,
+  unsupported: true,
+  "legacy-field": true,
+  "skill-spec": true,
+  "mcp-unknown-server": true,
+  "missing-doc": true,
+  "suspicious-value": true,
+};
+export const DIAGNOSTIC_CODES = Object.keys(CODES) as DiagnosticCode[];
+
 interface DiagnosticBase {
   severity: DiagnosticSeverity;
   message: string;

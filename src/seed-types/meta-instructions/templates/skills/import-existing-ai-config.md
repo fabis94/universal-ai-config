@@ -21,18 +21,21 @@ Scan the target's config directory for existing configuration files:
 **Claude** (`.claude/`):
 
 - Instructions: `.claude/rules/*.md` — each file has `description` and optional `paths` frontmatter
-- Skills: `.claude/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `allowed-tools`, `disallowed-tools`, `model`, `context`, `agent`, `background`, `disable-model-invocation`, `user-invocable`, `argument-hint`, `hooks`, `paths`). Skill directories may also contain extra supporting files (references, examples, scripts) alongside `SKILL.md`.
+- Skills: `.claude/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `allowed-tools`, `disallowed-tools`, `model`, `context`, `agent`, `background`, `disable-model-invocation`, `user-invocable`, `argument-hint`, `when_to_use`, `arguments`, `effort`, `shell`, `hooks`, `paths`). Skill directories may also contain extra supporting files (references, examples, scripts) alongside `SKILL.md`.
+<% if (standards.skills) { -%>
+  Skip a `.claude/skills/<name>` that `.agents/skills/<name>` also has: it is uac's copy.
+<% } -%>
 - Agents: `.claude/agents/*.md` — agent files with frontmatter (`name`, `description`, `tools`, `disallowedTools`, `permissionMode`, `skills`, `hooks`, `memory`, `model`, `autoCompactWindow`, `omitClaudeMd`, `experimental`). `tools` may be a comma string (`Read, Grep`) — convert it to an array.
 - Hooks: `.claude/settings.json` → `hooks` key — JSON with PascalCase event names (see the hooks doc for the full list). Handler `onFailure: "block"`/`"continue"` → universal `failClosed: true`/`false`.
 - MCP: `.mcp.json` — JSON with `mcpServers` wrapper containing server configs (`type`, `command`, `args`, `env`, `url`, `headers`, `timeout`, …)
-- Commands (deprecated): `.claude/commands/*.md` — single-file slash commands with optional frontmatter (`description`, `allowed-tools`, `argument-hint`, `model`). May include subdirectories for namespacing (e.g. `.claude/commands/frontend/component.md` — command name is `component`). Body may use `$ARGUMENTS` placeholder, `!` prefix for bash execution, and `@` prefix for file references.
+- Commands (deprecated): `.claude/commands/*.md` — single-file slash commands with optional frontmatter (`description`, `allowed-tools`, `argument-hint`, `model`). May include subdirectories for namespacing (e.g. `.claude/commands/frontend/component.md` — command name is `component`). Body may use `$ARGUMENTS` placeholder, a "!" prefix for bash execution, and `@` prefix for file references.
 
 **Copilot** (`.github/`):
 
 - Instructions: `.github/copilot-instructions.md` (always-apply) and `.github/instructions/*.instructions.md` (with `applyTo` frontmatter)
 - Skills: `.github/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `allowed-tools`, `disable-model-invocation`, `user-invocable`, `argument-hint`, `context`, `license`, `compatibility`, `metadata`). May contain extra supporting files alongside `SKILL.md`.
 - Agents: `.github/agents/*.agent.md` — agent files with frontmatter (`name`, `description`, `tools`, `model`, `target`, `mcp-servers`, `skills`, `reasoning-effort`, `model-policy`, `metadata`, `include-custom-instructions`, `deferred-tool-loading`, `strict-tools-list`, `github`, `hooks`). `handoffs`, `agents` and `argument-hint` are VS Code Local-harness fields that uac no longer emits — tell the user they're dropped.
-- Hooks: `.github/hooks/*.json` (uac's own file is `hooks.json`; other JSON or script files there are user hook config and scripts — leave them) — `version: 1` and camelCase event names (`sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, `postToolUseFailure`, `agentStop`, `subagentStart`, `subagentStop`, `preCompact`, `permissionRequest`, `notification`, `errorOccurred`, plus Copilot-only events)
+- Hooks: `.github/hooks/*.json` (uac's own file is `hooks.json`; other JSON or script files there are user hook config and scripts — leave them) — `version: 1` and Copilot's camelCase event names
 - MCP: root `.mcp.json` or `.github/mcp.json` (`mcpServers` wrapper, `tools` list), or the legacy `.vscode/mcp.json` (`servers` wrapper, may include an `inputs` array)
 
 **Cursor** (`.cursor/`):
@@ -40,20 +43,32 @@ Scan the target's config directory for existing configuration files:
 - Instructions: `.cursor/rules/*.mdc` or `.cursor/rules/*.md` — with `description`, `globs`, `alwaysApply` frontmatter
 - Skills: `.cursor/skills/*/SKILL.md` — skill directories with frontmatter (`name`, `description`, `paths`, `user-invocable`, `icon`, `color`, `license`, `compatibility`, `metadata`, `disable-model-invocation`). May contain extra supporting files alongside `SKILL.md`.
 - Agents: `.cursor/agents/*.md` — agent files with frontmatter (`name`, `description`, `model`, `readonly`, `is_background`)
-- Hooks: `.cursor/hooks.json` — JSON with version field and camelCase event names (`sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `preToolUse`, `postToolUse`, `postToolUseFailure`, `stop`, `subagentStart`, `subagentStop`, `preCompact`, plus Cursor-specific events like `beforeShellExecution`, `afterFileEdit`)
+- Hooks: `.cursor/hooks.json` — JSON with version field and Cursor's camelCase event names, including Cursor-specific ones like `beforeShellExecution`
 - MCP: `.cursor/mcp.json` — JSON with `mcpServers` wrapper; `type` may be missing (Cursor infers transport from `command` vs `url`); env vars as `${env:NAME}`
 
 **Codex** (mix of root + `.codex/` + `.agents/`):
 
+<% if (standards.instructions) { -%>
+- Instructions: the project's `AGENTS.md` files already are the source (`standards`): nothing to import.
+<% } else { -%>
 - Instructions: `AGENTS.md` at the project root and in nested folders (free-form markdown, no frontmatter), plus legacy `<dir>/AGENTS.override.md` files. Split into separate universal instructions: one per `## heading` block of the root file, and one per nested file with `globs: ["<dir>/**"]`. A line like "Applies to files matching `x`" under a heading is a uac scope note — turn it into `globs`. A root file that starts with a "Scoped instructions" list was written by uac's `index` variation: import each linked file as an instruction with `globs` for its folders.
+<% } -%>
+<% if (standards.skills) { -%>
+- Skills: `.agents/skills/` already is the source (`standards`): nothing to import.
+<% } else { -%>
 - Skills: `.agents/skills/*/SKILL.md` (root-relative, the open Agent Skills standard location) — minimal frontmatter (`name`, `description`, `license`, `compatibility`, `metadata`; `metadata.version`/`metadata.author` map to universal `version`/`author`). Sidecar `agents/openai.yaml` next to SKILL.md contains UI metadata (`interface.display_name`, etc.), invocation policy (`policy.allow_implicit_invocation`), and MCP dependencies (`dependencies.tools[]`).
+<% } -%>
 - Agents: `.codex/agents/*.toml` — standalone TOML files with fields `name`, `description`, `developer_instructions` (body), `model`, `model_reasoning_effort`, `model_reasoning_summary`, `model_verbosity`, `personality`, `service_tier`, `nickname_candidates`, `skills.bundled` / `skills.include_instructions`. Codex ignores `sandbox_mode` and `mcp_servers` in agent files and only uses `[[skills.config]]` to disable skills — don't import those; tell the user.
-- Hooks: `.codex/hooks.json` — JSON with PascalCase event names (`SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`, `SubagentStart`, `SubagentStop`, `PreCompact`, `PostCompact`, `PreModelRequest`, `PostModelRequest`, `Interrupt`). Handler types `command` (single shell string — args inline; `commandWindows`, `async`, `additionalContextLimit`) and `mcp_tool` (`server`, `tool`, `input`); plus `matcher`, `timeout`, `statusMessage`.
+- Hooks: `.codex/hooks.json` — JSON with PascalCase event names. Handler types `command` (single shell string — args inline; `commandWindows`, `async`, `additionalContextLimit`) and `mcp_tool` (`server`, `tool`, `input`); plus `matcher`, `timeout`, `statusMessage`.
 - MCP: `.codex/config.toml` `[mcp_servers.<name>]` tables — TOML format with snake_case fields (`command`, `args`, `env`, `url`, `cwd`, `env_vars`, `http_headers`, `http_headers_helper`, `bearer_token_env_var`, `env_http_headers`, `oauth`, `auth`, `environment_id`, `enabled_tools`, `tools.<tool>.*`, …; full list in the MCP doc). Other top-level keys in `config.toml` (`[model_providers.*]`, `[permissions.*]`, `personality`, etc.) are user content — preserve them; don't import as templates. Codex no longer reads `[profiles.*]` tables there (profiles are separate files).
 
 ### 2. Convert to Universal Format
 
 For each file found, convert it to a universal-ai-config template:
+<% if (standards.instructions || standards.skills) { -%>
+
+<% if (standards.instructions && standards.skills) { %>Instructions and skills<% } else if (standards.instructions) { %>Instructions<% } else { %>Skills<% } %> skip this conversion: step 3 says how to write them in the open standards.
+<% } -%>
 
 **Frontmatter mapping** (target-specific → universal):
 
@@ -69,6 +84,8 @@ For each file found, convert it to a universal-ai-config template:
 | `context: fork`            | `context: fork`               | —                          | —                                                                                                    | `forkContext: true`                                                                                               |
 | `agent`                    | —                             | —                          | —                                                                                                    | `subagentType`                                                                                                    |
 | `argument-hint`            | `argument-hint` (skills)      | —                          | —                                                                                                    | `argumentHint`                                                                                                    |
+| `when_to_use`              | —                             | —                          | —                                                                                                    | `whenToUse`                                                                                                       |
+| `shell` (skills)           | —                             | —                          | —                                                                                                    | `skillShell`                                                                                                      |
 | `hooks`                    | `hooks` (agents)              | —                          | —                                                                                                    | `hooks`                                                                                                           |
 | (commands: manual-only)    | —                             | —                          | —                                                                                                    | `disableAutoInvocation`                                                                                           |
 | —                          | `excludeAgent`                | —                          | —                                                                                                    | `excludeAgent`                                                                                                    |
@@ -126,9 +143,16 @@ The universal MCP format uses `mcpServers` as the wrapper key, with each server 
 
 For each converted file:
 
+<% if (standards.instructions) { -%>
+1. Use the same base name as the source file (e.g. `.claude/agents/reviewer.md` → `<%%= agentTemplatePath('reviewer') %>`)
+<% } else { -%>
 1. Use the same base name as the source file (e.g. `.claude/rules/coding-style.md` → `<%%= instructionTemplatePath('coding-style') %>`)
+<% } -%>
 2. Write the universal frontmatter and body content. Copy and paste the body content, instead of trying to use EJS `include()` or something equivalent, because the source files will be deleted afterwards.
 3. If a template with the same name already exists, **overwrite it** (the import represents the latest version)
+<% if (standards.instructions) { -%>
+4. Never overwrite an `AGENTS.md` file: add each imported instruction to it as a new section.
+<% } -%>
 
 **File placement:**
 
@@ -151,17 +175,21 @@ For each converted file:
 **Open standards (`standards` in the config).** This project keeps <% if (standards.instructions && standards.skills) { %>instructions and skills<% } else if (standards.instructions) { %>instructions<% } else { %>skills<% } %> in the formats every tool reads, not as templates:
 
 <% if (standards.instructions) { -%>
-- **Instructions** → plain markdown in `AGENTS.md`, no frontmatter. Always-on content goes in the root `AGENTS.md`; content scoped to one folder (`paths`, `globs`, `applyTo`) goes in `<folder>/AGENTS.md`. A rule for a file pattern goes in the folder holding those files, or in the root file with a sentence naming them. Add sections; never edit inside the `<!-- >>> universal-ai-config >>> -->` block. Codex's AGENTS.md files already are the source: nothing to import.
+- **Instructions** → plain markdown in `AGENTS.md`, no frontmatter. Always-on content goes in the root `AGENTS.md`; content scoped to one folder (`paths`, `globs`, `applyTo`) goes in `<folder>/AGENTS.md`. A rule for a file pattern goes in the folder holding those files, or in the root file with a sentence naming them. Never edit inside the `<!-- >>> universal-ai-config >>> -->` block.
 <% } -%>
 <% if (standards.skills) { -%>
-- **Skills and commands** → `.agents/skills/{name}/` in the Agent Skills format the tools read: native field names (`user-invocable`, `disable-model-invocation`, `allowed-tools`, `argument-hint`), no EJS or per-target overrides, every extra file copied as is. `.agents/skills` already is Codex's source: nothing to import.
+- **Skills and commands** → `.agents/skills/{name}/` in the Agent Skills format the tools read: the tools' own field names (`user-invocable`, not `userInvocable`; every field in `.agents/skills/update-skill/SKILL.md`), no EJS or per-target overrides.
 <% } -%>
 <% } -%>
 
 ### 4. Handle Special Cases
 
 - **Claude hooks**: Extract the `hooks` key from `.claude/settings.json`. Flatten the nested matcher group structure into individual handlers with `matcher` fields.
+<% if (standards.instructions) { -%>
+- **Copilot always-apply**: Move `.github/copilot-instructions.md` into the root `AGENTS.md`.
+<% } else { -%>
 - **Copilot always-apply**: Convert `.github/copilot-instructions.md` to an instruction with `alwaysApply: true`.
+<% } -%>
 - **Copilot hook `bash` field**: Convert to universal `command` field (`command` is cross-platform; a separate `powershell` command has no universal field — use a per-target override or tell the user).
 - **Copilot hook `timeoutSec` field**: Convert to universal `timeout` field (both use seconds).
 - **Cursor `.mdc` files**: Read as regular markdown (the `.mdc` extension is just a convention).
@@ -170,23 +198,49 @@ For each converted file:
 - **Cursor MCP missing `type`**: Add `"type": "stdio"` for servers with `command`, or `"type": "http"` for servers with `url`.
 - **SSE servers** (`type: "sse"`): the transport is deprecated. Keep it only if the server has no HTTP endpoint; otherwise switch to `"http"`.
 - **MCP env var references**: Leave `${ENV_VAR}` syntax as-is — it's passed through to generated output. If values look like they could be config variables, consider converting to `{{varName}}` syntax and adding a `variables` entry in the config file.
-- **Fields that only exist for one target**: Preserve them as-is. They'll be passed through to matching targets and ignored by others.
-- **Skill extra files**: When importing skill directories, copy **all** files in the directory — not just `SKILL.md`. Extra files (references, examples, scripts, data) should be placed in the same relative paths within the universal template's skill directory (e.g. `.claude/skills/my-skill/references/example.md` → `<%%= skillTemplatePath('my-skill') %>/../references/example.md`, i.e. `skills/my-skill/references/example.md` in the templates dir). During generation, `.md` extra files are rendered through EJS (with access to `target`, `config`, path helpers), while non-`.md` files are copied as-is.
+- **Fields that only exist for one target**: In templates, rename them to their universal name too (the table above; every field: `<%%= docPath('uac/frontmatter') %>`). uac writes a universal field only for the targets that support it, and silently drops a key it doesn't know, such as a native `when_to_use`.
+<% if (standards.skills) { -%>
+- **Skill extra files**: When importing skill directories, copy **all** files in the directory — not just `SKILL.md` — to the same relative paths in `.agents/skills/` (e.g. `.claude/skills/my-skill/references/example.md` → `.agents/skills/my-skill/references/example.md`). Tools read them as they are, with no EJS, and uac copies them byte for byte for Claude.
+<% } else { -%>
+- **Skill extra files**: When importing skill directories, copy **all** files in the directory — not just `SKILL.md`. Extra files (references, examples, scripts, data) should be placed in the same relative paths within the universal template's skill directory (e.g. `.claude/skills/my-skill/references/example.md` → `<%%= skillTemplatePath() %>/my-skill/references/example.md`). During generation, `.md` extra files are rendered through EJS (with access to `target`, `config`, path helpers), while non-`.md` files are copied as-is.
+<% } -%>
 - **Claude commands → skills**: Commands are single `.md` files but skills are directories. Create a skill directory and place the converted command content as `SKILL.md` inside it. Use the filename (without `.md`) as the skill name.
+<% if (standards.skills) { -%>
+- **Claude commands: `disable-model-invocation`**: Commands are manual-only (no auto-invocation by the AI). Set `disable-model-invocation: true` on the converted skill to preserve this behavior.
+<% } else { -%>
 - **Claude commands: `disableAutoInvocation`**: Commands are manual-only (no auto-invocation by the AI). Set `disableAutoInvocation: true` on the converted skill to preserve this behavior.
+<% } -%>
 - **Claude commands: namespaced subdirectories**: Subdirectories in `.claude/commands/` are organizational only — they don't affect the command name. Use the filename as the skill name. If two commands from different subdirectories share a filename, disambiguate by prefixing with the subdirectory name (e.g. `frontend-component`).
 - **Claude commands: rewrite body to agent-agnostic language**: Command bodies use Claude-specific syntax that must be converted to plain, agent-agnostic instructions:
   - `$ARGUMENTS` → Describe what input is expected. E.g., `Fix issue #$ARGUMENTS` becomes "The user will specify an issue number when invoking this skill. Fix the GitHub issue specified by the user."
-  - `!\`command\``(pre-executed bash) → Convert to step-by-step instructions for the agent to run itself. E.g.,`!\`git status\``becomes "Run`git status` to see current changes". The agent runs these as tool calls rather than having them pre-executed.
+  - Pre-executed bash (a "!" followed by a backticked command) → Convert to step-by-step instructions for the agent to run itself. E.g., the pre-executed git status becomes "Run `git status` to see current changes". The agent runs these as tool calls rather than having them pre-executed.
   - `@filepath` (file references) → Convert to instructions to read those files. E.g., `@src/utils/helpers.js` becomes "Read the file `src/utils/helpers.js`".
 - **Claude commands: personal commands**: Personal commands from `~/.claude/commands/` are user-level, not project-level. Only import project commands (`.claude/commands/`) by default — flag personal commands and ask the user whether to include them.
 
 ### 5. Verify
 
-After importing, run `uac generate -t <source target>` and compare the generated output against the original source files to ensure the conversion is accurate. (Generate one target at a time: with several, tools that read each other's files share one copy — see `<%%= docPath('uac/config') %>`.)
+After importing, run `uac generate -t <source target>`. It writes over the source files at the same paths, so check the conversion with `git diff`. (Generate one target at a time: with several, tools that read each other's files share one copy — see `<%%= docPath('uac/config') %>`.)
+<% if (standards.instructions || standards.skills) { -%>
+
+<% } -%>
+<% if (standards.instructions) { -%>
+Instructions aren't generated in this project: review the `AGENTS.md` changes themselves.
+<% } -%>
+<% if (standards.skills) { -%>
+Skills are generated only as Claude's copies of `.agents/skills`: review the `.agents/skills/` changes themselves.
+<% } -%>
+
+### 6. Clean Up
+
+Ask the user first. Then delete every imported original that the generate in step 5 didn't write over, e.g. `.claude/commands/`, `.github/mcp.json`, `.cursor/rules/*.md` (uac writes `.mdc`). Otherwise tools keep loading it next to the new output.
+<% if (standards.instructions || standards.skills) { -%>
+
+uac never generates or cleans the <% if (standards.instructions && standards.skills) { %>instruction and skill<% } else if (standards.instructions) { %>instruction<% } else { %>skill<% } %> files of tools that read the open standards, so delete the imported ones too, or they load twice: <% if (standards.instructions) { %>`.claude/rules/`, `.cursor/rules/`, `.github/instructions/`, `.github/copilot-instructions.md`<% } %><% if (standards.instructions && standards.skills) { %>, <% } %><% if (standards.skills) { %>`.cursor/skills/`, `.github/skills/`<% } %>.
+<% } -%>
 
 Report to the user:
 
 - How many files were imported per type
 - Any files that couldn't be converted (with reasons)
 - Whether the generated output matches the originals
+- Which originals were deleted

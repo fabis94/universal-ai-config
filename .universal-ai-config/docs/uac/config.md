@@ -9,7 +9,7 @@ Everything the config file (`universal-ai-config.config.ts`) supports, plus how 
 - `targets` — which targets to generate (default: all). Usually set per developer in `universal-ai-config.overrides.ts` — see [Shared outputs](#shared-outputs-and-one-target-set-per-machine).
 - `types` — which template types uac handles at all (default: all). A type left out is off for every command: not generated, cleaned, seeded, gitignored, or installed by `uac skill add`. To remove what uac generated before you turned a type off, run `uac clean --type <type>`; `--type` replaces `types` for one run.
 - `variables` — custom variables for templates (EJS in markdown, typed `{{var}}` in JSON — see [Variables](#variables))
-- `outputDirs` — override default output directories per target
+- `outputDirs` — override default output directories per target. These outputs stay where they are whatever it says: `.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml`, `.agents/skills/` and the AGENTS.md files. The `.gitignore` block always lists the default paths, so ignore a moved dir yourself.
 - `exclude` — glob patterns to skip templates from generation (array or per-target object). Prefix a pattern with a source directory to skip just that copy — see [Template exclusion](#template-exclusion).
 - `preserveOnClean` — glob patterns matching **output** paths that `uac clean` must never delete (array or per-target object). See [Preserving files from clean](#preserving-files-from-clean).
 - `mcp` — server-name-level opt-in filtering for MCP (`mcp.forceOptIn` + `mcp.mcpServers`). See [mcp.md](mcp.md#server-name-opt-in-filtering).
@@ -91,11 +91,11 @@ A section whose file location doesn't fully say its scope gets a one-line note, 
 
 ### `indexDir`
 
-The `index` variation writes scoped instructions to `<indexDir>/<name>.md` (default `.agents/uac-instructions`). uac owns the folder: `clean` deletes it and the gitignore seed ignores it. So it must be a relative path that isn't the project root, contains no `..`, doesn't overlap a templates dir, and isn't inside a folder tools load on their own (`.claude/rules`, `.cursor/rules`, `.github/instructions`, or any skills/agents folder). uac rejects other values. Templates named `AGENTS`, `CLAUDE` (and their `.override`/`.local` forms) are inlined in the root file instead, since tools would load those file names directly.
+The `index` variation writes scoped instructions to `<indexDir>/<name>.md` (default `.agents/uac-instructions`). uac owns the folder: `clean` deletes it and the gitignore seed ignores it. So it must be a relative path that isn't the project root, contains no `..`, doesn't overlap a templates dir, and isn't inside a folder tools load on their own (`.claude/rules`, `.cursor/rules`, `.github/instructions`, or any skills/agents folder). uac rejects other values. Templates named `AGENTS`, `AGENTS.override`, `CLAUDE` or `CLAUDE.local` (any case) are inlined in the root file instead, with a `suspicious-value` warning, since tools would load those file names directly.
 
 ### Warnings
 
-- **`claude-md-present`:** Claude reads AGENTS.md only while no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` has content. If one does, Claude gets none of uac's instructions. Add `@AGENTS.md` to it (imports the root file only) or remove it.
+- **`claude-md-present`:** Claude reads AGENTS.md only while no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` has content. If one does, Claude gets none of uac's instructions. Adding `@AGENTS.md` to it brings in the root file, but nested AGENTS.md files still won't load, so the warning stays. Move its content into instruction templates and remove it.
 - **`agents-md-size`:** Codex reads at most 32 KiB of AGENTS.md per folder chain (root plus each ancestor) and silently drops the rest. Use the `index` variation or raise `project_doc_max_bytes` in your Codex config.
 - **`agents-override-present`:** see [Leftover `AGENTS.override.md` files](#leftover-agentsoverridemd-files).
 - **`shared-divergence`:** the shared files are rendered for one target (codex when present, otherwise the first reader): its per-target overrides, `exclude` and EJS `target`. uac warns when another reader would have gotten a different set of templates, and notes (under `--verbose`) templates that render differently for it.
@@ -112,9 +112,9 @@ Set `agentsMd.keepOverrideFiles: true` if yours are hand-written: uac then never
 
 ```typescript
 // universal-ai-config.overrides.ts (gitignored, per developer)
-import { defineConfig } from "universal-ai-config";
+import type { UserConfig } from "universal-ai-config";
 
-export default defineConfig({ targets: ["claude"] });
+export default { targets: ["claude"] } satisfies UserConfig;
 ```
 
 When several targets do end up in one run, some tools read each other's files, so a tool could load the same instructions twice or run the same hook twice. As a fallback, uac then **generates one copy** and warns (`served-by`). The decision uses the run's target set only — the config's `targets`, as replaced by the overrides file, `-t`, or the API `targets` option. A run with `-t copilot` generates Copilot's own files even if the project config also lists claude.
@@ -209,7 +209,7 @@ Because `exclude` is per-target, so is shadowing: one target can use the shared 
 
 ### Seeing what was shadowed
 
-`uac generate` prints a one-line count, and `uac generate --verbose` lists what lost:
+Each loser is a `shadowed` info diagnostic. `uac generate` prints a one-line count, and `uac generate --verbose` lists them:
 
 ```
 ✔ claude — 4 instructions, 15 skills, 1 hook (1 input)
@@ -250,7 +250,9 @@ Notes:
 
 ## Local overrides and `mergeField`
 
-`universal-ai-config.overrides.ts` (gitignored) is merged over the base config: scalars replace, objects deep-merge, and arrays like `targets` and `exclude` are **replaced** entirely. It's the place for per-developer settings, above all `targets` (see [Shared outputs](#shared-outputs-and-one-target-set-per-machine)). To **concatenate** instead, use the `mergeField` helper:
+`universal-ai-config.overrides.ts` (gitignored) is merged over the base config: scalars replace; `variables`, `outputDirs`, `mcp` and `agentsMd` merge key by key, one level deep (a variable holding an object is replaced whole); arrays like `targets` and `exclude`, and the per-target forms of `exclude` and `preserveOnClean`, are **replaced** entirely. It's the place for per-developer settings, above all `targets` (see [Shared outputs](#shared-outputs-and-one-target-set-per-machine)).
+
+Replacing gets in the way when a developer wants to add to a team list, such as one more `exclude` pattern: a plain array in the overrides file drops every team entry, and copying the team's entries goes stale when they change. To **concatenate** with the base value instead, use the `mergeField` helper:
 
 ```typescript
 // universal-ai-config.overrides.ts

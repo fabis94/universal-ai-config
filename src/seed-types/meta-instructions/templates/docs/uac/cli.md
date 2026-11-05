@@ -4,7 +4,7 @@ Full flags and behavior for every `uac` command. Invoke it through the project's
 
 ## Project root resolution
 
-When run without `--root`, uac searches **upward** from the current directory for the project root — the nearest ancestor containing a `universal-ai-config.config.*` file or a `<%= templatesDir %>/` folder. This means you can run `uac generate` (and the other commands) from inside a package subdirectory of a monorepo and it will still find the root. When a root is found above the current directory, uac prints an info line naming the directory it's using. If no root is found anywhere up the tree, it falls back to the current directory.
+When run without `--root`, uac searches **upward** from the current directory for the project root — the nearest ancestor containing a `universal-ai-config.config.*` file or a `.universal-ai-config/` folder. This means you can run `uac generate` (and the other commands) from inside a package subdirectory of a monorepo and it will still find the root. When a root is found above the current directory, uac prints an info line naming the directory it's using. If no root is found anywhere up the tree, it falls back to the current directory.
 
 - `--root, -r <path>` always wins and disables the upward search — uac uses exactly the path you give.
 - `uac init` / `uac setup` is the exception: it works in the current directory (or `--root`). In a terminal, run from a subfolder of an existing project, it asks whether to set up that project or create a new one here.
@@ -27,13 +27,13 @@ Use `--clean` after renaming or deleting a template, changing an instruction's `
 
 The summary has one line per target, plus one line per group of targets sharing files (e.g. `shared by claude, codex — 3 instructions` for AGENTS.md). Diagnostics are grouped:
 
-- **Switch-overs** come first, as one warning: several targets in the run read the same files, so usually you only need one of them on a machine — set `targets` in `universal-ai-config.overrides.ts`. Below it, one line per shared output; `--verbose` adds what each target loses.
+- **Switch-overs** come first, as one warning: several targets in the run read the same files, so usually you only need one of them on a machine — set `targets` in `universal-ai-config.overrides.ts`. Below it, one line per shared output; `--verbose` adds what each target loses. Targets switched to AGENTS.md by `agentsMd.enable: true`, rather than by codex, get a warning of their own in the same form.
 - **Other warnings** (unsupported fields, legacy fields, skill spec problems, AGENTS.md size, a non-empty `CLAUDE.md`, hooks Cursor would run twice, …) print one per line, prefixed with the target.
-- **Info** (shadowed templates, instructions that render differently for an AGENTS.md reader) is counted, and listed with `--verbose`.
+- **Info** (shadowed templates, instructions that render differently for an AGENTS.md reader) is counted, and listed with `--verbose`. Other info, such as `standard-linked`, shows only with `--verbose`.
 
 Files whose content is already identical on disk are left untouched and counted as unchanged.
 
-Last, generate prints a line saying to run `uac setup` when the project's meta-instructions were seeded by an older uac, or the uac block in `.gitignore` no longer matches your config. It never prompts for these.
+After the diagnostics, generate prints a line saying to run `uac setup` when the project's meta-instructions were seeded by an older uac or sit where `standards` no longer puts them, or the uac block in `.gitignore` no longer matches your config. It also says when a newer uac than yours seeded the project. It never prompts for these.
 
 ## `uac init` (alias `uac setup`)
 
@@ -44,8 +44,8 @@ Set up uac for a project, or for this machine in a project that already uses it.
 **Existing project**. One menu, each item preselected when running it would change something:
 
 - **Pick the coding agents you use on this machine** — preselected when the overrides file sets no `targets`. Pick one if you can: coding agents read each other's files, so several at once load duplicate or conflicting instructions.
-- **Update uac's meta-instructions** — preselected when an older uac seeded them (it records its version in `<%= templatesDir %>/.uac-version`), or, without that record, when some differ from this version's. Overwrites edits to them.
-- **Update the uac block in `.gitignore`** — preselected when it's missing or no longer matches your config (after changing `types` or `agentsMd.indexDir`, or a uac upgrade).
+- **Update uac's meta-instructions** — preselected when an older uac seeded them (it records its version in `<%= templatesDir %>/.uac-version`), or, without that record, when some differ from this version's. Also when `standards` changed since the last seed, so uac's files have to move. Overwrites edits to them.
+- **Update the uac block in `.gitignore`** — preselected when it's missing or no longer matches your config (after changing `types`, `standards` or `agentsMd.indexDir`, or a uac upgrade).
 - **Add example templates**.
 
 Then it offers to generate — or to clean and generate when your coding agents changed, removing the output of the ones you dropped. Saving coding agents rewrites the overrides file with only `targets`; setup asks first if the file sets anything else.
@@ -69,7 +69,9 @@ Seed pre-built template sets into the templates directory, skipping templates of
 
 - `meta-instructions` — the uac instructions, management skills, and these reference docs (`docs/uac/`). Re-running it overwrites them with the current version and records that version in `<%= templatesDir %>/.uac-version`.
 - `examples` — example templates for each type
-- `gitignore` — gitignore entries for the outputs of the types in `types`, including every `AGENTS.md` and the configured `agentsMd.indexDir`. Re-run it after changing `types` or `indexDir` (`uac generate` tells you when it's out of date).
+- `gitignore` — gitignore entries for the outputs of the types in `types`, including every `AGENTS.md` and the configured `agentsMd.indexDir`. Re-run it after changing `types`, `standards` or `indexDir` (`uac generate` tells you when it's out of date).
+
+The only flag is `--root, -r <path>`, the project root (see [Project root resolution](#project-root-resolution)).
 
 ## `uac clean`
 
@@ -78,6 +80,7 @@ Remove generated files.
 - `--target, -t <targets>` — comma-separated targets to clean (default: every registered target)
 - `--type <types>` — comma-separated types to clean: `instructions`, `skills`, `agents`, `hooks`, `mcp`, or `all` for every type (default: your config's `types`; `--type` replaces it)
 - `--config, -c <path>` — config file path
+- `--root, -r <path>` — project root (see [Project root resolution](#project-root-resolution))
 - `--dry-run, -d` — print what would be removed without deleting
 
 With no `--target`, clean removes artifacts for **every registered target**, not only those in your config's `targets`. That's deliberate: dropping a target from `targets` would otherwise strand its output on disk, where the tool keeps reading it. Narrow with `--target` when you want less.
@@ -117,19 +120,19 @@ The `source` accepts:
 - GitHub shorthand: `owner/repo`, `owner/repo/subpath`, `owner/repo@skill-name`
 - `github:owner/repo` prefix
 - github.com URLs: `https://github.com/owner/repo[/tree/<ref>[/<subpath>]]`
-- a `#ref` / `#ref@skill` fragment on any git form (selects a branch/tag/commit)
+- a `#ref` / `#ref@skill` fragment on any git form (selects a branch or tag)
 - a local filesystem path: `./dir`, `../dir`, `/abs/path`
 
 Flags:
 
-- `--skill, -s <names>` — comma-separated skill names to install (otherwise you'll be prompted to select)
+- `--skill, -s <names>` — comma-separated skill names to install
 - `--all` — install every discovered skill
 - `--list, -l` — list discovered skills without installing
-- `--yes, -y` — skip confirmation prompts
-- `--ref <ref>` — branch, tag, or commit to fetch (alternative to a `#ref` fragment)
+- `--yes, -y` — no prompts: skips the confirmation and, with several skills and no `--skill`, installs all of them
+- `--ref <ref>` — branch or tag to fetch (alternative to a `#ref` fragment)
 - `--root, -r <path>` — project root (default: nearest uac root, searching up from cwd; see [Project root resolution](#project-root-resolution))
 
-With no `--skill`/`--all`/`--list` and multiple skills found, an interactive multiselect wizard lets you pick which to install. Examples:
+With no `--skill`/`--all`/`--list` and multiple skills found, an interactive multiselect lets you pick which to install. Without a terminal (or with `--yes`), every discovered skill is installed. Examples:
 
 ```bash
 uac skill add vercel-labs/agent-skills --list          # list available skills

@@ -16,7 +16,7 @@ List directories in `<%= skillTemplatePath() %>/` to discover existing skills. E
 
 - **Create new**: when the task/workflow is distinct from existing skills
 - **Update existing**: when a skill covers similar ground but needs changes — modify its `SKILL.md` or supporting files
-- **Delete**: remove the entire skill directory when a skill is obsolete
+- **Delete**: remove the entire skill directory when a skill is obsolete, then run `uac generate --clean` so its output goes too
 
 ## Creating a New Skill
 
@@ -26,7 +26,7 @@ List directories in `<%= skillTemplatePath() %>/` to discover existing skills. E
 
 ### Frontmatter Fields
 
-Key fields: `name` (must match the folder name: lowercase letters, digits and hyphens, at most 64 characters), `description` (required), `disableAutoInvocation`, `userInvocable`, `allowedTools`, `skillPaths`, `model`, `hooks`, `metadata` (string values only), `codex`. uac warns when a skill breaks these Agent Skills spec rules. Every field with its per-target support: `<%= docPath('uac/frontmatter') %>`. Per-target override syntax: `<%= instructionPath('uac-template-guide') %>`.
+Key fields: `name` (must match the folder name: lowercase letters, digits and hyphens, at most 64 characters), `description` (required), `disableAutoInvocation`, `userInvocable`, `allowedTools`, `skillPaths`, `model`, `hooks`, `metadata` (string values only), `codex`. uac warns when a skill breaks these Agent Skills spec rules. Every field with its per-target support: `<%= docPath('uac/frontmatter') %>`. Per-target override syntax: `<%= docPath('uac/templates') %>`.
 
 ### Codex-specific UI metadata
 

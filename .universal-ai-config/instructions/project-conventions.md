@@ -129,7 +129,7 @@ Each target in `src/targets/` implements `TargetDefinition` (`src/targets/define
 
 1. Create `src/targets/{name}/index.ts` implementing `TargetDefinition`
 2. Register it in `src/targets/index.ts`
-3. Add the name to the `Target` union in `src/types.ts` and every per-target key list (config schema, `OVERRIDE_KEYS`, `mergeField`'s `TARGET_KEYS`, default `outputDirs`)
+3. Add the name to the `Target` union in `src/types.ts` and every per-target key list (config schema, `OVERRIDE_KEYS`, `mergeField`'s `TARGET_KEYS`, default `targets` and `outputDirs`)
 
 ## Config System
 
@@ -198,6 +198,7 @@ Instructions and skills come from uac templates (**template mode**, the default 
 - When adding features, prefer extending an existing fixture or creating a new one over modifying `basic-project`
 - Cover every change with automated tests at each layer it touches: unit, fixture (integration) and CLI (`CliProject`, e2e), not unit tests alone. We rarely test manually, so the suite is what proves a change works.
 - Run **`pnpm check`** (lint + knip + test + tsc) before considering work complete
+- Work is complete only when its docs are too: update what [Where to document a change](#where-to-document-a-change) names in the same change (seed sources, then `pnpm uac seed meta-instructions`). `tests/unit/docs-coverage.test.ts` fails when a frontmatter field, hook event, config option, CLI flag, EJS helper or diagnostic code isn't named in its doc, but no test can tell a stale description from a correct one
 
 ## Documentation
 
@@ -205,9 +206,9 @@ Documentation lives in two places with different audiences, and every fact has o
 
 ### `README.md` — for humans
 
-The README is the public-facing overview for people discovering the package on npm/GitHub: the pitch, the two modes, install, quick start, one short section per concept, the commands table, the docs index, one API example and contributing links. It names and summarizes; it never lists fields, flags, options, per-target behavior or API signatures — it links the doc that has them. Links point at this repo's rendered copies in `.universal-ai-config/docs/uac/` (the seed sources show raw EJS).
+The README is the public-facing overview for people discovering the package on npm/GitHub: the pitch, the two modes, install, quick start, one short section per concept, a Configuration section (one line per option, excludes, overrides and `mergeField`), the commands table, the docs index, one API example and contributing links. It names and summarizes; apart from the options table it never lists fields, flags, per-target behavior or API signatures — it links the doc that has them. Links point at this repo's rendered copies in `.universal-ai-config/docs/uac/` (the seed sources show raw EJS).
 
-Tests keep it honest: `tests/unit/readme.test.ts` fails on a broken link or anchor in the README or a reference doc, and on a doc missing from the README's Documentation table; `tests/unit/seed.test.ts` fails when a seeded copy in `.universal-ai-config/` differs from its seed source.
+Tests keep it honest: `tests/unit/readme.test.ts` fails on a broken link or anchor in the README or a reference doc, on a doc missing from the README's Documentation table, and on a config option missing from its Configuration table; `tests/unit/seed.test.ts` fails when a seeded copy in `.universal-ai-config/` differs from its seed source.
 
 ### Meta-instruction templates — for AIs
 
@@ -227,13 +228,14 @@ The seed templates in `src/seed-types/meta-instructions/templates/` are seeded i
 | Hook event, handler field, matcher behavior       | `docs/uac/hooks.md`                                                                                                                                                                                                |
 | MCP server field, output path, opt-in filtering   | `docs/uac/mcp.md`                                                                                                                                                                                                  |
 | CLI command or flag                               | `docs/uac/cli.md` (+ a one-liner in `uac-usage.md` for a new command or common flag)                                                                                                                               |
-| Config option, precedence/exclude/clean semantics | `docs/uac/config.md` (+ a one-liner in `uac-usage.md` for a new option)                                                                                                                                            |
+| Config option, precedence/exclude/clean semantics | `docs/uac/config.md` (+ a one-liner in `uac-usage.md` and a row in the README's Configuration table for a new option)                                                                                              |
 | Codex output paths, caveats, untranslated values  | `docs/uac/codex.md`                                                                                                                                                                                                |
 | Tool names per target                             | `docs/uac/tools.md`                                                                                                                                                                                                |
 | Model IDs per target                              | `docs/uac/models.md`                                                                                                                                                                                               |
 | EJS variable or path helper                       | `docs/uac/templates.md` (+ its name in the guide's EJS Templating section)                                                                                                                                         |
 | A new doc file                                    | link it with `docPath()` from `uac-usage.md` or the guide and from any skill that needs it; add it to `UAC_DOCS` in `tests/unit/seed.test.ts` and a row to the README's Documentation table (tests fail otherwise) |
 | Standards-mode behaviour (`standards`)            | `docs/uac/standards.md` (+ a mode branch in the affected instruction or skill)                                                                                                                                     |
+| Diagnostic code                                   | name it, in backticks, in the doc that explains the behavior behind it                                                                                                                                             |
 | Public API export, option or type                 | its TSDoc comment, which is the API reference (the README shows one example only)                                                                                                                                  |
 | New command, mode, target or core concept         | the docs above, plus the matching README section or table row (Commands, What you get, the modes table)                                                                                                            |
 

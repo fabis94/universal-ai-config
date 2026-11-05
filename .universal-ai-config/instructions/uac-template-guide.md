@@ -131,11 +131,11 @@ Hooks are JSON files; every file in `hooks/` merges into one output per target:
 ```
 
 - Use **camelCase universal event names** — `sessionStart`, `sessionEnd`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `stop`, and more. uac maps them to each target's name and silently drops events a target doesn't support.
-- Core handler fields: `command`, `matcher`, `timeout` (seconds). `type` defaults to `command`; other types run only where supported (Claude: all; Copilot: `http`, `prompt`; Cursor: `prompt`; Codex: `mcp_tool`).
+- Core handler fields: `command`, `matcher`, `timeout` (seconds). `type` defaults to `command`; other types run only on targets that support them.
 - Handler fields accept per-target values. A handler whose `command` resolves to nothing for a target is skipped there, and identical handlers from different files are emitted once.
 - With claude and copilot in one run, only Claude's hooks are written (Copilot runs them).
 
-Full handler fields, the event mapping table per target, matcher patterns, and per-target caveats: `<%= docPath('uac/hooks') %>`
+Full handler fields, the handler types and events each target runs, matcher patterns, and per-target caveats: `<%= docPath('uac/hooks') %>`
 
 ## Variables in JSON Templates
 

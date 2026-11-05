@@ -40,7 +40,7 @@ They return where a template lands for the target being generated, following `ou
 | `agentPath(name?)`          | An agent's output file, or the agents directory                       |
 | `docPath(name?)`            | A [reference doc](#reference-docs), or the docs directory             |
 
-What they return per target:
+What they return per target (the Claude, Copilot and Cursor `instructionPath` cells assume AGENTS.md isn't generated; see below):
 
 | Call                                     | Claude                               | Copilot                                             | Cursor                               | Codex                                |
 | ---------------------------------------- | ------------------------------------ | --------------------------------------------------- | ------------------------------------ | ------------------------------------ |
@@ -98,7 +98,7 @@ Return errors as `{ code, message }`. Full error code table: <%= docPath('api-er
 
 ## Per-target values
 
-Any frontmatter field, hook handler field or MCP server field can take one value per target. A value counts as per-target when it is an object whose keys are all target names (`claude`, `copilot`, `cursor`, `codex`) or `default`. Each target gets its own key's value, or else `default`; with neither, the field is dropped for that target. An object with any other key (e.g. `metadata: { category: "devops" }`) passes through unchanged, and plain values apply to every target.
+Any frontmatter field, hook handler field or MCP server field can take one value per target. A value counts as per-target when it is an object whose keys are all target names (`claude`, `copilot`, `cursor`, `codex`) or `default`. Each target gets its own key's value, or else `default`; with neither, the field is dropped for that target. An object with any other key (e.g. `metadata: { category: "devops" }`) passes through unchanged, and plain values apply to every target. Only a field's whole value is resolved: a per-target object nested inside a field (one `env` key, `codex.interface.displayName`) is passed through as is.
 
 ```yaml
 ---
@@ -117,7 +117,7 @@ permissionMode:
 ---
 ```
 
-Claude gets all three fields and Copilot gets `model` and `tools`. Cursor gets `model` only, since its agents take no `tools` or `permissionMode`. Codex gets `model`, and uac drops `tools` and `permissionMode` with a warning, since Codex agents inherit the session's tools and sandbox.
+Claude gets all three fields and Copilot gets `model` and `tools`. Cursor and Codex get `model` only: `tools` and `permissionMode` have no value for them. (A `tools` or `permissionMode` value that did reach Codex would be dropped with a warning, since Codex agents inherit the session's tools and sandbox.)
 
 - Hook handlers and MCP servers use the same syntax: [hooks.md](hooks.md#per-target-overrides-in-hooks), [mcp.md](mcp.md#per-target-overrides-in-mcp).
 - Tool names differ per target: [tools.md](tools.md#per-target-tool-overrides). So do model IDs: [models.md](models.md).

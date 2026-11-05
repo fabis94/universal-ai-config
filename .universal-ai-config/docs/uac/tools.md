@@ -77,7 +77,7 @@ Cursor's local tool names, for hook `matcher` patterns: `Shell`, `Read`, `Write`
 
 ## Codex
 
-Codex has **no named built-in tool list** and **no agent-level allow/deny list**. The agent fields `tools`, `allowedTools`, and `disallowedTools` are dropped for Codex with a warning.
+Codex has **no named built-in tool list** and **no agent-level allow/deny list**. The agent fields `tools` and `disallowedTools` are dropped for Codex with a warning. A skill's `allowedTools` is dropped silently.
 
 Tool restriction in Codex lives **per MCP server**, via `enabledTools` (allowlist) and `disabledTools` (denylist) on the server config in your `mcp/*.json` templates:
 

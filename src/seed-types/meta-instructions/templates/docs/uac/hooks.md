@@ -58,7 +58,7 @@ Hooks use JSON format with this structure:
 
 ## Handler types
 
-Each target runs only some handler types. A handler of a type the target can't run is dropped for that target with a warning.
+Each target runs only some handler types. A handler of a type the target can't run is dropped for that target with an `unsupported` warning.
 
 | Target  | Handler types                                                            |
 | ------- | ------------------------------------------------------------------------ |
@@ -139,11 +139,11 @@ If a required field (`command` for a command handler) resolves to nothing for a 
 
 ## Duplicate Handlers
 
-Every `.json` file in `hooks/` merges into one output, so a handler declared in two files would otherwise run twice. Handlers have no name to key on, so uac compares the **resolved** handler: when two files produce an identical handler for a target, only the first one is emitted. Comparing after per-target resolution means `{ "command": { "claude": "x" } }` and `{ "command": "x" }` collapse into one handler for Claude while staying separate everywhere else.
+Every `.json` file in `hooks/` merges into one output, so a handler declared in two files would otherwise run twice. Handlers have no name to key on, so uac compares the **resolved** handler: when two handlers (in different files or the same one) resolve to the same thing for a target, only the first one is emitted. Comparing after per-target resolution means `{ "command": { "claude": "x" } }` and `{ "command": "x" }` collapse into one handler for Claude while staying separate everywhere else.
 
 Two handlers that differ in any field — a different `matcher`, `timeout`, or command — are both kept. That's a merge, not a collision.
 
-Handlers keep the order they have in the templates (files alphabetically, then declaration order). Codex relies on that: see [Codex](#codex).
+Handlers keep template order (files alphabetically, then declaration order) within each matcher group (Claude and Codex group handlers by `matcher`); the output is stable from run to run. Codex relies on that: see [Codex](#codex).
 
 ## Script paths
 
@@ -211,7 +211,7 @@ Tool names per target: [tools.md](tools.md).
 
 ### Codex
 
-- Codex trusts each hook separately, by a hash tied to its position in the file. Any `uac generate` that changes or reorders a handler makes Codex skip that hook until it is re-trusted in `/hooks`. uac keeps handler order exactly as templated so unrelated edits don't reset trust.
+- Codex trusts each hook separately, by a hash tied to its position in the file. Any `uac generate` that changes or reorders a handler makes Codex skip that hook until it is re-trusted in `/hooks`. uac writes handlers in template order within each matcher group, and the output is stable from run to run, so regenerating doesn't reset trust for unchanged hooks.
 - Hooks are enabled with `features.hooks` (formerly `features.codex_hooks`). A hand-written `[hooks]` table in `.codex/config.toml` merges with `.codex/hooks.json` and produces a startup warning.
 - Hooks run from the session's working folder: a relative command breaks when Codex is launched in a subfolder (see [Script paths](#script-paths)).
 - `mcp_tool` hooks reuse an existing MCP connection (they don't start servers), and `SessionEnd` doesn't run them.

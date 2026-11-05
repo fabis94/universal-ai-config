@@ -132,7 +132,7 @@ Run `uac generate --clean` after changing `globs` or the variation. Generate onl
 ### Skills
 
 <% if (standards.skills) { -%>
-Skills use the Agent Skills fields as the tools read them: `name` (matches the folder), `description` (when to use it), `license`, `compatibility`, `metadata` (string values), `allowed-tools`. Tool-specific fields such as `disable-model-invocation`, `user-invocable` or `argument-hint` work where a tool knows them and are ignored elsewhere.
+Skills use the Agent Skills fields as the tools read them (`user-invocable`, not uac's `userInvocable`). Every field: `.agents/skills/update-skill/SKILL.md`
 <% } else { -%>
 Most-used fields: `name` (the slash command), `description` (when to use it), `disableAutoInvocation` (manual slash command only), `userInvocable` (`false` = only the AI can trigger it), `allowedTools`, `model`, `argumentHint`. Many fields are Claude-only or Codex-only.
 
@@ -158,11 +158,11 @@ Hooks are JSON files; every file in `hooks/` merges into one output per target:
 ```
 
 - Use **camelCase universal event names** — `sessionStart`, `sessionEnd`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `stop`, and more. uac maps them to each target's name and silently drops events a target doesn't support.
-- Core handler fields: `command`, `matcher`, `timeout` (seconds). `type` defaults to `command`; other types run only where supported (Claude: all; Copilot: `http`, `prompt`; Cursor: `prompt`; Codex: `mcp_tool`).
+- Core handler fields: `command`, `matcher`, `timeout` (seconds). `type` defaults to `command`; other types run only on targets that support them.
 - Handler fields accept per-target values. A handler whose `command` resolves to nothing for a target is skipped there, and identical handlers from different files are emitted once.
 - With claude and copilot in one run, only Claude's hooks are written (Copilot runs them).
 
-Full handler fields, the event mapping table per target, matcher patterns, and per-target caveats: `<%%= docPath('uac/hooks') %>`
+Full handler fields, the handler types and events each target runs, matcher patterns, and per-target caveats: `<%%= docPath('uac/hooks') %>`
 
 ## Variables in JSON Templates
 
@@ -227,8 +227,16 @@ Full tool lists per target and common combinations: `<%%= docPath('uac/tools') %
 
 Codex differs most from the other targets:
 
+<% if (standards.instructions) { -%>
+- Instructions are the project's own `AGENTS.md` files; Codex loads nested ones only on the path it was launched in.
+<% } else { -%>
 - Instructions are the [AGENTS.md](#agentsmd) output; Codex loads nested AGENTS.md files only on the path it was launched in.
+<% } -%>
+<% if (standards.skills) { -%>
+- Agents become `.codex/agents/<name>.toml`. Codex reads skills from `.agents/skills/` as they are.
+<% } else { -%>
 - Agents become `.codex/agents/<name>.toml`, and skills go to `.agents/skills/<name>/`.
+<% } -%>
 - Agents can't set `tools`, `permissionMode`, `skills` or `mcpServers` (they inherit the session's); those are dropped with a warning, and `claude-*` models need a per-target override.
 - `.codex/config.toml` is shared with user content; uac owns only `[mcp_servers.*]`.
 

@@ -47,7 +47,7 @@ List files in `<%%= hookTemplatePath() %>/` to discover existing hook templates 
 
 Use camelCase event names (e.g. `sessionStart`, `preToolUse`, `postToolUse`). The CLI maps them to each target's format and silently drops events a target doesn't support. Handler fields (`command`, `matcher`, `timeout`) accept per-target values.
 
-Before using an event, handler type or field, check `<%%= docPath('uac/hooks') %>`. It has the per-target event table, which handler types each target runs (non-`command` types are dropped where unsupported), every handler field with its targets, matcher syntax per target (Cursor calls the shell tool `Shell`), and per-target caveats (Codex trust, Cursor and Copilot also running Claude's hooks).
+Before using an event, handler type or field, check `<%%= docPath('uac/hooks') %>`. It has the per-target event table, which handler types each target runs (non-`command` types are dropped where unsupported), every handler field with its targets, matcher syntax and tool names per target (give a tool `matcher` per-target values, as in the example below), and per-target caveats (Codex trust, Cursor and Copilot also running Claude's hooks).
 
 ### Script paths
 
@@ -60,7 +60,7 @@ Hooks run from the session's working folder, which may be a subfolder. Make comm
   "hooks": {
     "postToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": { "default": "Write|Edit", "cursor": "Write", "copilot": "create|edit" },
         "command": "\"$(git rev-parse --show-toplevel)/scripts/format-file.sh\"",
         "timeout": 60,
         "description": "Auto-format files after edits"
@@ -68,7 +68,7 @@ Hooks run from the session's working folder, which may be a subfolder. Make comm
     ],
     "sessionStart": [
       {
-        "command": "echo 'Session started at $(date)'",
+        "command": "echo \"Session started at $(date)\"",
         "description": "Log session start"
       }
     ]

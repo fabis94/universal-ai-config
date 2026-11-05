@@ -490,8 +490,9 @@ describe("generate", () => {
       const agent = files.find((f) => f.type === "agents" && f.target === "codex");
       expect(agent).toBeDefined();
       expect(agent!.path).toBe(".codex/agents/reviewer.toml");
-      // body becomes developer_instructions; standalone TOML format
-      expect(agent!.content).toContain('name = "reviewer"');
+      // The frontmatter name, like every other target; the file keeps the template's name.
+      // The body becomes developer_instructions; standalone TOML format
+      expect(agent!.content).toContain('name = "code-reviewer"');
       expect(agent!.content).toContain("developer_instructions");
       expect(agent!.content).toContain("code reviewer");
     });

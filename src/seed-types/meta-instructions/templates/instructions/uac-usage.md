@@ -31,7 +31,7 @@ It works from any subdirectory — uac searches upward for the project root. `--
 
 ## Commands
 
-- `uac generate` — render templates into target configs. `-t claude,codex` replaces the configured targets, `--type skills` limits types (`--type all` for every type), `-d` previews, `-v` shows per-file output and warning details. Add `--clean` after renaming or deleting a template, changing `globs`, `targets` or `agentsMd.variation`, so stale outputs get removed.
+- `uac generate` — render templates into target configs. `-t claude,codex` replaces the configured targets, `--type skills` limits types (`--type all` for every type), `-d` previews, `-v` shows per-file output and warning details. Add `--clean` after renaming or deleting a template<% if (standards.skills) { %> or a skill<% } %>, changing `globs`, `targets` or `agentsMd.variation`, so stale outputs get removed.
 - `uac clean` — remove generated files (every target unless `-t` is given; only the types in `types` unless `--type` is given).
 - `uac seed <meta-instructions|examples|gitignore>` — add pre-built template sets.
 - `uac skill add <source>` — copy skills from a GitHub repo or local path into <% if (standards.skills) { %>`.agents/skills/`<% } else { %>the templates<% } %> (`--list`, `-s <names>`, `--all`).

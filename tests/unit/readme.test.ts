@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { access, readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
+import { userConfigSchema } from "../../src/config/schema.js";
 
 // The README summarizes and links; the reference docs hold the detail. These
 // checks keep the links between them working as either side changes.
@@ -66,6 +67,26 @@ describe("README", () => {
 
     const listed = localLinks(section!).map((link) => relative(DOCS_DIR, join(ROOT, link)));
     expect(listed.filter((name) => name.endsWith(".md")).sort()).toEqual(await docFiles());
+  });
+});
+
+describe("README configuration", () => {
+  // A short summary of every option, kept complete as options come and go
+  const section = async () => {
+    const readme = await readFile(join(ROOT, "README.md"), "utf-8");
+    return readme.split(/^## /m).find((s) => s.split("\n")[0]!.includes("Configuration"))!;
+  };
+
+  it("names every config option", async () => {
+    const named = new Set([...(await section()).matchAll(/`(\w+)`/g)].map((m) => m[1]!));
+    const missing = Object.keys(userConfigSchema.shape).filter((option) => !named.has(option));
+    expect(missing, "add a row to the README's Configuration table").toEqual([]);
+  });
+
+  it("lists only options that exist", async () => {
+    const rows = [...(await section()).matchAll(/^\| `(\w+)`/gm)].map((m) => m[1]!);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.filter((row) => !(row in userConfigSchema.shape))).toEqual([]);
   });
 });
 

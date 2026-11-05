@@ -62,7 +62,7 @@ MCP server configs define external tool servers. They use JSON format with this 
 
 \*A server must have either `command` or `url`. If neither is present after override resolution, the server is dropped for that target.
 
-**No VS Code `.vscode/mcp.json` fields.** uac writes the portable `.mcp.json` for Copilot, which has no `inputs`, `envFile`, `sandbox`, `sandboxEnabled` or `dev`. They are dropped with a warning, and so is a server value that uses `${input:…}` (Copilot sessions skip such servers). Use `${NAME}` environment variables instead.
+**No VS Code `.vscode/mcp.json` fields.** uac writes the portable `.mcp.json` for Copilot, which has no `inputs`, `envFile`, `sandbox`, `sandboxEnabled` or `dev`. They are dropped with a `legacy-field` warning. A server value that uses `${input:…}` is written as is, with a warning, because Copilot sessions skip such servers. Use `${NAME}` environment variables instead.
 
 ## Environment variables
 
@@ -72,7 +72,7 @@ MCP server configs define external tool servers. They use JSON format with this 
 - Cursor: `${env:NAME}` is the documented form (bare `${NAME}` also works), plus `${userHome}`, `${workspaceFolder}`, `${workspaceFolderBasename}`, `${pathSeparator}` / `${/}` — resolved in `command`, `args`, `env`, `url`, `headers` and `auth`
 - Codex: use `envVars`, `bearerTokenEnvVar` and `envHttpHeaders` to pull values from the environment
 
-When the syntax differs, give the value per target: `"env": { "API_KEY": { "cursor": "${env:API_KEY}", "default": "${API_KEY}" } }`.
+When the syntax differs, give the whole field per target: `"env": { "cursor": { "API_KEY": "${env:API_KEY}" }, "default": { "API_KEY": "${API_KEY}" } }`. A per-target value nested inside a field (one `env` key) is not resolved.
 
 ## Per-Target Overrides in MCP
 
@@ -102,7 +102,7 @@ Server fields support per-target values (same syntax as hooks):
 
 ## Claude and Copilot share `.mcp.json`
 
-Copilot CLI, the Copilot app and VS Code's default Copilot harness read the root `.mcp.json` (and prefer it over `.github/mcp.json`). With claude and copilot in one run both would write it, so uac writes it once, rendered for Claude, and warns. Copilot then loses Copilot-only values: per-target `copilot` overrides, `deferTools`, `tools`. Usually you only need one of these targets on a machine — set `targets` in `universal-ai-config.overrides.ts` (see [config.md](config.md#shared-outputs-and-one-target-set-per-machine)).
+Copilot CLI, the Copilot app and VS Code's default Copilot harness read the root `.mcp.json` (and prefer it over `.github/mcp.json`). With claude and copilot in one run both would write it, so uac writes it once, rendered for Claude, and warns. Copilot then loses per-target `copilot` overrides and the fields only Copilot's rendering writes: `cwd`, `deferTools`, `tools` (from `enabledTools`), `oauthClientId` and `oauthScopes`. Usually you only need one of these targets on a machine — set `targets` in `universal-ai-config.overrides.ts` (see [config.md](config.md#shared-outputs-and-one-target-set-per-machine)).
 
 Because Copilot may read it, Claude's rendering keeps `.mcp.json` valid for both: a `type` outside Claude's set (e.g. Copilot's `"local"`) is dropped with a warning, and `timeout` must be whole milliseconds. Copilot doesn't accept `"ws"` servers.
 
@@ -151,7 +151,7 @@ mcp: {
 Notes:
 
 - `mcpServers: []` with `forceOptIn: true` → no servers emitted for that target, MCP output file skipped entirely.
-- Unknown names (typos, renamed servers) emit a `[uac]` warning listing the known names; generation continues with the matched subset.
+- Unknown names (typos, renamed servers) emit an `mcp-unknown-server` warning for each target, listing the known names; generation continues with the matched subset.
 - Filtering operates on **server names** (the keys under `mcpServers` inside each `mcp/*.json`). Field-level per-target overrides on individual servers still resolve before filtering.
 - Filtering is **server-level**; `exclude` is **file-level**. They're additive — you can exclude a whole file and still opt-in to specific servers from the remaining files.
 - When claude and copilot share `.mcp.json`, the file follows Claude's opt-in list.

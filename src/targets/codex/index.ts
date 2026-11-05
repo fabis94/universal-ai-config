@@ -307,7 +307,7 @@ function renderCodexAgent(
   }
 
   const tomlObj: Record<string, unknown> = {
-    name,
+    name: fm.name ?? name,
     description,
     developer_instructions: instructions,
   };

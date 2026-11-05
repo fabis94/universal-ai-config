@@ -4,7 +4,7 @@ Codex is structurally different from Claude, Copilot, and Cursor. This page cove
 
 ## Output paths
 
-Codex writes to several locations, most of them outside its `outputDir`, because these are the paths Codex discovers on its own:
+Codex output goes to several locations, because these are the paths Codex discovers on its own. Only `.codex/agents/` and `.codex/hooks.json` follow `outputDirs.codex`; the rest stay where they are:
 
 - **`AGENTS.md` files** — Codex reads only AGENTS.md for instructions, so with `codex` as a target uac always generates the AGENTS.md output (`agentsMd.enable: false` is ignored with a warning). Where each instruction lands depends on `agentsMd.variation` — see [config.md](config.md):
   - `nested` (default): root `AGENTS.md` for always-on, folder-less and unscoped templates; `<dir>/AGENTS.md` for folder-scoped `globs` (`packages/web/**` → `packages/web/AGENTS.md`)
@@ -15,9 +15,11 @@ Codex writes to several locations, most of them outside its `outputDir`, because
 - **`.codex/hooks.json`** — hooks
 - **`.codex/config.toml`** — only the `mcp_servers` table is uac's; every other key in the file is yours and is preserved
 
+With `standards` (see [standards.md](standards.md)), a type kept in a standard gets nothing from uac: Codex reads the project's own AGENTS.md files or `.agents/skills`, and uac never writes, cleans or gitignores them.
+
 uac 2.x wrote `<dir>/AGENTS.override.md` files instead of nested `AGENTS.md`. Codex reads one instead of the new `AGENTS.md` in the same folder, so `uac generate` and `uac clean` list any they find and, in a terminal, ask to delete them (see [cli.md](cli.md#leftover-agentsoverridemd-files)). Set `agentsMd.keepOverrideFiles: true` if yours are hand-written.
 
-All of these are gitignored by `uac seed gitignore` (every `AGENTS.md`, nested ones included), so each developer regenerates locally. Clean removes uac's Codex output whole — every `AGENTS.md` in the project, the index dir, `.agents/skills/`, `.codex/agents/`, `.codex/hooks.json` — except the `mcp_servers` key of `.codex/config.toml`. If you deliberately commit a file at one of these paths, add it to `preserveOnClean`.
+All of these are gitignored by `uac seed gitignore` (every `AGENTS.md`, nested ones included), so each developer regenerates locally. Clean removes uac's Codex output whole — every `AGENTS.md` in the project, the index dir, `.agents/skills/`, `.codex/agents/`, `.codex/hooks.json` — and only the `mcp_servers` key of `.codex/config.toml`. If you deliberately commit a file at one of these paths, add it to `preserveOnClean`.
 
 ## Runtime caveats
 
@@ -42,7 +44,7 @@ All of these are gitignored by `uac seed gitignore` (every `AGENTS.md`, nested o
 
 **Hooks**
 
-- **Trust:** Codex trusts each hook by a hash of the hook and its position in the file. New or changed hooks are skipped until re-trusted in `/hooks` — so a `uac generate` that changes a handler disables it until then. uac keeps handler order exactly as in your templates so regenerating doesn't invalidate unchanged hooks.
+- **Trust:** Codex trusts each hook by a hash of the hook and its position in the file. New or changed hooks are skipped until re-trusted in `/hooks` — so a `uac generate` that changes a handler disables it until then. uac writes handlers in template order within each matcher group (Claude and Codex group handlers by `matcher`); the output is stable from run to run, so regenerating doesn't invalidate unchanged hooks.
 - **Feature flag:** `features.codex_hooks` was renamed to `features.hooks` (the old key is a deprecated alias).
 - **Relative commands:** hooks run in the session's working folder, so `./scripts/x.sh` breaks when Codex is launched from a subfolder. Use paths that work from anywhere (e.g. `$(git rev-parse --show-toplevel)/scripts/x.sh`).
 - A hand-authored inline `[hooks]` table in `.codex/config.toml` is merged with uac's `hooks.json`, with a startup warning.
@@ -69,6 +71,6 @@ Some universal fields have values that look the same across targets but carry ta
 
 These map cleanly:
 
-- `effort` → `model_reasoning_effort`: every Claude value (`low`, `medium`, `high`, `xhigh`, `max`) is a Codex value; Codex also takes `ultra`. Support varies by model.
+- `effort` → `model_reasoning_effort`: every Claude value (`low`, `medium`, `high`, `xhigh`, `max`) is a Codex value; Codex also takes `none`, `minimal` and `ultra`. Any other value is dropped with a warning. Support varies by model.
 - `disableAutoInvocation` (skills) → `policy.allow_implicit_invocation: false` in `agents/openai.yaml`.
 - `version` / `author` (skills) → `metadata.version` / `metadata.author` in SKILL.md.

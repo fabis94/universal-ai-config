@@ -6,7 +6,7 @@ description: Create, update, or manage AI configuration templates. Analyzes what
 # Manage AI Config Templates
 
 <% if (standards.instructions || standards.skills) { -%>
-**IMPORTANT:** This project uses universal-ai-config (`uac`). AI configuration lives in the `<%%= config.templatesDir %>/` directory as universal templates, except<% if (standards.instructions) { %> instructions, which are the project's own `AGENTS.md` files<% } %><% if (standards.instructions && standards.skills) { %>, and<% } %><% if (standards.skills) { %> skills, which are the project's own `.agents/skills/` folders<% } %> — edit those directly. NEVER edit generated target-specific files (e.g. `.claude/`, `.github/copilot-instructions.md`, `.cursor/`, `.codex/`, `.mcp.json`) directly — those are overwritten on every `uac generate` run.
+**IMPORTANT:** This project uses universal-ai-config (`uac`). AI configuration lives in the `<%%= config.templatesDir %>/` directory as universal templates, except<% if (standards.instructions) { %> instructions, which are the project's own `AGENTS.md` files<% } %><% if (standards.instructions && standards.skills) { %>, and<% } %><% if (standards.skills) { %> skills, which are the project's own `.agents/skills/` folders<% } %> — edit those directly. NEVER edit generated target-specific files (e.g. `.claude/`, <% if (!standards.instructions) { %>`.github/copilot-instructions.md`, <% } %>`.cursor/`, `.codex/`, `.mcp.json`) directly — those are overwritten on every `uac generate` run.
 <% } else { -%>
 **IMPORTANT:** This project uses universal-ai-config (`uac`). All AI configuration lives in the `<%%= config.templatesDir %>/` directory as universal templates. NEVER edit generated target-specific files (e.g. `.claude/`, `.github/copilot-instructions.md`, `.cursor/`, `.codex/`, `AGENTS.md` files, `.agents/`, `.mcp.json`) directly — those are overwritten on every `uac generate` run. Always modify the source templates in `<%%= config.templatesDir %>/`.
 <% } -%>
@@ -77,4 +77,7 @@ Every token in a template costs model attention — ~60% of instruction tokens a
 
 ## After Changes
 
-Run `uac generate` to regenerate target-specific config files and verify the output.
+Run `uac generate` to regenerate target-specific config files and verify the output. After renaming or deleting a template<% if (standards.skills) { %> or a skill<% } %>, or changing an instruction's `globs`, run `uac generate --clean` instead, so stale outputs are removed.
+<% if (standards.instructions) { -%>
+Edits to `AGENTS.md` files need no generate: every tool reads them as they are.
+<% } -%>

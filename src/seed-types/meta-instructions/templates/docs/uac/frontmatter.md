@@ -1,20 +1,20 @@
 # Frontmatter reference
 
-Every frontmatter field uac understands for **instructions**, **skills** and **agents**, with the targets that use it. Fields a target doesn't support are dropped for that target (with a warning where the target would otherwise lose something). Any field can take per-target values (`{ claude: ..., copilot: ..., default: ... }`, see [templates.md](templates.md#per-target-values)).
+Every frontmatter field uac understands for **instructions**, **skills** and **agents**, with the targets that use it. Fields a target doesn't support are dropped for that target (with an `unsupported` warning where the target would otherwise lose something). Any field can take per-target values (`{ claude: ..., copilot: ..., default: ... }`, see [templates.md](templates.md#per-target-values)).
 
 ## Instructions
 
-Output: `.claude/rules/<name>.md`, `.github/instructions/<name>.instructions.md` (`.github/copilot-instructions.md` when `alwaysApply`), `.cursor/rules/<name>.mdc`, or the AGENTS.md files whenever those are generated ([config.md](config.md#agentsmd-output)).
+Output: `.claude/rules/<name>.md`, `.github/instructions/<name>.instructions.md`, `.cursor/rules/<name>.mdc`, or the AGENTS.md files whenever those are generated ([config.md](config.md#agentsmd-output)). Copilot merges every `alwaysApply` instruction, sorted by name, into `.github/copilot-instructions.md`, which has no frontmatter, so `description`, `name` and `excludeAgent` don't reach it.
 
-| Field          | Targets | Description                                                                                                                    |
-| -------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `description`  | All     | What the instruction covers                                                                                                    |
-| `globs`        | All     | File patterns to scope this instruction to (string or array)                                                                   |
-| `alwaysApply`  | All     | If true, applies to all conversations regardless of files                                                                      |
-| `name`         | Copilot | Display name shown in the UI (defaults to the file name)                                                                       |
-| `excludeAgent` | Copilot | Exclude from specific agents: `"code-review"` or `"cloud-agent"` (GitHub Copilot cloud only, not VS Code Copilot Chat locally) |
+| Field          | Targets | Description                                                                                                                                    |
+| -------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description`  | All     | What the instruction covers                                                                                                                    |
+| `globs`        | All     | File patterns to scope this instruction to (string or array). Claude: `paths`; Copilot: `applyTo`; Cursor: `globs` (both comma-joined)         |
+| `alwaysApply`  | All     | If true, applies to all conversations regardless of files. Claude omits `paths`; Copilot uses `copilot-instructions.md`; Cursor: `alwaysApply` |
+| `name`         | Copilot | Display name shown in the UI (defaults to the file name)                                                                                       |
+| `excludeAgent` | Copilot | Exclude from specific agents: `"code-review"` or `"cloud-agent"` (GitHub Copilot cloud only, not VS Code Copilot Chat locally)                 |
 
-`alwaysApply` instructions are loaded into **every** session on every target (they go in the root `AGENTS.md` when AGENTS.md is generated), so keep them short and move detail into [reference docs](templates.md#reference-docs). While AGENTS.md is generated, `globs` only place an instruction in an AGENTS.md file (with a one-line scope note where needed), and `name` and `excludeAgent` have no effect.
+`alwaysApply` instructions are loaded into **every** session on every target (they go in the root `AGENTS.md` when AGENTS.md is generated), so keep them short and move detail into [reference docs](templates.md#reference-docs). While AGENTS.md is generated, `description` becomes the instruction's `##` heading (the template name when it has none), `globs` only place an instruction in an AGENTS.md file (with a one-line scope note where needed), and `name` and `excludeAgent` have no effect.
 
 ## Skills
 

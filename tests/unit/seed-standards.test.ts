@@ -271,9 +271,24 @@ describe("seeded content adapts to the mode", () => {
       expect(importer).toContain("- Agents → `.universal-ai-config/agents/{name}.md`");
     });
 
-    it("update-agent and update-skill link the guide for every tool", () => {
+    it("import-existing-ai-config never overwrites AGENTS.md and copies skill files as they are", () => {
+      const importer = skill("import-existing-ai-config");
+      // instructionTemplatePath() is AGENTS.md here: an import must add sections to it
+      expect(importer).toContain(
+        "Never overwrite an `AGENTS.md` file: add each imported instruction to it as a new section.",
+      );
+      expect(importer).not.toContain("instructionTemplatePath(");
+      expect(importer).toContain("→ `.agents/skills/my-skill/references/example.md`");
+      expect(importer).not.toContain("rendered through EJS");
+      // uac never cleans the tool folders of a standard's readers, so the import deletes them
+      expect(importer).toContain("### 6. Clean Up");
+      expect(importer).toContain("`.cursor/rules/`, `.github/instructions/`");
+      expect(importer).toContain("Instructions aren't generated in this project");
+    });
+
+    it("update-agent links the per-target syntax for every tool", () => {
       expect(skill("update-agent")).toContain(
-        "Per-target override syntax: `.universal-ai-config/AGENTS.md`",
+        "Per-target override syntax: `.universal-ai-config/docs/uac/templates.md`",
       );
     });
   });
@@ -281,7 +296,7 @@ describe("seeded content adapts to the mode", () => {
   describe('"skills" — instructions stay templates', () => {
     const { entries } = plan("skills");
     it("skills link the guide's template, which every tool can open", () => {
-      for (const name of ["update-agent", "update-ai-config", "update-instruction"]) {
+      for (const name of ["update-ai-config", "update-instruction"]) {
         expect(content(entries, `.agents/skills/${name}/SKILL.md`), name).toContain(
           ".universal-ai-config/instructions/uac-template-guide.md",
         );
@@ -297,6 +312,11 @@ describe("seeded content adapts to the mode", () => {
     it("update-instruction keeps the template workflow", () => {
       const instruction = content(entries, ".agents/skills/update-instruction/SKILL.md");
       expect(instruction).toContain("# Manage Instruction Templates");
+    });
+    it("import-existing-ai-config sends skill files to .agents/skills, instructions to templates", () => {
+      const importer = content(entries, ".agents/skills/import-existing-ai-config/SKILL.md");
+      expect(importer).toContain("→ `.agents/skills/my-skill/references/example.md`");
+      expect(importer).not.toContain("Never overwrite an `AGENTS.md` file");
     });
   });
 
@@ -315,6 +335,14 @@ describe("seeded content adapts to the mode", () => {
         "# Manage Skill Templates",
       );
     });
+    it("import-existing-ai-config adds instructions to AGENTS.md, skill files stay templates", () => {
+      const importer = content(
+        entries,
+        ".universal-ai-config/skills/import-existing-ai-config/SKILL.md",
+      );
+      expect(importer).toContain("Never overwrite an `AGENTS.md` file");
+      expect(importer).toContain("<%= skillTemplatePath() %>/my-skill/references/example.md");
+    });
   });
 
   it("template mode keeps every template-mode sentence", () => {
@@ -326,6 +354,13 @@ describe("seeded content adapts to the mode", () => {
     expect(content(entries, ".universal-ai-config/skills/update-ai-config/SKILL.md")).toContain(
       "`AGENTS.md` files, `.agents/`",
     );
+    const importer = content(
+      entries,
+      ".universal-ai-config/skills/import-existing-ai-config/SKILL.md",
+    );
+    expect(importer).toContain("<%= instructionTemplatePath('coding-style') %>");
+    expect(importer).toContain("<%= skillTemplatePath() %>/my-skill/references/example.md");
+    expect(importer).not.toContain("Never overwrite an `AGENTS.md` file");
   });
 
   it("uac-usage stays under its budget in every mode", () => {

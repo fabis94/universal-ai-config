@@ -46,7 +46,7 @@ If no existing instruction fits, investigate the project to decide where the ins
     copilot: Copilot-specific description
     default: Default description
   ```
-- **Delete**: when an instruction is obsolete or fully superseded by another
+- **Delete**: when an instruction is obsolete or fully superseded by another; then run `uac generate --clean` so its output goes too
 
 ## Creating a New Instruction
 
@@ -56,13 +56,13 @@ If no existing instruction fits, investigate the project to decide where the ins
 
 ### Frontmatter Fields
 
-See the **Instructions** section in `<%= instructionPath('uac-template-guide') %>` for the complete field reference. Key fields: `description`, `globs`, `alwaysApply`, `excludeAgent`.
+Key fields: `description`, `globs`, `alwaysApply`, `excludeAgent`. Every field with its per-target support: `<%= docPath('uac/frontmatter') %>`.
 
 ### When to use `alwaysApply` vs `globs`
 
 - Use `alwaysApply: true` for project-wide conventions that should always be active
 - Use `globs` to scope instructions to specific file types or directories (e.g. `["src/api/**"]` for API-specific rules)
-- If neither is set, the instruction may still be applied by some targets based on relevance
+- If neither is set, the instruction lands in the root `AGENTS.md` (loaded in every session) whenever AGENTS.md is generated; otherwise Cursor applies it only when its agent finds the `description` relevant. Set one of them.
 
 ### Keep always-on instructions short
 
@@ -70,12 +70,7 @@ See the **Instructions** section in `<%= instructionPath('uac-template-guide') %
 
 ### AGENTS.md routing
 
-When `codex` is a target or `agentsMd.enable` is set, instructions are written to AGENTS.md files, and Claude, Cursor and Copilot read those instead of their own instruction files. With the default `nested` variation:
-
-- `alwaysApply: true`, no `globs`, or globs without a folder (`**/*.ts`) → root `AGENTS.md`
-- folder-scoped `globs` (e.g. `packages/frontend/**`) → `packages/frontend/AGENTS.md`
-
-Prefer folder-scoped `globs` over file patterns, since AGENTS.md can only scope by folder; a file pattern gets a one-line scope note in the root file. **Editing `globs` can move the output file**, so run `uac generate --clean` after any glob change. Variations and what each target loses: `<%= docPath('uac/config') %>`.
+When `codex` is a target or `agentsMd.enable` is set, instructions are written to AGENTS.md files, and Claude, Cursor and Copilot read those instead of their own instruction files. AGENTS.md can only scope by folder, so prefer folder-scoped `globs` (`packages/frontend/**`) over file patterns (`**/*.ts`). **Editing `globs` can move the output file**, so run `uac generate --clean` after any glob change. Where each instruction lands per variation, and what each target loses: `<%= docPath('uac/config') %>`.
 
 ### Example
 

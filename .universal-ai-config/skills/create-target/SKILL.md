@@ -122,7 +122,7 @@ Once the plan is approved, execute it:
 
 7. **Implement `defineTarget()`** — follow the approved plan to build the full target definition
 
-8. **Register the target** — add to `src/targets/index.ts` and the `Target` union in `src/types.ts`, then to every per-target key list: `targetSchema` and `perTargetSchema` in `src/config/schema.ts`, `outputDirs` in `src/config/schema.ts` and `src/config/defaults.ts`, `OVERRIDE_KEYS` in `src/core/resolve-overrides.ts`, and `TARGET_KEYS` in `src/config/merge-field.ts`
+8. **Register the target** — add to `src/targets/index.ts` and the `Target` union in `src/types.ts`, then to every per-target key list: `targetSchema` and `perTargetSchema` in `src/config/schema.ts`, `outputDirs` in `src/config/schema.ts` and `src/config/defaults.ts`, the default `targets` in `src/config/defaults.ts`, `OVERRIDE_KEYS` in `src/core/resolve-overrides.ts`, and `TARGET_KEYS` in `src/config/merge-field.ts`
 
 9. **Add `mcpToolRef` case** — add the new `case "<target>"` branch to `mcpToolRef()` in `src/core/parser.ts`. Add corresponding test cases to `tests/unit/parser.test.ts` (specific-tool and wildcard forms for the new target).
 

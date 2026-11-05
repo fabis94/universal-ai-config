@@ -18,7 +18,7 @@ List files in `<%%= agentTemplatePath() %>/` to discover existing agent template
 
 - **Create new**: when you need a new specialized persona with distinct capabilities
 - **Update existing**: when an agent needs adjusted tools, permissions, or system prompt
-- **Delete**: when an agent is no longer needed
+- **Delete**: when an agent is no longer needed; then run `uac generate --clean` so its output goes too
 
 ## Creating a New Agent
 
@@ -28,7 +28,7 @@ List files in `<%%= agentTemplatePath() %>/` to discover existing agent template
 
 ### Frontmatter Fields
 
-Key fields: `name`, `description`, `model`, `effort`, `tools`, `permissionMode`, `skills`, `hooks`, plus Cursor's `readonly`, Copilot's `modelPolicy`, and the Codex-only `codex` block. Every field with its per-target support: `<%%= docPath('uac/frontmatter') %>`. Per-target override syntax: `<%%= <%= guidePathHelper %>('uac-template-guide') %%>`.
+Key fields: `name`, `description`, `model`, `effort`, `tools`, `permissionMode`, `skills`, `hooks`, plus Cursor's `readonly`, Copilot's `modelPolicy`, and the Codex-only `codex` block. Every field with its per-target support: `<%%= docPath('uac/frontmatter') %>`. Per-target override syntax: `<%%= docPath('uac/templates') %>`.
 
 ### Cross-target gotchas for agents
 
@@ -40,8 +40,13 @@ Key fields: `name`, `description`, `model`, `effort`, `tools`, `permissionMode`,
 ---
 name: security-reviewer
 description: Reviews code for security vulnerabilities and best practices. Use proactively after code changes.
-tools: ["Read", "Grep", "Glob", "Bash"]
-model: sonnet
+tools:
+  claude: ["Read", "Grep", "Glob", "Bash"]
+  copilot: ["read", "search", "execute"]
+model:
+  claude: sonnet
+  copilot: claude-sonnet-5.5
+  codex: gpt-6.1-sol
 ---
 
 You are a security-focused code reviewer. When invoked:
