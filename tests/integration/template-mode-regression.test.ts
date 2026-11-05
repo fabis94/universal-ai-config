@@ -53,10 +53,23 @@ const VARIANTS: Record<string, UserConfig> = {
 /** Fixtures run through every variant; the rest only through `default`. */
 const VARIANT_FIXTURES = new Set(["basic-project", "agents-md-project", "pick-one-project"]);
 
-const projectFixtures = (await readdir(FIXTURES_DIR, { withFileTypes: true }))
-  .filter((entry) => entry.isDirectory() && entry.name !== "remote-skills-repo")
-  .map((entry) => entry.name)
-  .sort();
+/**
+ * A folder with no files isn't a fixture: git doesn't track empty folders, so
+ * a leftover one exists only on one machine and would add snapshots that CI
+ * reports as obsolete.
+ */
+async function hasFiles(dir: string): Promise<boolean> {
+  const entries = await readdir(dir, { recursive: true, withFileTypes: true });
+  return entries.some((entry) => entry.isFile());
+}
+
+const projectFixtures: string[] = [];
+for (const entry of (await readdir(FIXTURES_DIR, { withFileTypes: true })).sort((a, b) =>
+  a.name.localeCompare(b.name),
+)) {
+  if (!entry.isDirectory() || entry.name === "remote-skills-repo") continue;
+  if (await hasFiles(join(FIXTURES_DIR, entry.name))) projectFixtures.push(entry.name);
+}
 
 function sha(content: string | Uint8Array): string {
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
