@@ -87,14 +87,13 @@ The tools read each other's files: Claude, Cursor and Copilot all read `AGENTS.m
 
 Templates live in `.universal-ai-config/`, one folder per type:
 
-| Folder           | Holds                                                 | Format         | Reference                                                              |
-| ---------------- | ----------------------------------------------------- | -------------- | ---------------------------------------------------------------------- |
-| `instructions/`  | Rules, always on or scoped by globs                   | Markdown + EJS | [frontmatter](.universal-ai-config/docs/uac/frontmatter.md)            |
-| `skills/<name>/` | Slash commands and workflows, plus their extra files  | Markdown + EJS | [frontmatter](.universal-ai-config/docs/uac/frontmatter.md)            |
-| `agents/`        | Subagents with their own tools and model              | Markdown + EJS | [frontmatter](.universal-ai-config/docs/uac/frontmatter.md)            |
-| `hooks/`         | Commands that run on lifecycle events                 | JSON           | [hooks](.universal-ai-config/docs/uac/hooks.md)                        |
-| `mcp/`           | MCP servers                                           | JSON           | [mcp](.universal-ai-config/docs/uac/mcp.md)                            |
-| `docs/`          | Reference docs agents read on demand, never generated | Markdown       | [templates](.universal-ai-config/docs/uac/templates.md#reference-docs) |
+| Folder           | Holds                                                | Format         | Reference                                                   |
+| ---------------- | ---------------------------------------------------- | -------------- | ----------------------------------------------------------- |
+| `instructions/`  | Rules, always on or scoped by globs                  | Markdown + EJS | [frontmatter](.universal-ai-config/docs/uac/frontmatter.md) |
+| `skills/<name>/` | Slash commands and workflows, plus their extra files | Markdown + EJS | [frontmatter](.universal-ai-config/docs/uac/frontmatter.md) |
+| `agents/`        | Subagents with their own tools and model             | Markdown + EJS | [frontmatter](.universal-ai-config/docs/uac/frontmatter.md) |
+| `hooks/`         | Commands that run on lifecycle events                | JSON           | [hooks](.universal-ai-config/docs/uac/hooks.md)             |
+| `mcp/`           | MCP servers                                          | JSON           | [mcp](.universal-ai-config/docs/uac/mcp.md)                 |
 
 An agent template, for example:
 
